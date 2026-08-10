@@ -10,10 +10,12 @@ class AvailabilityScreen extends StatefulWidget {
   const AvailabilityScreen({super.key});
 
   @override
-  State<AvailabilityScreen> createState() => _AvailabilityScreenState();
+  State<AvailabilityScreen> createState() =>
+      _AvailabilityScreenState();
 }
 
-class _AvailabilityScreenState extends State<AvailabilityScreen> {
+class _AvailabilityScreenState
+    extends State<AvailabilityScreen> {
   int selectedDayIndex = 0;
 
   bool _isLoading = true;
@@ -151,6 +153,16 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: 'Indietro',
+          onPressed: () {
+            Navigator.of(context).maybePop();
+          },
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+          ),
+        ),
         title: const Text(
           'Disponibilità Online',
         ),
@@ -812,6 +824,8 @@ class _AvailabilityScreenState extends State<AvailabilityScreen> {
       ),
     );
 
+    if (!mounted) return;
+
     setState(() {});
   }
 
@@ -938,6 +952,16 @@ class _DateExceptionScreenState
 
     return Scaffold(
       appBar: AppBar(
+        automaticallyImplyLeading: false,
+        leading: IconButton(
+          tooltip: 'Indietro',
+          onPressed: () {
+            Navigator.of(context).maybePop();
+          },
+          icon: const Icon(
+            Icons.arrow_back_ios_new_rounded,
+          ),
+        ),
         title: const Text(
           'Eccezione data',
         ),

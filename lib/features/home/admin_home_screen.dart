@@ -10,12 +10,17 @@ class AdminHomeScreen extends StatelessWidget {
     required this.onAvailability,
     required this.onExceptions,
     required this.onSettings,
+    required this.onLock,
+    required this.onLogout,
   });
 
   final VoidCallback onBookings;
   final VoidCallback onAvailability;
   final VoidCallback onExceptions;
   final VoidCallback onSettings;
+
+  final Future<void> Function() onLock;
+  final Future<void> Function() onLogout;
 
   @override
   Widget build(BuildContext context) {
@@ -42,17 +47,22 @@ class AdminHomeScreen extends StatelessWidget {
                   child: CustomScrollView(
                     slivers: [
                       SliverToBoxAdapter(
-                        child: _buildHeader(),
+                        child: _buildHeader(
+                          context,
+                        ),
                       ),
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(
+                        padding:
+                            const EdgeInsets.fromLTRB(
                           24,
                           30,
                           24,
-                          60,
+                          70,
                         ),
-                        sliver: SliverToBoxAdapter(
-                          child: _buildContent(),
+                        sliver:
+                            SliverToBoxAdapter(
+                          child:
+                              _buildContent(),
                         ),
                       ),
                     ],
@@ -64,22 +74,28 @@ class AdminHomeScreen extends StatelessWidget {
                 right: 18,
                 bottom: 12,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 5,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.black.withValues(
+                    color:
+                        AppColors.black.withValues(
                       alpha: 0.88,
                     ),
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius:
+                        BorderRadius.circular(
+                      20,
+                    ),
                   ),
                   child: Text(
                     AppVersion.fullLabel,
                     style: const TextStyle(
                       color: AppColors.gold,
                       fontSize: 11,
-                      fontWeight: FontWeight.w700,
+                      fontWeight:
+                          FontWeight.w700,
                       letterSpacing: 0.5,
                     ),
                   ),
@@ -92,7 +108,13 @@ class AdminHomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  // =========================================================
+  // HEADER
+  // =========================================================
+
+  Widget _buildHeader(
+    BuildContext context,
+  ) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -105,18 +127,80 @@ class AdminHomeScreen extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           24,
-          18,
+          14,
           24,
           28,
         ),
         child: Column(
           children: [
+            // =================================================
+            // AZIONI SUPERIORI
+            // =================================================
+
+            Row(
+              mainAxisAlignment:
+                  MainAxisAlignment.end,
+              children: [
+                TextButton.icon(
+                  onPressed: () async {
+                    await onLock();
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        AppColors.gold,
+                  ),
+                  icon: const Icon(
+                    Icons.lock_outline_rounded,
+                    size: 19,
+                  ),
+                  label: const Text(
+                    'Blocca',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+                ),
+
+                const SizedBox(
+                  width: 6,
+                ),
+
+                TextButton.icon(
+                  onPressed: () async {
+                    await _confirmLogout(
+                      context,
+                    );
+                  },
+                  style: TextButton.styleFrom(
+                    foregroundColor:
+                        AppColors.gold,
+                  ),
+                  icon: const Icon(
+                    Icons.logout_rounded,
+                    size: 19,
+                  ),
+                  label: const Text(
+                    'Logout',
+                    style: TextStyle(
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
             Image.asset(
               'assets/images/logo.png',
-              height: 230,
+              height: 210,
               fit: BoxFit.contain,
             ),
-            const SizedBox(height: 8),
+
+            const SizedBox(
+              height: 8,
+            ),
+
             const Text(
               'GESTIONALE',
               textAlign: TextAlign.center,
@@ -125,9 +209,14 @@ class AdminHomeScreen extends StatelessWidget {
                 fontSize: 28,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 2.5,
+                fontFamily: 'Georgia',
               ),
             ),
-            const SizedBox(height: 6),
+
+            const SizedBox(
+              height: 6,
+            ),
+
             const Text(
               'Le Capase Booking',
               textAlign: TextAlign.center,
@@ -136,6 +225,7 @@ class AdminHomeScreen extends StatelessWidget {
                 fontSize: 15,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 1.2,
+                fontFamily: 'Georgia',
               ),
             ),
           ],
@@ -144,9 +234,68 @@ class AdminHomeScreen extends StatelessWidget {
     );
   }
 
+  // =========================================================
+  // CONFERMA LOGOUT
+  // =========================================================
+
+  Future<void> _confirmLogout(
+    BuildContext context,
+  ) async {
+    final confirmed =
+        await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Uscire dal gestionale?',
+          ),
+          content: const Text(
+            'Il logout richiederà nuovamente '
+            'email e password al prossimo accesso.\n\n'
+            'Se vuoi solo proteggere il gestionale, '
+            'usa “Blocca”.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(
+                  dialogContext,
+                ).pop(false);
+              },
+              child: const Text(
+                'ANNULLA',
+              ),
+            ),
+            FilledButton(
+              onPressed: () {
+                Navigator.of(
+                  dialogContext,
+                ).pop(true);
+              },
+              child: const Text(
+                'LOGOUT',
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    await onLogout();
+  }
+
+  // =========================================================
+  // CONTENUTO
+  // =========================================================
+
   Widget _buildContent() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment:
+          CrossAxisAlignment.start,
       children: [
         const Text(
           'Cosa vuoi fare?',
@@ -154,9 +303,14 @@ class AdminHomeScreen extends StatelessWidget {
             color: AppColors.textDark,
             fontSize: 26,
             fontWeight: FontWeight.w700,
+            fontFamily: 'Georgia',
           ),
         ),
-        const SizedBox(height: 5),
+
+        const SizedBox(
+          height: 5,
+        ),
+
         const Text(
           'Gestisci il ristorante da un unico posto.',
           style: TextStyle(
@@ -164,15 +318,25 @@ class AdminHomeScreen extends StatelessWidget {
             fontSize: 15,
           ),
         ),
-        const SizedBox(height: 26),
+
+        const SizedBox(
+          height: 26,
+        ),
+
         LayoutBuilder(
-          builder: (context, constraints) {
+          builder: (
+            context,
+            constraints,
+          ) {
             final desktop =
                 constraints.maxWidth >= 720;
 
-            final cardWidth = desktop
-                ? (constraints.maxWidth - 18) / 2
-                : constraints.maxWidth;
+            final cardWidth =
+                desktop
+                    ? (constraints.maxWidth -
+                            18) /
+                        2
+                    : constraints.maxWidth;
 
             return Wrap(
               spacing: 18,
@@ -181,42 +345,61 @@ class AdminHomeScreen extends StatelessWidget {
                 SizedBox(
                   width: cardWidth,
                   child: _AdminMenuCard(
-                    icon: Icons.event_note_outlined,
-                    title: 'Prenotazioni',
+                    icon:
+                        Icons.event_note_outlined,
+                    title:
+                        'Prenotazioni',
                     subtitle:
-                        'Visualizza, conferma e gestisci le prenotazioni.',
+                        'Visualizza, conferma e gestisci '
+                        'le prenotazioni.',
                     accent: true,
-                    onTap: onBookings,
+                    onTap:
+                        onBookings,
                   ),
                 ),
+
                 SizedBox(
                   width: cardWidth,
                   child: _AdminMenuCard(
-                    icon: Icons.schedule_outlined,
-                    title: 'Disponibilità online',
+                    icon:
+                        Icons.schedule_outlined,
+                    title:
+                        'Disponibilità online',
                     subtitle:
-                        'Gestisci servizi, orari, coperti e fasce prenotabili.',
-                    onTap: onAvailability,
+                        'Gestisci servizi, orari, coperti '
+                        'e fasce prenotabili.',
+                    onTap:
+                        onAvailability,
                   ),
                 ),
+
                 SizedBox(
                   width: cardWidth,
                   child: _AdminMenuCard(
-                    icon: Icons.event_busy_outlined,
-                    title: 'Eccezioni e chiusure',
+                    icon:
+                        Icons.event_busy_outlined,
+                    title:
+                        'Eccezioni e chiusure',
                     subtitle:
-                        'Modifica disponibilità e chiusure per singole date.',
-                    onTap: onExceptions,
+                        'Modifica disponibilità e chiusure '
+                        'per singole date.',
+                    onTap:
+                        onExceptions,
                   ),
                 ),
+
                 SizedBox(
                   width: cardWidth,
                   child: _AdminMenuCard(
-                    icon: Icons.settings_outlined,
-                    title: 'Impostazioni',
+                    icon:
+                        Icons.settings_outlined,
+                    title:
+                        'Impostazioni',
                     subtitle:
-                        'Configura il gestionale e le preferenze operative.',
-                    onTap: onSettings,
+                        'Configura il gestionale e le '
+                        'preferenze operative.',
+                    onTap:
+                        onSettings,
                   ),
                 ),
               ],
@@ -228,7 +411,12 @@ class AdminHomeScreen extends StatelessWidget {
   }
 }
 
-class _AdminMenuCard extends StatelessWidget {
+// ===========================================================
+// CARD MENU
+// ===========================================================
+
+class _AdminMenuCard
+    extends StatelessWidget {
   const _AdminMenuCard({
     required this.icon,
     required this.title,
@@ -244,34 +432,52 @@ class _AdminMenuCard extends StatelessWidget {
   final bool accent;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
     return Material(
       color: accent
           ? AppColors.black
           : Colors.white,
-      borderRadius: BorderRadius.circular(22),
+      borderRadius:
+          BorderRadius.circular(
+        22,
+      ),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius:
+            BorderRadius.circular(
+          22,
+        ),
         child: Container(
-          constraints: const BoxConstraints(
+          constraints:
+              const BoxConstraints(
             minHeight: 165,
           ),
-          padding: const EdgeInsets.all(22),
+          padding:
+              const EdgeInsets.all(
+            22,
+          ),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(22),
+            borderRadius:
+                BorderRadius.circular(
+              22,
+            ),
             border: Border.all(
               color: accent
-                  ? AppColors.gold.withValues(
+                  ? AppColors.gold
+                      .withValues(
                       alpha: 0.45,
                     )
                   : AppColors.ivoryDark,
             ),
             boxShadow: const [
               BoxShadow(
-                color: Color(0x12000000),
+                color:
+                    Color(0x12000000),
                 blurRadius: 20,
-                offset: Offset(0, 7),
+                offset:
+                    Offset(0, 7),
               ),
             ],
           ),
@@ -280,11 +486,13 @@ class _AdminMenuCard extends StatelessWidget {
               Container(
                 width: 60,
                 height: 60,
-                decoration: BoxDecoration(
+                decoration:
+                    BoxDecoration(
                   color: accent
                       ? AppColors.gold
                       : AppColors.goldSoft,
-                  shape: BoxShape.circle,
+                  shape:
+                      BoxShape.circle,
                 ),
                 child: Icon(
                   icon,
@@ -294,7 +502,11 @@ class _AdminMenuCard extends StatelessWidget {
                   size: 29,
                 ),
               ),
-              const SizedBox(width: 18),
+
+              const SizedBox(
+                width: 18,
+              ),
+
               Expanded(
                 child: Column(
                   mainAxisAlignment:
@@ -309,10 +521,17 @@ class _AdminMenuCard extends StatelessWidget {
                             ? AppColors.white
                             : AppColors.textDark,
                         fontSize: 20,
-                        fontWeight: FontWeight.w700,
+                        fontWeight:
+                            FontWeight.w700,
+                        fontFamily:
+                            'Georgia',
                       ),
                     ),
-                    const SizedBox(height: 7),
+
+                    const SizedBox(
+                      height: 7,
+                    ),
+
                     Text(
                       subtitle,
                       style: TextStyle(
@@ -326,10 +545,15 @@ class _AdminMenuCard extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+
+              const SizedBox(
+                width: 10,
+              ),
+
               const Icon(
                 Icons.arrow_forward_ios_rounded,
-                color: AppColors.gold,
+                color:
+                    AppColors.gold,
                 size: 19,
               ),
             ],
