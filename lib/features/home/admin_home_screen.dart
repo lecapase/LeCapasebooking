@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import '../../core/app_version.dart';
 import '../../theme/app_colors.dart';
@@ -32,6 +33,9 @@ class AdminHomeScreen extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.gold,
           brightness: Brightness.light,
+        ),
+        textTheme: GoogleFonts.libreBaskervilleTextTheme(
+          ThemeData.light().textTheme,
         ),
       ),
       child: Scaffold(
@@ -70,6 +74,10 @@ class AdminHomeScreen extends StatelessWidget {
                 ),
               ),
 
+              // =================================================
+              // VERSIONE
+              // =================================================
+
               Positioned(
                 right: 18,
                 bottom: 12,
@@ -91,7 +99,8 @@ class AdminHomeScreen extends StatelessWidget {
                   ),
                   child: Text(
                     AppVersion.fullLabel,
-                    style: const TextStyle(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       color: AppColors.gold,
                       fontSize: 11,
                       fontWeight:
@@ -148,14 +157,20 @@ class AdminHomeScreen extends StatelessWidget {
                   style: TextButton.styleFrom(
                     foregroundColor:
                         AppColors.gold,
+                    textStyle:
+                        GoogleFonts.libreBaskerville(
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
                   ),
                   icon: const Icon(
                     Icons.lock_outline_rounded,
                     size: 19,
                   ),
-                  label: const Text(
+                  label: Text(
                     'Blocca',
-                    style: TextStyle(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       fontWeight:
                           FontWeight.w700,
                     ),
@@ -175,14 +190,20 @@ class AdminHomeScreen extends StatelessWidget {
                   style: TextButton.styleFrom(
                     foregroundColor:
                         AppColors.gold,
+                    textStyle:
+                        GoogleFonts.libreBaskerville(
+                      fontWeight:
+                          FontWeight.w700,
+                    ),
                   ),
                   icon: const Icon(
                     Icons.logout_rounded,
                     size: 19,
                   ),
-                  label: const Text(
+                  label: Text(
                     'Logout',
-                    style: TextStyle(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       fontWeight:
                           FontWeight.w700,
                     ),
@@ -201,15 +222,16 @@ class AdminHomeScreen extends StatelessWidget {
               height: 8,
             ),
 
-            const Text(
+            Text(
               'GESTIONALE',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style:
+                  GoogleFonts.libreBaskerville(
                 color: AppColors.white,
                 fontSize: 28,
-                fontWeight: FontWeight.w700,
+                fontWeight:
+                    FontWeight.w700,
                 letterSpacing: 2.5,
-                fontFamily: 'Georgia',
               ),
             ),
 
@@ -217,15 +239,16 @@ class AdminHomeScreen extends StatelessWidget {
               height: 6,
             ),
 
-            const Text(
+            Text(
               'Le Capase Booking',
               textAlign: TextAlign.center,
-              style: TextStyle(
+              style:
+                  GoogleFonts.libreBaskerville(
                 color: AppColors.gold,
                 fontSize: 15,
-                fontWeight: FontWeight.w500,
+                fontWeight:
+                    FontWeight.w500,
                 letterSpacing: 1.2,
-                fontFamily: 'Georgia',
               ),
             ),
           ],
@@ -246,14 +269,21 @@ class AdminHomeScreen extends StatelessWidget {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text(
+          title: Text(
             'Uscire dal gestionale?',
+            style:
+                GoogleFonts.libreBaskerville(
+              fontWeight:
+                  FontWeight.w700,
+            ),
           ),
-          content: const Text(
+          content: Text(
             'Il logout richiederà nuovamente '
             'email e password al prossimo accesso.\n\n'
             'Se vuoi solo proteggere il gestionale, '
             'usa “Blocca”.',
+            style:
+                GoogleFonts.libreBaskerville(),
           ),
           actions: [
             TextButton(
@@ -262,8 +292,13 @@ class AdminHomeScreen extends StatelessWidget {
                   dialogContext,
                 ).pop(false);
               },
-              child: const Text(
+              child: Text(
                 'ANNULLA',
+                style:
+                    GoogleFonts.libreBaskerville(
+                  fontWeight:
+                      FontWeight.w700,
+                ),
               ),
             ),
             FilledButton(
@@ -272,8 +307,13 @@ class AdminHomeScreen extends StatelessWidget {
                   dialogContext,
                 ).pop(true);
               },
-              child: const Text(
+              child: Text(
                 'LOGOUT',
+                style:
+                    GoogleFonts.libreBaskerville(
+                  fontWeight:
+                      FontWeight.w700,
+                ),
               ),
             ),
           ],
@@ -297,13 +337,14 @@ class AdminHomeScreen extends StatelessWidget {
       crossAxisAlignment:
           CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Cosa vuoi fare?',
-          style: TextStyle(
+          style:
+              GoogleFonts.libreBaskerville(
             color: AppColors.textDark,
             fontSize: 26,
-            fontWeight: FontWeight.w700,
-            fontFamily: 'Georgia',
+            fontWeight:
+                FontWeight.w700,
           ),
         ),
 
@@ -311,9 +352,10 @@ class AdminHomeScreen extends StatelessWidget {
           height: 5,
         ),
 
-        const Text(
+        Text(
           'Gestisci il ristorante da un unico posto.',
-          style: TextStyle(
+          style:
+              GoogleFonts.libreBaskerville(
             color: AppColors.textMuted,
             fontSize: 15,
           ),
@@ -516,15 +558,14 @@ class _AdminMenuCard
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
+                      style:
+                          GoogleFonts.libreBaskerville(
                         color: accent
                             ? AppColors.white
                             : AppColors.textDark,
                         fontSize: 20,
                         fontWeight:
                             FontWeight.w700,
-                        fontFamily:
-                            'Georgia',
                       ),
                     ),
 
@@ -534,7 +575,8 @@ class _AdminMenuCard
 
                     Text(
                       subtitle,
-                      style: TextStyle(
+                      style:
+                          GoogleFonts.libreBaskerville(
                         color: accent
                             ? Colors.white60
                             : AppColors.textMuted,

@@ -416,8 +416,6 @@ class _SettingsScreenState
                         fontSize: 24,
                         fontWeight:
                             FontWeight.w700,
-                        fontFamily:
-                            'Georgia',
                       ),
                     ),
                   ),
@@ -594,7 +592,8 @@ class _SettingsScreenState
 
                       secondary:
                           const Icon(
-                        Icons.notifications_active_outlined,
+                        Icons
+                            .notifications_active_outlined,
                         color:
                             AppColors.goldDark,
                       ),
@@ -765,8 +764,6 @@ class _SectionTitle
         fontSize: 18,
         fontWeight:
             FontWeight.w700,
-        fontFamily:
-            'Georgia',
       ),
     );
   }

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../availability/models/service_availability.dart';
 import 'data/customer_availability_service.dart';
@@ -12,8 +12,7 @@ class CustomerBookingScreen extends StatefulWidget {
       _CustomerBookingScreenState();
 }
 
-class _CustomerBookingScreenState
-    extends State<CustomerBookingScreen> {
+class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   static const Color gold = Color(0xFFC8A45D);
   static const Color ivory = Color(0xFFF7F3EB);
   static const Color dark = Color(0xFF171717);
@@ -25,6 +24,7 @@ class _CustomerBookingScreenState
   final noteController = TextEditingController();
 
   DateTime? selectedDate;
+
   String? selectedTime;
 
   // lunch oppure dinner
@@ -90,7 +90,6 @@ class _CustomerBookingScreenState
       selectedDate = date;
       selectedTime = null;
       selectedService = null;
-
       lunchTimes = [];
       dinnerTimes = [];
     });
@@ -101,8 +100,7 @@ class _CustomerBookingScreenState
       return;
     }
 
-    if (lunchTimes.isNotEmpty ||
-        dinnerTimes.isNotEmpty) {
+    if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
       setState(() {
         currentStep = 1;
       });
@@ -292,8 +290,7 @@ class _CustomerBookingScreenState
       return;
     }
 
-    final email =
-        emailController.text.trim();
+    final email = emailController.text.trim();
 
     if (!email.contains('@') ||
         !email.contains('.')) {
@@ -321,12 +318,6 @@ class _CustomerBookingScreenState
 
   // =========================================================
   // SALVA PRENOTAZIONE SU FIRESTORE
-  //
-  // 1-4 PERSONE:
-  // PRENOTAZIONE CONFERMATA AUTOMATICAMENTE
-  //
-  // 5+ PERSONE:
-  // RICHIESTA IN ATTESA DI CONFERMA
   // =========================================================
 
   Future<void> _salvaPrenotazione() async {
@@ -366,34 +357,24 @@ class _CustomerBookingScreenState
         return;
       }
 
-      final bool autoConfirmed =
-          persone <= 4;
-
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
-        builder: (dialogContext) {
+        builder: (context) {
           return AlertDialog(
-            icon: Icon(
-              autoConfirmed
-                  ? Icons.check_circle
-                  : Icons.schedule,
+            icon: const Icon(
+              Icons.check_circle,
               color: gold,
               size: 52,
             ),
-            title: Text(
-              autoConfirmed
-                  ? 'Prenotazione confermata'
-                  : 'Richiesta ricevuta',
+            title: const Text(
+              'Richiesta ricevuta',
               textAlign: TextAlign.center,
             ),
-            content: Text(
-              autoConfirmed
-                  ? 'Grazie per aver scelto Le Capase.\n\n'
-                      'La tua prenotazione è confermata.'
-                  : 'Grazie per aver scelto Le Capase.\n\n'
-                      'La tua richiesta di prenotazione è stata ricevuta '
-                      'ed è in attesa di conferma.',
+            content: const Text(
+              'Grazie per aver scelto Le Capase.\n\n'
+              'La tua richiesta di prenotazione è stata ricevuta '
+              'ed è in attesa di conferma.',
               textAlign: TextAlign.center,
             ),
             actionsAlignment:
@@ -401,9 +382,7 @@ class _CustomerBookingScreenState
             actions: [
               FilledButton(
                 onPressed: () {
-                  Navigator.pop(
-                    dialogContext,
-                  );
+                  Navigator.pop(context);
                 },
                 child: const Text(
                   'OK',
@@ -414,19 +393,7 @@ class _CustomerBookingScreenState
         },
       );
 
-      if (!mounted) {
-        return;
-      }
-
       _resetForm();
-    } on BookingCapacityException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _message(
-        error.message,
-      );
     } catch (_) {
       if (!mounted) {
         return;
@@ -443,10 +410,6 @@ class _CustomerBookingScreenState
       }
     }
   }
-
-  // =========================================================
-  // RESET FORM
-  // =========================================================
 
   void _resetForm() {
     nomeController.clear();
@@ -1251,7 +1214,8 @@ class _CustomerBookingScreenState
             height: 22,
           ),
 
-          DropdownButtonFormField<String>(
+          DropdownButtonFormField<
+              String>(
             initialValue:
                 selectedOccasione,
             decoration:
@@ -1260,13 +1224,15 @@ class _CustomerBookingScreenState
                   'Occasione speciale',
               prefixIcon:
                   Icon(
-                Icons.celebration_outlined,
+                Icons
+                    .celebration_outlined,
               ),
             ),
             items:
                 occasioni.map(
               (item) {
-                return DropdownMenuItem<String>(
+                return DropdownMenuItem<
+                    String>(
                   value:
                       item,
                   child:

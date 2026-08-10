@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/auth/admin_login_screen.dart';
@@ -17,39 +18,74 @@ class LeCapaseApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseTheme = ThemeData(
+      useMaterial3: true,
+      brightness: Brightness.dark,
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Le Capase Booking',
+
       theme: ThemeData(
         useMaterial3: true,
+
         scaffoldBackgroundColor: AppColors.background,
+
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.gold,
           brightness: Brightness.dark,
         ),
-        appBarTheme: const AppBarTheme(
+
+        // =====================================================
+        // LIBRE BASKERVILLE GLOBALE
+        // =====================================================
+
+        textTheme: GoogleFonts.libreBaskervilleTextTheme(
+          baseTheme.textTheme,
+        ).apply(
+          bodyColor: Colors.white,
+          displayColor: Colors.white,
+        ),
+
+        // =====================================================
+        // APP BAR
+        // =====================================================
+
+        appBarTheme: AppBarTheme(
           backgroundColor: AppColors.dark,
           foregroundColor: AppColors.white,
           centerTitle: true,
           elevation: 0,
-          titleTextStyle: TextStyle(
+          titleTextStyle: GoogleFonts.libreBaskerville(
             color: AppColors.white,
             fontSize: 22,
             fontWeight: FontWeight.w700,
-            fontFamily: 'Georgia',
           ),
         ),
+
+        // =====================================================
+        // NAVIGATION BAR
+        // =====================================================
+
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: AppColors.dark,
           indicatorColor: AppColors.gold.withValues(
             alpha: 0.2,
           ),
           labelTextStyle: WidgetStateProperty.all(
-            const TextStyle(
+            GoogleFonts.libreBaskerville(
               color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ),
+
+        // =====================================================
+        // BOTTONI PRINCIPALI
+        // =====================================================
+
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
@@ -58,46 +94,75 @@ class LeCapaseApp extends StatelessWidget {
               double.infinity,
               55,
             ),
+            textStyle: GoogleFonts.libreBaskerville(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ),
+
+        // =====================================================
+        // BOTTONI OUTLINED
+        // =====================================================
+
+        outlinedButtonTheme: OutlinedButtonThemeData(
+          style: OutlinedButton.styleFrom(
+            textStyle: GoogleFonts.libreBaskerville(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+
+        // =====================================================
+        // BOTTONI TESTUALI
+        // =====================================================
+
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(
+            textStyle: GoogleFonts.libreBaskerville(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+
+        // =====================================================
+        // CARD
+        // =====================================================
+
         cardTheme: const CardThemeData(
           color: AppColors.card,
           elevation: 4,
         ),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(
-            color: Colors.white,
+
+        // =====================================================
+        // INPUT
+        // =====================================================
+
+        inputDecorationTheme: InputDecorationTheme(
+          labelStyle: GoogleFonts.libreBaskerville(),
+          hintStyle: GoogleFonts.libreBaskerville(
+            color: Colors.grey,
           ),
-          bodyMedium: TextStyle(
+        ),
+
+        // =====================================================
+        // DIALOG
+        // =====================================================
+
+        dialogTheme: DialogThemeData(
+          titleTextStyle: GoogleFonts.libreBaskerville(
             color: Colors.white,
-          ),
-          titleLarge: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Georgia',
+            fontSize: 21,
             fontWeight: FontWeight.w700,
           ),
-          titleMedium: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Georgia',
-            fontWeight: FontWeight.w700,
-          ),
-          headlineLarge: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Georgia',
-            fontWeight: FontWeight.w700,
-          ),
-          headlineMedium: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Georgia',
-            fontWeight: FontWeight.w700,
-          ),
-          headlineSmall: TextStyle(
-            color: Colors.white,
-            fontFamily: 'Georgia',
-            fontWeight: FontWeight.w700,
+          contentTextStyle: GoogleFonts.libreBaskerville(
+            color: Colors.white70,
+            fontSize: 15,
           ),
         ),
       ),
+
       home: const AppEntryScreen(),
     );
   }
@@ -132,22 +197,22 @@ class AppEntryScreen extends StatelessWidget {
 
                   const SizedBox(height: 30),
 
-                  const Text(
+                  Text(
                     'Le Capase Booking',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.libreBaskerville(
+                      color: Colors.white,
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
-                      fontFamily: 'Georgia',
                     ),
                   ),
 
                   const SizedBox(height: 8),
 
-                  const Text(
+                  Text(
                     'Scegli dove entrare',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 16,
                     ),
@@ -167,12 +232,11 @@ class AppEntryScreen extends StatelessWidget {
                     icon: const Icon(
                       Icons.admin_panel_settings_outlined,
                     ),
-                    label: const Text(
+                    label: Text(
                       'GESTIONALE',
-                      style: TextStyle(
+                      style: GoogleFonts.libreBaskerville(
                         fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Georgia',
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -201,22 +265,21 @@ class AppEntryScreen extends StatelessWidget {
                     icon: const Icon(
                       Icons.restaurant_outlined,
                     ),
-                    label: const Text(
+                    label: Text(
                       'PRENOTAZIONE CLIENTE',
-                      style: TextStyle(
+                      style: GoogleFonts.libreBaskerville(
                         fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                        fontFamily: 'Georgia',
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
                   const SizedBox(height: 30),
 
-                  const Text(
+                  Text(
                     'Schermata temporanea di sviluppo',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
@@ -285,7 +348,6 @@ class _BiometricGateState
   @override
   void initState() {
     super.initState();
-
     _checkAccess();
   }
 
@@ -464,16 +526,17 @@ class _BiometricGateState
     }
 
     if (_isUnlocked) {
-      return _buildHome(
-        context,
-      );
+      return _buildHome(context);
     }
 
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text(
+        title: Text(
           'Accesso protetto',
+          style: GoogleFonts.libreBaskerville(
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
       body: SafeArea(
@@ -497,13 +560,13 @@ class _BiometricGateState
 
                   const SizedBox(height: 20),
 
-                  const Text(
+                  Text(
                     'Gestionale bloccato',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: GoogleFonts.libreBaskerville(
+                      color: Colors.white,
                       fontSize: 26,
                       fontWeight: FontWeight.w700,
-                      fontFamily: 'Georgia',
                     ),
                   ),
 
@@ -516,7 +579,7 @@ class _BiometricGateState
                         : 'Autenticazione biometrica '
                             'non disponibile.',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 15,
                     ),
@@ -529,10 +592,10 @@ class _BiometricGateState
                     icon: const Icon(
                       Icons.fingerprint_rounded,
                     ),
-                    label: const Text(
+                    label: Text(
                       'SBLOCCA',
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
+                      style: GoogleFonts.libreBaskerville(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -547,8 +610,11 @@ class _BiometricGateState
                     icon: const Icon(
                       Icons.logout_rounded,
                     ),
-                    label: const Text(
+                    label: Text(
                       'ACCEDI CON UN ALTRO ACCOUNT',
+                      style: GoogleFonts.libreBaskerville(
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ],
