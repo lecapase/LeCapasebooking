@@ -1,12 +1,27 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Permesso per Face ID / impronta / biometria -->
+    <!-- ===================================================== -->
+    <!-- PERMESSI -->
+    <!-- ===================================================== -->
+
+    <!-- Biometria / impronta / riconoscimento -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
+    <!-- Notifiche Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- ===================================================== -->
+    <!-- APPLICAZIONE -->
+    <!-- ===================================================== -->
 
     <application
         android:label="Le Capase Booking"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
+
+        <!-- ================================================= -->
+        <!-- MAIN ACTIVITY -->
+        <!-- ================================================= -->
 
         <activity
             android:name=".MainActivity"
@@ -18,10 +33,12 @@
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">
 
+            <!-- Tema usato dopo l'avvio di Flutter -->
             <meta-data
                 android:name="io.flutter.embedding.android.NormalTheme"
                 android:resource="@style/NormalTheme" />
 
+            <!-- Avvio applicazione -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
@@ -29,11 +46,16 @@
 
         </activity>
 
+        <!-- Flutter embedding v2 -->
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
 
     </application>
+
+    <!-- ===================================================== -->
+    <!-- QUERY USATE DA FLUTTER -->
+    <!-- ===================================================== -->
 
     <!-- Necessario a Flutter per PROCESS_TEXT -->
     <queries>

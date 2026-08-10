@@ -11,6 +11,7 @@ import 'features/customer_booking/customer_booking_screen.dart';
 import 'features/home/admin_home_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'services/biometric_service.dart';
+import 'services/push_notification_service.dart';
 import 'theme/app_colors.dart';
 
 class LeCapaseApp extends StatelessWidget {
@@ -181,7 +182,9 @@ class AppEntryScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
+            padding: const EdgeInsets.all(
+              24,
+            ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(
                 maxWidth: 500,
@@ -195,30 +198,38 @@ class AppEntryScreen extends StatelessWidget {
                     height: 150,
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(
+                    height: 30,
+                  ),
 
                   Text(
                     'Le Capase Booking',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       color: Colors.white,
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
 
-                  const SizedBox(height: 8),
+                  const SizedBox(
+                    height: 8,
+                  ),
 
                   Text(
                     'Scegli dove entrare',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 16,
                     ),
                   ),
 
-                  const SizedBox(height: 40),
+                  const SizedBox(
+                    height: 40,
+                  ),
 
                   ElevatedButton.icon(
                     onPressed: () {
@@ -230,22 +241,28 @@ class AppEntryScreen extends StatelessWidget {
                       );
                     },
                     icon: const Icon(
-                      Icons.admin_panel_settings_outlined,
+                      Icons
+                          .admin_panel_settings_outlined,
                     ),
                     label: Text(
                       'GESTIONALE',
-                      style: GoogleFonts.libreBaskerville(
+                      style:
+                          GoogleFonts.libreBaskerville(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 16),
+                  const SizedBox(
+                    height: 16,
+                  ),
 
                   OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gold,
+                    style:
+                        OutlinedButton.styleFrom(
+                      foregroundColor:
+                          AppColors.gold,
                       side: const BorderSide(
                         color: AppColors.gold,
                       ),
@@ -267,19 +284,23 @@ class AppEntryScreen extends StatelessWidget {
                     ),
                     label: Text(
                       'PRENOTAZIONE CLIENTE',
-                      style: GoogleFonts.libreBaskerville(
+                      style:
+                          GoogleFonts.libreBaskerville(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 30),
+                  const SizedBox(
+                    height: 30,
+                  ),
 
                   Text(
                     'Schermata temporanea di sviluppo',
                     textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
+                    style:
+                        GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
@@ -304,13 +325,18 @@ class AdminAuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
+      stream:
+          FirebaseAuth.instance.authStateChanges(),
+      builder: (
+        context,
+        snapshot,
+      ) {
         if (snapshot.connectionState ==
             ConnectionState.waiting) {
           return const Scaffold(
             body: Center(
-              child: CircularProgressIndicator(),
+              child:
+                  CircularProgressIndicator(),
             ),
           );
         }
@@ -345,9 +371,16 @@ class _BiometricGateState
   bool _isUnlocked = false;
   bool _biometricRequired = false;
 
+  // =========================================================
+  // PUSH
+  // =========================================================
+
+  bool _pushInitialized = false;
+
   @override
   void initState() {
     super.initState();
+
     _checkAccess();
   }
 
@@ -356,6 +389,10 @@ class _BiometricGateState
   // =========================================================
 
   Future<void> _checkAccess() async {
+    // =======================================================
+    // WEB
+    // =======================================================
+
     if (kIsWeb) {
       if (!mounted) {
         return;
@@ -369,6 +406,10 @@ class _BiometricGateState
       return;
     }
 
+    // =======================================================
+    // MOBILE
+    // =======================================================
+
     try {
       final preferences =
           await SharedPreferences.getInstance();
@@ -378,6 +419,10 @@ class _BiometricGateState
                 'biometric_enabled',
               ) ??
               false;
+
+      // =====================================================
+      // BIOMETRIA NON ATTIVA
+      // =====================================================
 
       if (!biometricEnabled) {
         if (!mounted) {
@@ -392,6 +437,10 @@ class _BiometricGateState
 
         return;
       }
+
+      // =====================================================
+      // BIOMETRIA ATTIVA
+      // =====================================================
 
       if (!mounted) {
         return;
@@ -425,10 +474,41 @@ class _BiometricGateState
   }
 
   // =========================================================
+  // INIZIALIZZA NOTIFICHE PUSH
+  //
+  // VIENE ESEGUITO SOLO QUANDO L'ADMIN
+  // È AUTENTICATO E IL GESTIONALE È SBLOCCATO.
+  // =========================================================
+
+  Future<void>
+      _initializePushIfNeeded() async {
+    if (_pushInitialized) {
+      return;
+    }
+
+    _pushInitialized = true;
+
+    try {
+      await PushNotificationService.initialize();
+    } catch (_) {
+      // Le notifiche non devono mai impedire
+      // l'accesso al gestionale.
+      //
+      // Se l'inizializzazione fallisce,
+      // permettiamo un nuovo tentativo.
+      _pushInitialized = false;
+    }
+  }
+
+  // =========================================================
   // BLOCCA APP
   // =========================================================
 
   Future<void> _lockApp() async {
+    // =======================================================
+    // WEB
+    // =======================================================
+
     if (kIsWeb) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -438,12 +518,17 @@ class _BiometricGateState
               'Il blocco biometrico è disponibile '
               'nell’app mobile.',
             ),
-            behavior: SnackBarBehavior.floating,
+            behavior:
+                SnackBarBehavior.floating,
           ),
         );
 
       return;
     }
+
+    // =======================================================
+    // MOBILE
+    // =======================================================
 
     final preferences =
         await SharedPreferences.getInstance();
@@ -467,7 +552,8 @@ class _BiometricGateState
               'Attiva prima la biometria '
               'nelle Impostazioni.',
             ),
-            behavior: SnackBarBehavior.floating,
+            behavior:
+                SnackBarBehavior.floating,
           ),
         );
 
@@ -516,25 +602,51 @@ class _BiometricGateState
   // =========================================================
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(
+    BuildContext context,
+  ) {
+    // =======================================================
+    // CARICAMENTO
+    // =======================================================
+
     if (_isLoading) {
       return const Scaffold(
         body: Center(
-          child: CircularProgressIndicator(),
+          child:
+              CircularProgressIndicator(),
         ),
       );
     }
 
+    // =======================================================
+    // GESTIONALE SBLOCCATO
+    // =======================================================
+
     if (_isUnlocked) {
-      return _buildHome(context);
+      WidgetsBinding.instance
+          .addPostFrameCallback(
+        (_) {
+          _initializePushIfNeeded();
+        },
+      );
+
+      return _buildHome(
+        context,
+      );
     }
+
+    // =======================================================
+    // GESTIONALE BLOCCATO
+    // =======================================================
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading: false,
+        automaticallyImplyLeading:
+            false,
         title: Text(
           'Accesso protetto',
-          style: GoogleFonts.libreBaskerville(
+          style:
+              GoogleFonts.libreBaskerville(
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -542,15 +654,18 @@ class _BiometricGateState
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding: const EdgeInsets.all(
+            padding:
+                const EdgeInsets.all(
               24,
             ),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
+              constraints:
+                  const BoxConstraints(
                 maxWidth: 420,
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                mainAxisSize:
+                    MainAxisSize.min,
                 children: [
                   const Icon(
                     Icons.fingerprint_rounded,
@@ -558,19 +673,27 @@ class _BiometricGateState
                     color: AppColors.gold,
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(
+                    height: 20,
+                  ),
 
                   Text(
                     'Gestionale bloccato',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        GoogleFonts
+                            .libreBaskerville(
                       color: Colors.white,
                       fontSize: 26,
-                      fontWeight: FontWeight.w700,
+                      fontWeight:
+                          FontWeight.w700,
                     ),
                   ),
 
-                  const SizedBox(height: 10),
+                  const SizedBox(
+                    height: 10,
+                  ),
 
                   Text(
                     _biometricRequired
@@ -578,33 +701,46 @@ class _BiometricGateState
                             'per accedere a Le Capase Booking.'
                         : 'Autenticazione biometrica '
                             'non disponibile.',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
+                    textAlign:
+                        TextAlign.center,
+                    style:
+                        GoogleFonts
+                            .libreBaskerville(
                       color: Colors.grey,
                       fontSize: 15,
                     ),
                   ),
 
-                  const SizedBox(height: 28),
+                  const SizedBox(
+                    height: 28,
+                  ),
 
                   FilledButton.icon(
-                    onPressed: _retryBiometric,
+                    onPressed:
+                        _retryBiometric,
                     icon: const Icon(
-                      Icons.fingerprint_rounded,
+                      Icons
+                          .fingerprint_rounded,
                     ),
                     label: Text(
                       'SBLOCCA',
-                      style: GoogleFonts.libreBaskerville(
-                        fontWeight: FontWeight.w700,
+                      style:
+                          GoogleFonts
+                              .libreBaskerville(
+                        fontWeight:
+                            FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 12),
+                  const SizedBox(
+                    height: 12,
+                  ),
 
                   TextButton.icon(
                     onPressed: () async {
-                      await FirebaseAuth.instance
+                      await FirebaseAuth
+                          .instance
                           .signOut();
                     },
                     icon: const Icon(
@@ -612,8 +748,11 @@ class _BiometricGateState
                     ),
                     label: Text(
                       'ACCEDI CON UN ALTRO ACCOUNT',
-                      style: GoogleFonts.libreBaskerville(
-                        fontWeight: FontWeight.w700,
+                      style:
+                          GoogleFonts
+                              .libreBaskerville(
+                        fontWeight:
+                            FontWeight.w700,
                       ),
                     ),
                   ),
@@ -634,6 +773,10 @@ class _BiometricGateState
     BuildContext context,
   ) {
     return AdminHomeScreen(
+      // =====================================================
+      // PRENOTAZIONI
+      // =====================================================
+
       onBookings: () {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -642,6 +785,10 @@ class _BiometricGateState
           ),
         );
       },
+
+      // =====================================================
+      // DISPONIBILITÀ
+      // =====================================================
 
       onAvailability: () {
         Navigator.of(context).push(
@@ -652,6 +799,10 @@ class _BiometricGateState
         );
       },
 
+      // =====================================================
+      // ECCEZIONI
+      // =====================================================
+
       onExceptions: () {
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -660,6 +811,10 @@ class _BiometricGateState
           ),
         );
       },
+
+      // =====================================================
+      // IMPOSTAZIONI
+      // =====================================================
 
       onSettings: () {
         Navigator.of(context).push(
@@ -670,10 +825,20 @@ class _BiometricGateState
         );
       },
 
-      onLock: _lockApp,
+      // =====================================================
+      // BLOCCA APP
+      // =====================================================
+
+      onLock:
+          _lockApp,
+
+      // =====================================================
+      // LOGOUT
+      // =====================================================
 
       onLogout: () async {
-        await FirebaseAuth.instance.signOut();
+        await FirebaseAuth.instance
+            .signOut();
       },
     );
   }
