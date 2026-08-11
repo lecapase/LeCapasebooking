@@ -47,11 +47,11 @@ flutter_launcher_icons:
   android: true
   ios: true
 
-  # Icona delle app native: resta invariata
+  # Icone native Android/iOS: restano invariate
   image_path: "assets/images/app_icon.png"
   remove_alpha_ios: true
 
-  # Icona della pagina Web aggiunta alla Home
+  # Icona Web e collegamento aggiunto alla Home
   web:
     generate: true
-    image_path: "assets/images/logo.png"
+    image_path: "assets/images/web_icon.png"

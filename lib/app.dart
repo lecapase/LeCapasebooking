@@ -27,32 +27,16 @@ class LeCapaseApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'Le Capase Booking',
-
       theme: ThemeData(
         useMaterial3: true,
-
         scaffoldBackgroundColor: AppColors.background,
-
         colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.gold,
           brightness: Brightness.dark,
         ),
-
-        // =====================================================
-        // LIBRE BASKERVILLE GLOBALE
-        // =====================================================
-
         textTheme: GoogleFonts.libreBaskervilleTextTheme(
           baseTheme.textTheme,
-        ).apply(
-          bodyColor: Colors.white,
-          displayColor: Colors.white,
-        ),
-
-        // =====================================================
-        // APP BAR
-        // =====================================================
-
+        ).apply(bodyColor: Colors.white, displayColor: Colors.white),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.dark,
           foregroundColor: AppColors.white,
@@ -64,16 +48,9 @@ class LeCapaseApp extends StatelessWidget {
             fontWeight: FontWeight.w700,
           ),
         ),
-
-        // =====================================================
-        // NAVIGATION BAR
-        // =====================================================
-
         navigationBarTheme: NavigationBarThemeData(
           backgroundColor: AppColors.dark,
-          indicatorColor: AppColors.gold.withValues(
-            alpha: 0.2,
-          ),
+          indicatorColor: AppColors.gold.withValues(alpha: 0.2),
           labelTextStyle: WidgetStateProperty.all(
             GoogleFonts.libreBaskerville(
               color: Colors.white,
@@ -82,30 +59,17 @@ class LeCapaseApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // =====================================================
-        // BOTTONI PRINCIPALI
-        // =====================================================
-
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.gold,
             foregroundColor: AppColors.dark,
-            minimumSize: const Size(
-              double.infinity,
-              55,
-            ),
+            minimumSize: const Size(double.infinity, 55),
             textStyle: GoogleFonts.libreBaskerville(
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
-
-        // =====================================================
-        // BOTTONI OUTLINED
-        // =====================================================
-
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
             textStyle: GoogleFonts.libreBaskerville(
@@ -114,11 +78,6 @@ class LeCapaseApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // =====================================================
-        // BOTTONI TESTUALI
-        // =====================================================
-
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
             textStyle: GoogleFonts.libreBaskerville(
@@ -126,31 +85,11 @@ class LeCapaseApp extends StatelessWidget {
             ),
           ),
         ),
-
-        // =====================================================
-        // CARD
-        // =====================================================
-
-        cardTheme: const CardThemeData(
-          color: AppColors.card,
-          elevation: 4,
-        ),
-
-        // =====================================================
-        // INPUT
-        // =====================================================
-
+        cardTheme: const CardThemeData(color: AppColors.card, elevation: 4),
         inputDecorationTheme: InputDecorationTheme(
           labelStyle: GoogleFonts.libreBaskerville(),
-          hintStyle: GoogleFonts.libreBaskerville(
-            color: Colors.grey,
-          ),
+          hintStyle: GoogleFonts.libreBaskerville(color: Colors.grey),
         ),
-
-        // =====================================================
-        // DIALOG
-        // =====================================================
-
         dialogTheme: DialogThemeData(
           titleTextStyle: GoogleFonts.libreBaskerville(
             color: Colors.white,
@@ -163,7 +102,6 @@ class LeCapaseApp extends StatelessWidget {
           ),
         ),
       ),
-
       home: const AppEntryScreen(),
     );
   }
@@ -182,125 +120,92 @@ class AppEntryScreen extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.all(
-              24,
-            ),
+            padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(
-                maxWidth: 500,
-              ),
+              constraints: const BoxConstraints(maxWidth: 500),
               child: Column(
-                crossAxisAlignment:
-                    CrossAxisAlignment.stretch,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Image.asset(
                     'assets/images/logo.png',
-                    height: 150,
+                    height: 280,
+                    fit: BoxFit.contain,
                   ),
 
-                  const SizedBox(
-                    height: 30,
-                  ),
+                  const SizedBox(height: 20),
 
                   Text(
                     'Le Capase Booking',
                     textAlign: TextAlign.center,
-                    style:
-                        GoogleFonts.libreBaskerville(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.white,
                       fontSize: 30,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 8,
-                  ),
+                  const SizedBox(height: 8),
 
                   Text(
                     'Scegli dove entrare',
                     textAlign: TextAlign.center,
-                    style:
-                        GoogleFonts.libreBaskerville(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 16,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 40,
-                  ),
+                  const SizedBox(height: 40),
 
                   ElevatedButton.icon(
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              const AdminAuthGate(),
+                          builder: (_) => const AdminAuthGate(),
                         ),
                       );
                     },
-                    icon: const Icon(
-                      Icons
-                          .admin_panel_settings_outlined,
-                    ),
+                    icon: const Icon(Icons.admin_panel_settings_outlined),
                     label: Text(
                       'GESTIONALE',
-                      style:
-                          GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.libreBaskerville(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 16,
-                  ),
+                  const SizedBox(height: 16),
 
                   OutlinedButton.icon(
-                    style:
-                        OutlinedButton.styleFrom(
-                      foregroundColor:
-                          AppColors.gold,
-                      side: const BorderSide(
-                        color: AppColors.gold,
-                      ),
-                      minimumSize: const Size(
-                        double.infinity,
-                        55,
-                      ),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.gold,
+                      side: const BorderSide(color: AppColors.gold),
+                      minimumSize: const Size(double.infinity, 55),
                     ),
                     onPressed: () {
                       Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) =>
-                              const CustomerBookingScreen(),
+                          builder: (_) => const CustomerBookingScreen(),
                         ),
                       );
                     },
-                    icon: const Icon(
-                      Icons.restaurant_outlined,
-                    ),
+                    icon: const Icon(Icons.restaurant_outlined),
                     label: Text(
                       'PRENOTAZIONE CLIENTE',
-                      style:
-                          GoogleFonts.libreBaskerville(
+                      style: GoogleFonts.libreBaskerville(
                         fontSize: 17,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 30,
-                  ),
+                  const SizedBox(height: 30),
 
                   Text(
                     'Schermata temporanea di sviluppo',
                     textAlign: TextAlign.center,
-                    style:
-                        GoogleFonts.libreBaskerville(
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 12,
                     ),
@@ -325,19 +230,11 @@ class AdminAuthGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
-      stream:
-          FirebaseAuth.instance.authStateChanges(),
-      builder: (
-        context,
-        snapshot,
-      ) {
-        if (snapshot.connectionState ==
-            ConnectionState.waiting) {
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
-            body: Center(
-              child:
-                  CircularProgressIndicator(),
-            ),
+            body: Center(child: CircularProgressIndicator()),
           );
         }
 
@@ -356,31 +253,21 @@ class AdminAuthGate extends StatelessWidget {
 // ===========================================================
 
 class BiometricGate extends StatefulWidget {
-  const BiometricGate({
-    super.key,
-  });
+  const BiometricGate({super.key});
 
   @override
-  State<BiometricGate> createState() =>
-      _BiometricGateState();
+  State<BiometricGate> createState() => _BiometricGateState();
 }
 
-class _BiometricGateState
-    extends State<BiometricGate> {
+class _BiometricGateState extends State<BiometricGate> {
   bool _isLoading = true;
   bool _isUnlocked = false;
   bool _biometricRequired = false;
-
-  // =========================================================
-  // PUSH
-  // =========================================================
-
   bool _pushInitialized = false;
 
   @override
   void initState() {
     super.initState();
-
     _checkAccess();
   }
 
@@ -389,10 +276,6 @@ class _BiometricGateState
   // =========================================================
 
   Future<void> _checkAccess() async {
-    // =======================================================
-    // WEB
-    // =======================================================
-
     if (kIsWeb) {
       if (!mounted) {
         return;
@@ -406,23 +289,11 @@ class _BiometricGateState
       return;
     }
 
-    // =======================================================
-    // MOBILE
-    // =======================================================
-
     try {
-      final preferences =
-          await SharedPreferences.getInstance();
+      final preferences = await SharedPreferences.getInstance();
 
       final biometricEnabled =
-          preferences.getBool(
-                'biometric_enabled',
-              ) ??
-              false;
-
-      // =====================================================
-      // BIOMETRIA NON ATTIVA
-      // =====================================================
+          preferences.getBool('biometric_enabled') ?? false;
 
       if (!biometricEnabled) {
         if (!mounted) {
@@ -438,10 +309,6 @@ class _BiometricGateState
         return;
       }
 
-      // =====================================================
-      // BIOMETRIA ATTIVA
-      // =====================================================
-
       if (!mounted) {
         return;
       }
@@ -450,8 +317,7 @@ class _BiometricGateState
         _biometricRequired = true;
       });
 
-      final authenticated =
-          await BiometricService.authenticate();
+      final authenticated = await BiometricService.authenticate();
 
       if (!mounted) {
         return;
@@ -475,13 +341,9 @@ class _BiometricGateState
 
   // =========================================================
   // INIZIALIZZA NOTIFICHE PUSH
-  //
-  // VIENE ESEGUITO SOLO QUANDO L'ADMIN
-  // È AUTENTICATO E IL GESTIONALE È SBLOCCATO.
   // =========================================================
 
-  Future<void>
-      _initializePushIfNeeded() async {
+  Future<void> _initializePushIfNeeded() async {
     if (_pushInitialized) {
       return;
     }
@@ -491,11 +353,6 @@ class _BiometricGateState
     try {
       await PushNotificationService.initialize();
     } catch (_) {
-      // Le notifiche non devono mai impedire
-      // l'accesso al gestionale.
-      //
-      // Se l'inizializzazione fallisce,
-      // permettiamo un nuovo tentativo.
       _pushInitialized = false;
     }
   }
@@ -505,10 +362,6 @@ class _BiometricGateState
   // =========================================================
 
   Future<void> _lockApp() async {
-    // =======================================================
-    // WEB
-    // =======================================================
-
     if (kIsWeb) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
@@ -518,26 +371,16 @@ class _BiometricGateState
               'Il blocco biometrico è disponibile '
               'nell’app mobile.',
             ),
-            behavior:
-                SnackBarBehavior.floating,
+            behavior: SnackBarBehavior.floating,
           ),
         );
 
       return;
     }
 
-    // =======================================================
-    // MOBILE
-    // =======================================================
+    final preferences = await SharedPreferences.getInstance();
 
-    final preferences =
-        await SharedPreferences.getInstance();
-
-    final biometricEnabled =
-        preferences.getBool(
-              'biometric_enabled',
-            ) ??
-            false;
+    final biometricEnabled = preferences.getBool('biometric_enabled') ?? false;
 
     if (!biometricEnabled) {
       if (!mounted) {
@@ -552,8 +395,7 @@ class _BiometricGateState
               'Attiva prima la biometria '
               'nelle Impostazioni.',
             ),
-            behavior:
-                SnackBarBehavior.floating,
+            behavior: SnackBarBehavior.floating,
           ),
         );
 
@@ -584,8 +426,7 @@ class _BiometricGateState
       _isLoading = true;
     });
 
-    final authenticated =
-        await BiometricService.authenticate();
+    final authenticated = await BiometricService.authenticate();
 
     if (!mounted) {
       return;
@@ -602,70 +443,35 @@ class _BiometricGateState
   // =========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    // =======================================================
-    // CARICAMENTO
-    // =======================================================
-
+  Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(
-          child:
-              CircularProgressIndicator(),
-        ),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
-
-    // =======================================================
-    // GESTIONALE SBLOCCATO
-    // =======================================================
 
     if (_isUnlocked) {
-      WidgetsBinding.instance
-          .addPostFrameCallback(
-        (_) {
-          _initializePushIfNeeded();
-        },
-      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _initializePushIfNeeded();
+      });
 
-      return _buildHome(
-        context,
-      );
+      return _buildHome(context);
     }
-
-    // =======================================================
-    // GESTIONALE BLOCCATO
-    // =======================================================
 
     return Scaffold(
       appBar: AppBar(
-        automaticallyImplyLeading:
-            false,
+        automaticallyImplyLeading: false,
         title: Text(
           'Accesso protetto',
-          style:
-              GoogleFonts.libreBaskerville(
-            fontWeight: FontWeight.w700,
-          ),
+          style: GoogleFonts.libreBaskerville(fontWeight: FontWeight.w700),
         ),
       ),
       body: SafeArea(
         child: Center(
           child: Padding(
-            padding:
-                const EdgeInsets.all(
-              24,
-            ),
+            padding: const EdgeInsets.all(24),
             child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 420,
-              ),
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
-                mainAxisSize:
-                    MainAxisSize.min,
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
                     Icons.fingerprint_rounded,
@@ -673,86 +479,57 @@ class _BiometricGateState
                     color: AppColors.gold,
                   ),
 
-                  const SizedBox(
-                    height: 20,
-                  ),
+                  const SizedBox(height: 20),
 
                   Text(
                     'Gestionale bloccato',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        GoogleFonts
-                            .libreBaskerville(
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.white,
                       fontSize: 26,
-                      fontWeight:
-                          FontWeight.w700,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 10,
-                  ),
+                  const SizedBox(height: 10),
 
                   Text(
                     _biometricRequired
                         ? 'Usa la biometria del dispositivo '
-                            'per accedere a Le Capase Booking.'
+                              'per accedere a Le Capase Booking.'
                         : 'Autenticazione biometrica '
-                            'non disponibile.',
-                    textAlign:
-                        TextAlign.center,
-                    style:
-                        GoogleFonts
-                            .libreBaskerville(
+                              'non disponibile.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.libreBaskerville(
                       color: Colors.grey,
                       fontSize: 15,
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 28,
-                  ),
+                  const SizedBox(height: 28),
 
                   FilledButton.icon(
-                    onPressed:
-                        _retryBiometric,
-                    icon: const Icon(
-                      Icons
-                          .fingerprint_rounded,
-                    ),
+                    onPressed: _retryBiometric,
+                    icon: const Icon(Icons.fingerprint_rounded),
                     label: Text(
                       'SBLOCCA',
-                      style:
-                          GoogleFonts
-                              .libreBaskerville(
-                        fontWeight:
-                            FontWeight.w700,
+                      style: GoogleFonts.libreBaskerville(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
 
-                  const SizedBox(
-                    height: 12,
-                  ),
+                  const SizedBox(height: 12),
 
                   TextButton.icon(
                     onPressed: () async {
-                      await FirebaseAuth
-                          .instance
-                          .signOut();
+                      await FirebaseAuth.instance.signOut();
                     },
-                    icon: const Icon(
-                      Icons.logout_rounded,
-                    ),
+                    icon: const Icon(Icons.logout_rounded),
                     label: Text(
                       'ACCEDI CON UN ALTRO ACCOUNT',
-                      style:
-                          GoogleFonts
-                              .libreBaskerville(
-                        fontWeight:
-                            FontWeight.w700,
+                      style: GoogleFonts.libreBaskerville(
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
@@ -769,76 +546,31 @@ class _BiometricGateState
   // HOME
   // =========================================================
 
-  Widget _buildHome(
-    BuildContext context,
-  ) {
+  Widget _buildHome(BuildContext context) {
     return AdminHomeScreen(
-      // =====================================================
-      // PRENOTAZIONI
-      // =====================================================
-
       onBookings: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                const BookingsScreen(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const BookingsScreen()));
       },
-
-      // =====================================================
-      // DISPONIBILITÀ
-      // =====================================================
-
       onAvailability: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                const AvailabilityScreen(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AvailabilityScreen()));
       },
-
-      // =====================================================
-      // ECCEZIONI
-      // =====================================================
-
       onExceptions: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                const AvailabilityScreen(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AvailabilityScreen()));
       },
-
-      // =====================================================
-      // IMPOSTAZIONI
-      // =====================================================
-
       onSettings: () {
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (_) =>
-                const SettingsScreen(),
-          ),
-        );
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
       },
-
-      // =====================================================
-      // BLOCCA APP
-      // =====================================================
-
-      onLock:
-          _lockApp,
-
-      // =====================================================
-      // LOGOUT
-      // =====================================================
-
+      onLock: _lockApp,
       onLogout: () async {
-        await FirebaseAuth.instance
-            .signOut();
+        await FirebaseAuth.instance.signOut();
       },
     );
   }
