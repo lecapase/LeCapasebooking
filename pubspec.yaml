@@ -12,6 +12,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  flutter_localizations:
+    sdk: flutter
+
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.5.3
 
@@ -19,13 +22,16 @@ dependencies:
   firebase_core: ^4.13.0
   cloud_firestore: ^6.8.0
   firebase_auth: ^6.5.7
+  firebase_messaging: ^16.5.0
 
   # Face ID / impronta digitale / biometria
   local_auth: ^3.0.2
 
-  google_fonts: ^8.2.1
-  firebase_messaging: ^16.5.0
+  # Notifiche
   flutter_local_notifications: ^22.3.0
+
+  # Stile
+  google_fonts: ^8.2.1
 
   # Apertura WhatsApp / Email / link esterni
   url_launcher: ^6.3.2
@@ -41,17 +47,15 @@ flutter:
   uses-material-design: true
 
   assets:
-    - assets/images/logo.png
+    - assets/images/
 
 flutter_launcher_icons:
   android: true
   ios: true
 
-  # Icone native Android/iOS: restano invariate
   image_path: "assets/images/app_icon.png"
   remove_alpha_ios: true
 
-  # Icona Web e collegamento aggiunto alla Home
   web:
     generate: true
     image_path: "assets/images/web_icon.png"

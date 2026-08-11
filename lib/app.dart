@@ -1,13 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/auth/admin_login_screen.dart';
 import 'features/availability/availability_screen.dart';
 import 'features/bookings/bookings_screen.dart';
-import 'features/customer_booking/customer_booking_screen.dart';
 import 'features/home/admin_home_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'services/biometric_service.dart';
@@ -26,7 +26,24 @@ class LeCapaseApp extends StatelessWidget {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Le Capase Booking',
+      title: 'Le Capase Booking Gestionale',
+
+      // =====================================================
+      // LINGUA ITALIANA
+      // =====================================================
+      locale: const Locale('it', 'IT'),
+
+      supportedLocales: const [Locale('it', 'IT')],
+
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+
+      // =====================================================
+      // TEMA GESTIONALE
+      // =====================================================
       theme: ThemeData(
         useMaterial3: true,
         scaffoldBackgroundColor: AppColors.background,
@@ -102,126 +119,15 @@ class LeCapaseApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const AppEntryScreen(),
+
+      // Il gestionale entra direttamente nel controllo accesso.
+      home: const AdminAuthGate(),
     );
   }
 }
 
 // ===========================================================
-// SCHERMATA INIZIALE
-// ===========================================================
-
-class AppEntryScreen extends StatelessWidget {
-  const AppEntryScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 500),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Image.asset(
-                    'assets/images/logo.png',
-                    height: 280,
-                    fit: BoxFit.contain,
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  Text(
-                    'Le Capase Booking',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
-                      color: Colors.white,
-                      fontSize: 30,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    'Scegli dove entrare',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
-                      color: Colors.grey,
-                      fontSize: 16,
-                    ),
-                  ),
-
-                  const SizedBox(height: 40),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const AdminAuthGate(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.admin_panel_settings_outlined),
-                    label: Text(
-                      'GESTIONALE',
-                      style: GoogleFonts.libreBaskerville(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.gold,
-                      side: const BorderSide(color: AppColors.gold),
-                      minimumSize: const Size(double.infinity, 55),
-                    ),
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const CustomerBookingScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.restaurant_outlined),
-                    label: Text(
-                      'PRENOTAZIONE CLIENTE',
-                      style: GoogleFonts.libreBaskerville(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 30),
-
-                  Text(
-                    'Schermata temporanea di sviluppo',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.libreBaskerville(
-                      color: Colors.grey,
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ===========================================================
-// AUTH GATE
+// CONTROLLO AUTENTICAZIONE AMMINISTRATORE
 // ===========================================================
 
 class AdminAuthGate extends StatelessWidget {
@@ -249,7 +155,7 @@ class AdminAuthGate extends StatelessWidget {
 }
 
 // ===========================================================
-// BIOMETRIC GATE
+// CONTROLLO BIOMETRICO
 // ===========================================================
 
 class BiometricGate extends StatefulWidget {
@@ -340,7 +246,7 @@ class _BiometricGateState extends State<BiometricGate> {
   }
 
   // =========================================================
-  // INIZIALIZZA NOTIFICHE PUSH
+  // INIZIALIZZAZIONE NOTIFICHE PUSH
   // =========================================================
 
   Future<void> _initializePushIfNeeded() async {
@@ -358,11 +264,15 @@ class _BiometricGateState extends State<BiometricGate> {
   }
 
   // =========================================================
-  // BLOCCA APP
+  // BLOCCO GESTIONALE
   // =========================================================
 
   Future<void> _lockApp() async {
     if (kIsWeb) {
+      if (!mounted) {
+        return;
+      }
+
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -414,7 +324,7 @@ class _BiometricGateState extends State<BiometricGate> {
   }
 
   // =========================================================
-  // RIPROVA BIOMETRIA
+  // NUOVO TENTATIVO BIOMETRICO
   // =========================================================
 
   Future<void> _retryBiometric() async {
@@ -478,9 +388,7 @@ class _BiometricGateState extends State<BiometricGate> {
                     size: 78,
                     color: AppColors.gold,
                   ),
-
                   const SizedBox(height: 20),
-
                   Text(
                     'Gestionale bloccato',
                     textAlign: TextAlign.center,
@@ -490,9 +398,7 @@ class _BiometricGateState extends State<BiometricGate> {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-
                   const SizedBox(height: 10),
-
                   Text(
                     _biometricRequired
                         ? 'Usa la biometria del dispositivo '
@@ -505,9 +411,7 @@ class _BiometricGateState extends State<BiometricGate> {
                       fontSize: 15,
                     ),
                   ),
-
                   const SizedBox(height: 28),
-
                   FilledButton.icon(
                     onPressed: _retryBiometric,
                     icon: const Icon(Icons.fingerprint_rounded),
@@ -518,9 +422,7 @@ class _BiometricGateState extends State<BiometricGate> {
                       ),
                     ),
                   ),
-
                   const SizedBox(height: 12),
-
                   TextButton.icon(
                     onPressed: () async {
                       await FirebaseAuth.instance.signOut();
@@ -543,7 +445,7 @@ class _BiometricGateState extends State<BiometricGate> {
   }
 
   // =========================================================
-  // HOME
+  // HOME GESTIONALE
   // =========================================================
 
   Widget _buildHome(BuildContext context) {
@@ -558,6 +460,9 @@ class _BiometricGateState extends State<BiometricGate> {
           context,
         ).push(MaterialPageRoute(builder: (_) => const AvailabilityScreen()));
       },
+
+      // Mantenuto temporaneamente per compatibilità
+      // con AdminHomeScreen.
       onExceptions: () {
         Navigator.of(
           context,
