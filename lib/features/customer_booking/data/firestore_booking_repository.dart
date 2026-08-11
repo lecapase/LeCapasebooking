@@ -1,11 +1,12 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../availability/models/service_availability.dart';
+import 'customer_availability_service.dart';
+
 class BookingCapacityException implements Exception {
   final String message;
 
-  const BookingCapacityException(
-    this.message,
-  );
+  const BookingCapacityException(this.message);
 
   @override
   String toString() => message;
@@ -14,27 +15,20 @@ class BookingCapacityException implements Exception {
 class FirestoreBookingRepository {
   FirestoreBookingRepository._();
 
-  static final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static const String _bookingsCollection =
-      'bookings';
+  static const String _bookingsCollection = 'bookings';
 
-  static const String _countersCollection =
-      'availability_counters';
+  static const String _countersCollection = 'availability_counters';
 
   // =========================================================
-  // CREA PRENOTAZIONE + AGGIORNA COPERTI
+  // CREA PRENOTAZIONE E AGGIORNA I COPERTI
   //
-  // REGOLA CONFERMA:
+  // 1 - 4 persone:
+  // conferma automatica.
   //
-  // 1 - 4 PERSONE
-  // -> CONFERMATA AUTOMATICAMENTE
-  //
-  // 5+ PERSONE
-  // -> DA CONFERMARE DAL GESTIONALE
-  //
-  // TUTTO NELLA STESSA TRANSAZIONE FIRESTORE
+  // 5+ persone:
+  // conferma manuale dal gestionale.
   // =========================================================
 
   static Future<String> createBooking({
@@ -49,403 +43,237 @@ class FirestoreBookingRepository {
     required String occasion,
     required String notes,
   }) async {
-    final dateKey =
-        _dateKey(date);
+    final normalizedDate = DateTime(date.year, date.month, date.day);
 
     // =======================================================
-    // STATO INIZIALE
+    // 1. CONTROLLO DATI DI BASE
     // =======================================================
 
-    final bool autoConfirmed =
-        guests <= 4;
+    if (guests < 1) {
+      throw const BookingCapacityException(
+        'Il numero di persone non è valido.',
+      );
+    }
 
-    final String initialStatus =
-        autoConfirmed
-            ? 'confirmed'
-            : 'pending';
+    if (service != 'lunch' && service != 'dinner') {
+      throw const BookingCapacityException('Servizio non valido.');
+    }
 
-    final bookingReference =
-        _firestore
-            .collection(
-              _bookingsCollection,
-            )
-            .doc();
+    // =======================================================
+    // 2. LEGGE IL SERVIZIO EFFETTIVO DELLA DATA
+    //
+    // Una data specifica ha la precedenza
+    // sulla programmazione annuale.
+    // =======================================================
 
-    final counterReference =
-        _firestore
-            .collection(
-              _countersCollection,
-            )
-            .doc(
-              '${dateKey}_$service',
-            );
-
-    final exceptionReference =
-        _firestore
-            .collection(
-              'availability_exceptions',
-            )
-            .doc(
-              dateKey,
-            );
-
-    final weeklyReference =
-        _firestore
-            .collection(
-              'availability_weekly',
-            )
-            .doc(
-              date.weekday.toString(),
-            );
-
-    await _firestore.runTransaction(
-      (transaction) async {
-        // ===================================================
-        // 1. EVENTUALE ECCEZIONE PER LA DATA
-        // ===================================================
-
-        final exceptionSnapshot =
-            await transaction.get(
-          exceptionReference,
+    final dayAvailability =
+        await CustomerAvailabilityService.getAvailabilityForDate(
+          normalizedDate,
         );
 
-        Map<String, dynamic>? serviceData;
-
-        if (exceptionSnapshot.exists) {
-          final exceptionData =
-              exceptionSnapshot.data();
-
-          if (exceptionData != null &&
-              exceptionData[service] is Map) {
-            serviceData =
-                Map<String, dynamic>.from(
-              exceptionData[service]
-                  as Map,
-            );
-          }
-        }
-
-        // ===================================================
-        // 2. REGOLA SETTIMANALE
-        // ===================================================
-
-        if (serviceData == null) {
-          final weeklySnapshot =
-              await transaction.get(
-            weeklyReference,
-          );
-
-          if (!weeklySnapshot.exists) {
-            throw const BookingCapacityException(
-              'Servizio non disponibile.',
-            );
-          }
-
-          final weeklyData =
-              weeklySnapshot.data();
-
-          if (weeklyData == null ||
-              weeklyData[service] is! Map) {
-            throw const BookingCapacityException(
-              'Servizio non disponibile.',
-            );
-          }
-
-          serviceData =
-              Map<String, dynamic>.from(
-            weeklyData[service]
-                as Map,
-          );
-        }
-
-        // ===================================================
-        // 3. CONTROLLO SERVIZIO APERTO
-        // ===================================================
-
-        final bool isOpen =
-            serviceData['isOpen']
-                    as bool? ??
-                false;
-
-        if (!isOpen) {
-          throw const BookingCapacityException(
-            'Questo servizio non è più disponibile.',
-          );
-        }
-
-        // ===================================================
-        // 4. MASSIMO COPERTI ONLINE
-        // ===================================================
-
-        final int maxOnlineGuests =
-            serviceData[
-                        'maxOnlineGuests']
-                    as int? ??
-                0;
-
-        if (maxOnlineGuests <= 0) {
-          throw const BookingCapacityException(
-            'Questo servizio non è disponibile.',
-          );
-        }
-
-        // ===================================================
-        // 5. COPERTI GIÀ OCCUPATI
-        // ===================================================
-
-        final counterSnapshot =
-            await transaction.get(
-          counterReference,
-        );
-
-        int bookedGuests = 0;
-
-        if (counterSnapshot.exists) {
-          final counterData =
-              counterSnapshot.data();
-
-          bookedGuests =
-              counterData?[
-                          'bookedGuests']
-                      as int? ??
-                  0;
-        }
-
-        // ===================================================
-        // 6. CONTROLLO DISPONIBILITÀ
-        // ===================================================
-
-        final int newTotal =
-            bookedGuests + guests;
-
-        if (newTotal >
-            maxOnlineGuests) {
-          throw const BookingCapacityException(
-            'Non ci sono abbastanza posti disponibili '
-            'per questo servizio.',
-          );
-        }
-
-        // ===================================================
-        // 7. CREA PRENOTAZIONE
-        // ===================================================
-
-        transaction.set(
-          bookingReference,
-          {
-            // -----------------------------------------------
-            // CLIENTE
-            // -----------------------------------------------
-
-            'nome':
-                nome.trim(),
-
-            'cognome':
-                cognome.trim(),
-
-            'email':
-                email.trim(),
-
-            'telefono':
-                telefono.trim(),
-
-            // -----------------------------------------------
-            // DATA
-            // -----------------------------------------------
-
-            'date':
-                Timestamp.fromDate(
-              DateTime(
-                date.year,
-                date.month,
-                date.day,
-              ),
-            ),
-
-            'dateKey':
-                dateKey,
-
-            'weekday':
-                date.weekday,
-
-            'time':
-                time,
-
-            'service':
-                service,
-
-            // -----------------------------------------------
-            // PERSONE
-            // -----------------------------------------------
-
-            'guests':
-                guests,
-
-            // -----------------------------------------------
-            // DETTAGLI
-            // -----------------------------------------------
-
-            'occasion':
-                occasion,
-
-            'notes':
-                notes.trim(),
-
-            // -----------------------------------------------
-            // STATO
-            // -----------------------------------------------
-
-            'status':
-                initialStatus,
-
-            'autoConfirmed':
-                autoConfirmed,
-
-            'requiresManualConfirmation':
-                !autoConfirmed,
-
-            // -----------------------------------------------
-            // ORIGINE
-            // -----------------------------------------------
-
-            'source':
-                'customer',
-
-            // -----------------------------------------------
-            // COMUNICAZIONI
-            //
-            // Questi campi verranno usati nel prossimo step
-            // per email e WhatsApp.
-            // -----------------------------------------------
-
-            'confirmationEmailSent':
-                false,
-
-            'confirmationWhatsappSent':
-                false,
-
-            'rejectionEmailSent':
-                false,
-
-            'rejectionWhatsappSent':
-                false,
-
-            // -----------------------------------------------
-            // PUSH GESTIONALE
-            // -----------------------------------------------
-
-            'adminNotificationSent':
-                false,
-
-            // -----------------------------------------------
-            // CONFERMA
-            // -----------------------------------------------
-
-            'confirmedAt':
-                autoConfirmed
-                    ? FieldValue
-                        .serverTimestamp()
-                    : null,
-
-            'confirmedBy':
-                autoConfirmed
-                    ? 'automatic'
-                    : null,
-
-            // -----------------------------------------------
-            // TIMESTAMP
-            // -----------------------------------------------
-
-            'createdAt':
-                FieldValue
-                    .serverTimestamp(),
-
-            'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
-          },
-        );
-
-        // ===================================================
-        // 8. AGGIORNA CONTATORE COPERTI
-        //
-        // ANCHE LE PRENOTAZIONI 5+ IN ATTESA BLOCCANO
-        // I COPERTI, EVITANDO OVERBOOKING.
-        // ===================================================
-
-        transaction.set(
-          counterReference,
-          {
-            'dateKey':
-                dateKey,
-
-            'weekday':
-                date.weekday,
-
-            'service':
-                service,
-
-            'bookedGuests':
-                newTotal,
-
-            'lastBookingId':
-                bookingReference.id,
-
-            'updatedAt':
-                FieldValue
-                    .serverTimestamp(),
-          },
-          SetOptions(
-            merge: true,
-          ),
-        );
-      },
+    if (dayAvailability == null) {
+      throw const BookingCapacityException(
+        'Nessun servizio disponibile per questa data.',
+      );
+    }
+
+    final selectedService = _serviceForId(
+      dayAvailability: dayAvailability,
+      serviceId: service,
     );
+
+    if (selectedService == null || !selectedService.isOpen) {
+      throw const BookingCapacityException(
+        'Questo servizio non è disponibile.',
+      );
+    }
+
+    // =======================================================
+    // 3. CONTROLLO ORARIO
+    // =======================================================
+
+    final availableTimes = CustomerAvailabilityService.generateAvailableTimes(
+      selectedService,
+    );
+
+    if (!availableTimes.contains(time)) {
+      throw const BookingCapacityException(
+        'L’orario selezionato non è più disponibile.',
+      );
+    }
+
+    if (CustomerAvailabilityService.isTimeBlocked(
+      service: selectedService,
+      time: time,
+    )) {
+      throw const BookingCapacityException(
+        'L’orario selezionato è stato bloccato.',
+      );
+    }
+
+    // =======================================================
+    // 4. CONTROLLO CAPIENZA DEL SERVIZIO
+    // =======================================================
+
+    final maxOnlineGuests = selectedService.maxOnlineGuests;
+
+    if (maxOnlineGuests < 1) {
+      throw const BookingCapacityException(
+        'Questo servizio non accetta prenotazioni online.',
+      );
+    }
+
+    final dateKey = _dateKey(normalizedDate);
+
+    final autoConfirmed = guests <= 4;
+
+    final initialStatus = autoConfirmed ? 'confirmed' : 'pending';
+
+    final bookingReference = _firestore.collection(_bookingsCollection).doc();
+
+    final counterReference = _firestore
+        .collection(_countersCollection)
+        .doc('${dateKey}_$service');
+
+    // =======================================================
+    // 5. TRANSAZIONE FIRESTORE
+    //
+    // La verifica dei coperti e il salvataggio
+    // avvengono insieme, evitando overbooking.
+    // =======================================================
+
+    await _firestore.runTransaction((transaction) async {
+      final counterSnapshot = await transaction.get(counterReference);
+
+      int bookedGuests = 0;
+
+      if (counterSnapshot.exists) {
+        final counterData = counterSnapshot.data();
+
+        bookedGuests = (counterData?['bookedGuests'] as num?)?.toInt() ?? 0;
+      }
+
+      final newTotal = bookedGuests + guests;
+
+      if (newTotal > maxOnlineGuests) {
+        throw const BookingCapacityException(
+          'Non ci sono abbastanza posti disponibili '
+          'per questo servizio.',
+        );
+      }
+
+      // ===================================================
+      // CREA PRENOTAZIONE
+      // ===================================================
+
+      transaction.set(bookingReference, {
+        'nome': nome.trim(),
+        'cognome': cognome.trim(),
+        'email': email.trim(),
+        'telefono': telefono.trim(),
+
+        'date': Timestamp.fromDate(normalizedDate),
+
+        'dateKey': dateKey,
+        'weekday': normalizedDate.weekday,
+        'time': time,
+        'service': service,
+        'guests': guests,
+
+        'occasion': occasion,
+        'notes': notes.trim(),
+
+        'status': initialStatus,
+        'autoConfirmed': autoConfirmed,
+        'requiresManualConfirmation': !autoConfirmed,
+
+        'source': 'customer',
+
+        'confirmationEmailSent': false,
+        'confirmationWhatsappSent': false,
+        'rejectionEmailSent': false,
+        'rejectionWhatsappSent': false,
+        'adminNotificationSent': false,
+
+        'confirmedAt': autoConfirmed ? FieldValue.serverTimestamp() : null,
+
+        'confirmedBy': autoConfirmed ? 'automatic' : null,
+
+        'createdAt': FieldValue.serverTimestamp(),
+
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
+      // ===================================================
+      // AGGIORNA CONTATORE COPERTI
+      //
+      // Anche le prenotazioni in attesa bloccano
+      // temporaneamente i coperti.
+      // ===================================================
+
+      transaction.set(counterReference, {
+        'dateKey': dateKey,
+        'weekday': normalizedDate.weekday,
+        'service': service,
+        'bookedGuests': newTotal,
+        'lastBookingId': bookingReference.id,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
 
     return bookingReference.id;
   }
 
   // =========================================================
-  // LEGGE COPERTI OCCUPATI
-  //
-  // IL CLIENTE NON VEDE QUESTO NUMERO.
+  // SELEZIONA PRANZO O CENA
+  // =========================================================
+
+  static ServiceAvailability? _serviceForId({
+    required DayAvailability dayAvailability,
+    required String serviceId,
+  }) {
+    switch (serviceId) {
+      case 'lunch':
+        return dayAvailability.lunch;
+
+      case 'dinner':
+        return dayAvailability.dinner;
+
+      default:
+        return null;
+    }
+  }
+
+  // =========================================================
+  // COPERTI GIÀ OCCUPATI
   // =========================================================
 
   static Future<int> getBookedGuests({
     required DateTime date,
     required String service,
   }) async {
-    final dateKey =
-        _dateKey(date);
+    final dateKey = _dateKey(date);
 
-    final snapshot =
-        await _firestore
-            .collection(
-              _countersCollection,
-            )
-            .doc(
-              '${dateKey}_$service',
-            )
-            .get();
+    final snapshot = await _firestore
+        .collection(_countersCollection)
+        .doc('${dateKey}_$service')
+        .get();
 
     if (!snapshot.exists) {
       return 0;
     }
 
-    final data =
-        snapshot.data();
+    final data = snapshot.data();
 
     if (data == null) {
       return 0;
     }
 
-    return data['bookedGuests']
-            as int? ??
-        0;
+    return (data['bookedGuests'] as num?)?.toInt() ?? 0;
   }
 
   // =========================================================
-  // SERVIZIO CON POSTI DISPONIBILI?
+  // SERVIZIO CON ALMENO UN POSTO DISPONIBILE
   // =========================================================
 
   static Future<bool> hasAvailability({
@@ -453,68 +281,36 @@ class FirestoreBookingRepository {
     required String service,
     required int maxGuests,
   }) async {
-    final bookedGuests =
-        await getBookedGuests(
-      date: date,
-      service: service,
-    );
+    final bookedGuests = await getBookedGuests(date: date, service: service);
 
-    return bookedGuests <
-        maxGuests;
+    return bookedGuests < maxGuests;
   }
 
   // =========================================================
-  // POSTO PER IL NUMERO DI PERSONE RICHIESTO?
+  // POSTI SUFFICIENTI PER IL GRUPPO RICHIESTO
   // =========================================================
 
-  static Future<bool>
-      hasCapacityForGuests({
+  static Future<bool> hasCapacityForGuests({
     required DateTime date,
     required String service,
     required int maxGuests,
     required int requestedGuests,
   }) async {
-    final bookedGuests =
-        await getBookedGuests(
-      date: date,
-      service: service,
-    );
+    final bookedGuests = await getBookedGuests(date: date, service: service);
 
-    return bookedGuests +
-            requestedGuests <=
-        maxGuests;
+    return bookedGuests + requestedGuests <= maxGuests;
   }
 
   // =========================================================
-  // DATA KEY
+  // DATA KEY: 2026-08-15
   // =========================================================
 
-  static String _dateKey(
-    DateTime date,
-  ) {
-    final year =
-        date.year
-            .toString()
-            .padLeft(
-              4,
-              '0',
-            );
+  static String _dateKey(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
 
-    final month =
-        date.month
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
+    final month = date.month.toString().padLeft(2, '0');
 
-    final day =
-        date.day
-            .toString()
-            .padLeft(
-              2,
-              '0',
-            );
+    final day = date.day.toString().padLeft(2, '0');
 
     return '$year-$month-$day';
   }
