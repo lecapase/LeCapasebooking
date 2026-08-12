@@ -1,6 +1,6 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-import '../availability/models/service_availability.dart';
 import 'data/customer_availability_service.dart';
 import 'data/firestore_booking_repository.dart';
 
@@ -8,15 +8,15 @@ class CustomerBookingScreen extends StatefulWidget {
   const CustomerBookingScreen({super.key});
 
   @override
-  State<CustomerBookingScreen> createState() =>
-      _CustomerBookingScreenState();
+  State<CustomerBookingScreen> createState() => _CustomerBookingScreenState();
 }
 
-class _CustomerBookingScreenState
-    extends State<CustomerBookingScreen> {
+class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   static const Color gold = Color(0xFFC8A45D);
   static const Color ivory = Color(0xFFF7F3EB);
   static const Color dark = Color(0xFF171717);
+  static const Color muted = Color(0xFF777777);
+  static const Color border = Color(0xFFD8D0C2);
 
   final nomeController = TextEditingController();
   final cognomeController = TextEditingController();
@@ -26,8 +26,6 @@ class _CustomerBookingScreenState
 
   DateTime? selectedDate;
   String? selectedTime;
-
-  // lunch oppure dinner
   String? selectedService;
 
   int persone = 2;
@@ -37,6 +35,7 @@ class _CustomerBookingScreenState
 
   bool _loadingAvailability = false;
   bool _saving = false;
+  bool _showMoreGuests = false;
 
   List<String> lunchTimes = [];
   List<String> dinnerTimes = [];
@@ -61,121 +60,70 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // DATA
+  // SELEZIONE DATA
   // =========================================================
 
-  Future<void> _selectDate() async {
-    final now = DateTime.now();
-
-    final date = await showDatePicker(
-      context: context,
-      initialDate: selectedDate ?? now,
-      firstDate: DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ),
-      lastDate: DateTime(
-        now.year + 2,
-        12,
-        31,
-      ),
-    );
-
-    if (date == null) {
+  Future<void> _selectDate(DateTime date) async {
+    if (_loadingAvailability) {
       return;
     }
 
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+
     setState(() {
-      selectedDate = date;
+      selectedDate = normalizedDate;
       selectedTime = null;
       selectedService = null;
-
       lunchTimes = [];
       dinnerTimes = [];
-    });
-
-    await _loadAvailability(date);
-
-    if (!mounted) {
-      return;
-    }
-
-    if (lunchTimes.isNotEmpty ||
-        dinnerTimes.isNotEmpty) {
-      setState(() {
-        currentStep = 1;
-      });
-    }
-  }
-
-  // =========================================================
-  // FIREBASE - DISPONIBILITÀ
-  // =========================================================
-
-  Future<void> _loadAvailability(
-    DateTime date,
-  ) async {
-    setState(() {
       _loadingAvailability = true;
-
-      selectedTime = null;
-      selectedService = null;
-
-      lunchTimes = [];
-      dinnerTimes = [];
     });
 
     try {
       final availability =
-          await CustomerAvailabilityService
-              .getAvailabilityForDate(
-        date,
-      );
+          await CustomerAvailabilityService.getAvailabilityForDate(
+            normalizedDate,
+          );
 
       if (!mounted) {
         return;
       }
 
       if (availability == null) {
+        setState(() {
+          lunchTimes = [];
+          dinnerTimes = [];
+        });
+
         return;
       }
 
-      final loadedLunchTimes = <String>[];
-      final loadedDinnerTimes = <String>[];
+      final loadedLunchTimes = availability.lunch.isOpen
+          ? CustomerAvailabilityService.generateAvailableTimes(
+              availability.lunch,
+            )
+          : <String>[];
 
-      if (availability.lunch.isOpen) {
-        loadedLunchTimes.addAll(
-          _generateTimes(
-            availability.lunch,
-          ),
-        );
-      }
-
-      if (availability.dinner.isOpen) {
-        loadedDinnerTimes.addAll(
-          _generateTimes(
-            availability.dinner,
-          ),
-        );
-      }
+      final loadedDinnerTimes = availability.dinner.isOpen
+          ? CustomerAvailabilityService.generateAvailableTimes(
+              availability.dinner,
+            )
+          : <String>[];
 
       setState(() {
         lunchTimes = loadedLunchTimes;
         dinnerTimes = loadedDinnerTimes;
+
+        if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
+          currentStep = 1;
+        }
       });
     } catch (_) {
       if (!mounted) {
         return;
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Impossibile caricare gli orari disponibili.',
-          ),
-        ),
-      );
+      _message('Impossibile caricare gli orari disponibili.');
     } finally {
       if (mounted) {
         setState(() {
@@ -186,120 +134,74 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // GENERA GLI ORARI
+  // SELEZIONE PERSONE
   // =========================================================
 
-  List<String> _generateTimes(
-    ServiceAvailability service,
-  ) {
-    final result = <String>[];
-
-    final start = _toMinutes(
-      service.startTime,
-    );
-
-    final end = _toMinutes(
-      service.endTime,
-    );
-
-    var current = start;
-
-    while (current <= end) {
-      final time = _minutesToTime(
-        current,
-      );
-
-      final blocked =
-          CustomerAvailabilityService
-              .isTimeBlocked(
-        service: service,
-        time: time,
-      );
-
-      if (!blocked) {
-        result.add(time);
-      }
-
-      current += 15;
-    }
-
-    return result;
+  void _selectGuests(int value) {
+    setState(() {
+      persone = value;
+      selectedTime = null;
+      selectedService = null;
+      currentStep = 2;
+    });
   }
 
-  int _toMinutes(
-    String value,
-  ) {
-    final parts = value.split(':');
+  // =========================================================
+  // SELEZIONE ORARIO
+  // =========================================================
 
-    return int.parse(parts[0]) * 60 +
-        int.parse(parts[1]);
-  }
-
-  String _minutesToTime(
-    int minutes,
-  ) {
-    final hour = minutes ~/ 60;
-    final minute = minutes % 60;
-
-    return '${hour.toString().padLeft(2, '0')}:'
-        '${minute.toString().padLeft(2, '0')}';
+  void _selectTime({required String time, required String service}) {
+    setState(() {
+      selectedTime = time;
+      selectedService = service;
+      currentStep = 3;
+    });
   }
 
   // =========================================================
   // NAVIGAZIONE
   // =========================================================
 
-  void _goToStep(
-    int step,
-  ) {
-    if (step < currentStep) {
+  void _goBack() {
+    if (currentStep > 0) {
       setState(() {
-        currentStep = step;
+        currentStep--;
       });
-    }
-  }
-
-  void _continueFromTime() {
-    if (selectedTime == null ||
-        selectedService == null) {
-      _message(
-        'Seleziona un orario.',
-      );
 
       return;
     }
 
+    Navigator.of(context).maybePop();
+  }
+
+  void _goToPreviousStep(int step) {
+    if (step >= currentStep) {
+      return;
+    }
+
     setState(() {
-      currentStep = 2;
+      currentStep = step;
     });
   }
 
-  void _continueFromGuests() {
-    setState(() {
-      currentStep = 3;
-    });
-  }
+  // =========================================================
+  // VALIDAZIONE DATI
+  // =========================================================
 
-  void _continueFromDetails() {
-    if (nomeController.text.trim().isEmpty ||
-        cognomeController.text.trim().isEmpty ||
-        emailController.text.trim().isEmpty ||
-        telefonoController.text.trim().isEmpty) {
-      _message(
-        'Compila Nome, Cognome, Email e Telefono.',
-      );
+  void _reviewBooking() {
+    final nome = nomeController.text.trim();
+    final cognome = cognomeController.text.trim();
+    final email = emailController.text.trim();
+    final telefono = telefonoController.text.trim();
+
+    if (nome.isEmpty || cognome.isEmpty || email.isEmpty || telefono.isEmpty) {
+      _message('Compila Nome, Cognome, Email e Telefono.');
 
       return;
     }
 
-    final email =
-        emailController.text.trim();
-
-    if (!email.contains('@') ||
-        !email.contains('.')) {
-      _message(
-        'Inserisci un indirizzo email valido.',
-      );
+    if (!email.contains('@') || !email.contains('.')) {
+      _message('Inserisci un indirizzo email valido.');
 
       return;
     }
@@ -309,27 +211,19 @@ class _CustomerBookingScreenState
     });
   }
 
-  void _message(
-    String text,
-  ) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(text),
-      ),
-    );
+  void _message(String text) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
+      );
   }
 
   // =========================================================
-  // SALVA PRENOTAZIONE SU FIRESTORE
-  //
-  // 1-4 PERSONE:
-  // PRENOTAZIONE CONFERMATA AUTOMATICAMENTE
-  //
-  // 5+ PERSONE:
-  // RICHIESTA IN ATTESA DI CONFERMA
+  // SALVATAGGIO PRENOTAZIONE
   // =========================================================
 
-  Future<void> _salvaPrenotazione() async {
+  Future<void> _saveBooking() async {
     if (_saving) {
       return;
     }
@@ -337,9 +231,7 @@ class _CustomerBookingScreenState
     if (selectedDate == null ||
         selectedTime == null ||
         selectedService == null) {
-      _message(
-        'Data, servizio o orario non selezionato.',
-      );
+      _message('Data, persone o orario non selezionato.');
 
       return;
     }
@@ -366,48 +258,46 @@ class _CustomerBookingScreenState
         return;
       }
 
-      final bool autoConfirmed =
-          persone <= 4;
+      final autoConfirmed = persone <= 4;
 
       await showDialog<void>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) {
           return AlertDialog(
+            backgroundColor: Colors.white,
             icon: Icon(
               autoConfirmed
-                  ? Icons.check_circle
-                  : Icons.schedule,
+                  ? Icons.check_circle_rounded
+                  : Icons.schedule_rounded,
               color: gold,
-              size: 52,
+              size: 56,
             ),
             title: Text(
-              autoConfirmed
-                  ? 'Prenotazione confermata'
-                  : 'Richiesta ricevuta',
+              autoConfirmed ? 'Prenotazione confermata' : 'Richiesta ricevuta',
               textAlign: TextAlign.center,
+              style: GoogleFonts.libreBaskerville(
+                color: dark,
+                fontWeight: FontWeight.w700,
+              ),
             ),
             content: Text(
               autoConfirmed
                   ? 'Grazie per aver scelto Le Capase.\n\n'
-                      'La tua prenotazione è confermata.'
+                        'La tua prenotazione è confermata.'
                   : 'Grazie per aver scelto Le Capase.\n\n'
-                      'La tua richiesta di prenotazione è stata ricevuta '
-                      'ed è in attesa di conferma.',
+                        'La richiesta è in attesa di conferma. '
+                        'Riceverai una risposta appena possibile.',
               textAlign: TextAlign.center,
+              style: GoogleFonts.libreBaskerville(color: dark, height: 1.5),
             ),
-            actionsAlignment:
-                MainAxisAlignment.center,
+            actionsAlignment: MainAxisAlignment.center,
             actions: [
               FilledButton(
                 onPressed: () {
-                  Navigator.pop(
-                    dialogContext,
-                  );
+                  Navigator.pop(dialogContext);
                 },
-                child: const Text(
-                  'OK',
-                ),
+                child: const Text('CHIUDI'),
               ),
             ],
           );
@@ -418,22 +308,21 @@ class _CustomerBookingScreenState
         return;
       }
 
-      _resetForm();
+      Navigator.of(context).maybePop();
     } on BookingCapacityException catch (error) {
       if (!mounted) {
         return;
       }
 
-      _message(
-        error.message,
-      );
+      _message(error.message);
     } catch (_) {
       if (!mounted) {
         return;
       }
 
       _message(
-        'Non è stato possibile inviare la prenotazione. Riprova.',
+        'Non è stato possibile inviare la prenotazione. '
+        'Riprova.',
       );
     } finally {
       if (mounted) {
@@ -445,152 +334,60 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // RESET FORM
-  // =========================================================
-
-  void _resetForm() {
-    nomeController.clear();
-    cognomeController.clear();
-    emailController.clear();
-    telefonoController.clear();
-    noteController.clear();
-
-    setState(() {
-      selectedDate = null;
-      selectedTime = null;
-      selectedService = null;
-
-      lunchTimes = [];
-      dinnerTimes = [];
-
-      persone = 2;
-
-      selectedOccasione = 'Nessuna';
-
-      currentStep = 0;
-    });
-  }
-
-  // =========================================================
-  // UI
+  // BUILD
   // =========================================================
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Theme(
-      data: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        scaffoldBackgroundColor: ivory,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: gold,
-          brightness: Brightness.light,
-        ),
-        inputDecorationTheme:
-            InputDecorationTheme(
-          filled: true,
-          fillColor: Colors.white,
-          labelStyle: const TextStyle(
-            color: Color(
-              0xFF555555,
-            ),
-          ),
-          border: OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(
-              14,
-            ),
-            borderSide:
-                const BorderSide(
-              color: Color(
-                0xFFD8D0C2,
-              ),
-            ),
-          ),
-          enabledBorder:
-              OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(
-              14,
-            ),
-            borderSide:
-                const BorderSide(
-              color: Color(
-                0xFFD8D0C2,
-              ),
-            ),
-          ),
-          focusedBorder:
-              OutlineInputBorder(
-            borderRadius:
-                BorderRadius.circular(
-              14,
-            ),
-            borderSide:
-                const BorderSide(
-              color: gold,
-              width: 2,
-            ),
-          ),
-        ),
-      ),
-      child: Scaffold(
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: ivory,
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
         backgroundColor: ivory,
-        appBar: AppBar(
-          backgroundColor: dark,
-          foregroundColor:
-              Colors.white,
-          centerTitle: true,
-          title: const Text(
-            'LE CAPASE',
-            style: TextStyle(
-              fontWeight:
-                  FontWeight.bold,
-              letterSpacing: 2,
+        foregroundColor: dark,
+        elevation: 0,
+        leadingWidth: 72,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 14, top: 6, bottom: 6),
+          child: Material(
+            color: Colors.white,
+            shape: const CircleBorder(),
+            child: IconButton(
+              tooltip: 'Indietro',
+              onPressed: _goBack,
+              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             ),
           ),
         ),
-        body: SafeArea(
-          child: Center(
-            child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 720,
-              ),
-              child: Column(
-                children: [
-                  _buildHeader(),
-                  _buildProgress(),
+        title: Image.asset(
+          'assets/images/logo.png',
+          height: 60,
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
+        ),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              children: [
+                _buildProgress(),
 
-                  Expanded(
-                    child:
-                        AnimatedSwitcher(
-                      duration:
-                          const Duration(
-                        milliseconds: 250,
-                      ),
-                      child:
-                          SingleChildScrollView(
-                        key: ValueKey(
-                          currentStep,
-                        ),
-                        padding:
-                            const EdgeInsets
-                                .fromLTRB(
-                          22,
-                          10,
-                          22,
-                          30,
-                        ),
-                        child:
-                            _buildCurrentStep(),
-                      ),
+                Expanded(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 230),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    child: SingleChildScrollView(
+                      key: ValueKey(currentStep),
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
+                      child: _buildCurrentStep(),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -599,151 +396,88 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // HEADER
-  // =========================================================
-
-  Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        8,
-      ),
-      child: Column(
-        children: [
-          Text(
-            'Prenota il tuo tavolo',
-            textAlign:
-                TextAlign.center,
-            style: TextStyle(
-              color: dark,
-              fontSize: 28,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-
-          SizedBox(
-            height: 5,
-          ),
-
-          Text(
-            'Ristorante Pizzeria Le Capase',
-            style: TextStyle(
-              color: Color(
-                0xFF777777,
-              ),
-              fontSize: 15,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // PROGRESS
+  // INDICATORE FASI
   // =========================================================
 
   Widget _buildProgress() {
-    final labels = [
-      'Data',
-      'Orario',
-      'Persone',
-      'Dati',
-      'Riepilogo',
+    const steps = [
+      (icon: Icons.calendar_today_outlined, label: 'Data'),
+      (icon: Icons.groups_outlined, label: 'Persone'),
+      (icon: Icons.schedule_outlined, label: 'Orario'),
+      (icon: Icons.person_outline_rounded, label: 'Dati'),
+      (icon: Icons.receipt_long_outlined, label: 'Riepilogo'),
     ];
 
     return Padding(
-      padding:
-          const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        16,
-      ),
-      child: Row(
-        children:
-            List.generate(
-          labels.length,
-          (index) {
-            final active =
-                index <= currentStep;
+      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(25),
+          border: Border.all(color: border),
+        ),
+        child: Row(
+          children: List.generate(steps.length, (index) {
+            final active = index == currentStep;
+            final completed = index < currentStep;
 
             return Expanded(
               child: InkWell(
-                onTap: () {
-                  _goToStep(index);
-                },
-                child: Column(
-                  children: [
-                    Container(
-                      width: 30,
-                      height: 30,
-                      alignment:
-                          Alignment.center,
-                      decoration:
-                          BoxDecoration(
-                        shape:
-                            BoxShape.circle,
-                        color: active
-                            ? gold
-                            : Colors.white,
-                        border:
-                            Border.all(
-                          color: active
-                              ? gold
-                              : const Color(
-                                  0xFFD5CEC2,
-                                ),
-                        ),
-                      ),
-                      child: Text(
-                        '${index + 1}',
-                        style:
-                            TextStyle(
-                          color: active
-                              ? Colors.black
-                              : Colors.grey,
-                          fontWeight:
-                              FontWeight.bold,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 5,
-                    ),
-
-                    Text(
-                      labels[index],
-                      textAlign:
-                          TextAlign.center,
-                      style:
-                          TextStyle(
-                        fontSize: 11,
+                borderRadius: BorderRadius.circular(20),
+                onTap: completed
+                    ? () {
+                        _goToPreviousStep(index);
+                      }
+                    : null,
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 180),
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 10,
+                    horizontal: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: active ? gold : Colors.transparent,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        completed ? Icons.check_rounded : steps[index].icon,
+                        size: 19,
                         color: active
                             ? dark
-                            : Colors.grey,
-                        fontWeight:
-                            active
-                                ? FontWeight.w600
-                                : FontWeight.normal,
+                            : completed
+                            ? gold
+                            : muted,
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 3),
+                      Text(
+                        steps[index].label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: active ? dark : muted,
+                          fontSize: 9,
+                          fontWeight: active || completed
+                              ? FontWeight.w700
+                              : FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
-          },
+          }),
         ),
       ),
     );
   }
 
   // =========================================================
-  // STEP ATTUALE
+  // FASE ATTUALE
   // =========================================================
 
   Widget _buildCurrentStep() {
@@ -752,10 +486,10 @@ class _CustomerBookingScreenState
         return _buildDateStep();
 
       case 1:
-        return _buildTimeStep();
+        return _buildGuestsStep();
 
       case 2:
-        return _buildGuestsStep();
+        return _buildTimeStep();
 
       case 3:
         return _buildDetailsStep();
@@ -769,46 +503,57 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // STEP DATA
+  // DATA
   // =========================================================
 
   Widget _buildDateStep() {
+    final today = DateTime.now();
+
+    final firstDate = DateTime(today.year, today.month, today.day);
+
     return _section(
-      icon:
-          Icons.calendar_month_outlined,
-      title:
-          'Quando vuoi venire?',
-      subtitle:
-          'Scegli la data della tua prenotazione.',
+      title: 'Quando vuoi venire?',
+      subtitle: 'Tocca una data per continuare.',
       child: Column(
         children: [
-          _bigSelectionButton(
-            text:
-                selectedDate == null
-                    ? 'Scegli una data'
-                    : _formattedDate(
-                        selectedDate!,
-                      ),
-            onTap: _selectDate,
+          Card(
+            elevation: 0,
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+              side: const BorderSide(color: border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(8),
+              child: CalendarDatePicker(
+                initialDate: selectedDate ?? firstDate,
+                firstDate: firstDate,
+                lastDate: DateTime(today.year + 2, 12, 31),
+                onDateChanged: _selectDate,
+              ),
+            ),
           ),
 
           if (_loadingAvailability) ...[
-            const SizedBox(
-              height: 25,
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(color: gold),
+            const SizedBox(height: 10),
+            const Text(
+              'Controllo disponibilità…',
+              style: TextStyle(color: muted),
             ),
-            const CircularProgressIndicator(),
           ],
 
           if (!_loadingAvailability &&
               selectedDate != null &&
               lunchTimes.isEmpty &&
               dinnerTimes.isEmpty) ...[
-            const SizedBox(
-              height: 20,
-            ),
+            const SizedBox(height: 20),
             _notice(
-              'Non ci sono orari prenotabili online per questa data.',
-              Icons.event_busy_outlined,
+              text:
+                  'Non ci sono orari prenotabili '
+                  'per questa data.',
+              icon: Icons.event_busy_outlined,
             ),
           ],
         ],
@@ -817,619 +562,529 @@ class _CustomerBookingScreenState
   }
 
   // =========================================================
-  // STEP ORARIO
-  // =========================================================
-
-  Widget _buildTimeStep() {
-    return _section(
-      icon:
-          Icons.schedule_outlined,
-      title:
-          'Scegli l’orario',
-      subtitle:
-          selectedDate == null
-              ? ''
-              : _formattedDate(
-                  selectedDate!,
-                ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.stretch,
-        children: [
-          if (lunchTimes.isNotEmpty)
-            _serviceTimeSection(
-              icon:
-                  Icons.wb_sunny_outlined,
-              title:
-                  'PRANZO',
-              subtitle:
-                  'Seleziona un orario per il pranzo',
-              times:
-                  lunchTimes,
-              service:
-                  'lunch',
-            ),
-
-          if (lunchTimes.isNotEmpty &&
-              dinnerTimes.isNotEmpty)
-            const SizedBox(
-              height: 28,
-            ),
-
-          if (dinnerTimes.isNotEmpty)
-            _serviceTimeSection(
-              icon:
-                  Icons.nightlight_outlined,
-              title:
-                  'CENA',
-              subtitle:
-                  'Seleziona un orario per la cena',
-              times:
-                  dinnerTimes,
-              service:
-                  'dinner',
-            ),
-
-          if (lunchTimes.isEmpty &&
-              dinnerTimes.isEmpty)
-            _notice(
-              'Nessun orario disponibile.',
-              Icons.schedule_outlined,
-            ),
-
-          const SizedBox(
-            height: 30,
-          ),
-
-          _primaryButton(
-            text:
-                'CONTINUA',
-            onPressed:
-                selectedTime == null
-                    ? null
-                    : _continueFromTime,
-          ),
-
-          _backButton(),
-        ],
-      ),
-    );
-  }
-
-  Widget _serviceTimeSection({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required List<String> times,
-    required String service,
-  }) {
-    return Container(
-      padding:
-          const EdgeInsets.all(
-        18,
-      ),
-      decoration: BoxDecoration(
-        color: ivory,
-        borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
-        border: Border.all(
-          color: const Color(
-            0xFFE1D7C7,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration:
-                    const BoxDecoration(
-                  color:
-                      Color(
-                    0xFFF2E5C8,
-                  ),
-                  shape:
-                      BoxShape.circle,
-                ),
-                child: Icon(
-                  icon,
-                  color:
-                      const Color(
-                    0xFF8A6726,
-                  ),
-                  size: 21,
-                ),
-              ),
-
-              const SizedBox(
-                width: 12,
-              ),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style:
-                          const TextStyle(
-                        color: dark,
-                        fontSize: 17,
-                        fontWeight:
-                            FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-
-                    Text(
-                      subtitle,
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.grey,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(
-            height: 18,
-          ),
-
-          Wrap(
-            spacing: 10,
-            runSpacing: 10,
-            children:
-                times.map(
-              (time) {
-                final selected =
-                    time ==
-                            selectedTime &&
-                        service ==
-                            selectedService;
-
-                return ChoiceChip(
-                  label: Padding(
-                    padding:
-                        const EdgeInsets
-                            .symmetric(
-                      horizontal: 9,
-                      vertical: 5,
-                    ),
-                    child: Text(
-                      time,
-                      style:
-                          TextStyle(
-                        fontSize: 16,
-                        fontWeight:
-                            FontWeight.w600,
-                        color: selected
-                            ? Colors.black
-                            : dark,
-                      ),
-                    ),
-                  ),
-                  selected:
-                      selected,
-                  selectedColor:
-                      gold,
-                  backgroundColor:
-                      Colors.white,
-                  side:
-                      BorderSide(
-                    color: selected
-                        ? gold
-                        : const Color(
-                            0xFFD8D0C2,
-                          ),
-                  ),
-                  onSelected: (_) {
-                    setState(() {
-                      selectedTime =
-                          time;
-
-                      selectedService =
-                          service;
-                    });
-                  },
-                );
-              },
-            ).toList(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // =========================================================
-  // STEP PERSONE
+  // PERSONE
   // =========================================================
 
   Widget _buildGuestsStep() {
     return _section(
-      icon:
-          Icons.groups_outlined,
-      title:
-          'Quante persone?',
-      subtitle:
-          'Indica il numero di ospiti.',
+      title: 'Quante persone?',
+      subtitle: 'Tocca il numero degli ospiti.',
       child: Column(
         children: [
-          const SizedBox(
-            height: 10,
-          ),
+          _buildGuestsGrid(first: 1, last: 8),
 
-          Row(
-            mainAxisAlignment:
-                MainAxisAlignment.center,
-            children: [
-              _roundButton(
-                icon:
-                    Icons.remove,
-                enabled:
-                    persone > 1,
-                onTap: () {
-                  if (persone <= 1) {
-                    return;
-                  }
+          const SizedBox(height: 16),
 
-                  setState(() {
-                    persone--;
-                  });
-                },
-              ),
-
-              SizedBox(
-                width: 120,
-                child: Column(
-                  children: [
-                    Text(
-                      '$persone',
-                      style:
-                          const TextStyle(
-                        fontSize: 54,
-                        height: 1,
-                        color: dark,
-                        fontWeight:
-                            FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(
-                      height: 8,
-                    ),
-
-                    Text(
-                      persone == 1
-                          ? 'persona'
-                          : 'persone',
-                      style:
-                          const TextStyle(
-                        color:
-                            Colors.grey,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
+          Material(
+            color: gold,
+            shape: const CircleBorder(),
+            elevation: 3,
+            child: InkWell(
+              customBorder: const CircleBorder(),
+              onTap: () {
+                setState(() {
+                  _showMoreGuests = !_showMoreGuests;
+                });
+              },
+              child: SizedBox(
+                width: 52,
+                height: 52,
+                child: Icon(
+                  _showMoreGuests ? Icons.remove_rounded : Icons.add_rounded,
+                  color: dark,
+                  size: 30,
                 ),
               ),
+            ),
+          ),
 
-              _roundButton(
-                icon:
-                    Icons.add,
-                enabled:
-                    true,
-                onTap: () {
-                  setState(() {
-                    persone++;
-                  });
-                },
+          AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            child: _showMoreGuests
+                ? Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: _buildGuestsGrid(first: 9, last: 20),
+                  )
+                : const SizedBox.shrink(),
+          ),
+
+          const SizedBox(height: 18),
+
+          Text(
+            'Per gruppi superiori a 20 persone '
+            'contattaci direttamente.',
+            textAlign: TextAlign.center,
+            style: GoogleFonts.libreBaskerville(
+              color: muted,
+              fontSize: 12,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGuestsGrid({required int first, required int last}) {
+    final values = List<int>.generate(
+      last - first + 1,
+      (index) => first + index,
+    );
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: values.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 4,
+        crossAxisSpacing: 10,
+        mainAxisSpacing: 10,
+        childAspectRatio: 1.35,
+      ),
+      itemBuilder: (context, index) {
+        final value = values[index];
+        final selected = value == persone;
+
+        return Material(
+          color: selected ? gold : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(16),
+            onTap: () {
+              _selectGuests(value);
+            },
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: selected ? gold : border),
+              ),
+              child: Text(
+                '$value',
+                style: GoogleFonts.libreBaskerville(
+                  color: dark,
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // =========================================================
+  // ORARIO
+  // =========================================================
+
+  Widget _buildTimeStep() {
+    return _section(
+      title: 'Scegli un orario disponibile',
+      subtitle: selectedDate == null
+          ? ''
+          : '${_formattedDate(selectedDate!)}'
+                ' · $persone '
+                '${persone == 1 ? 'persona' : 'persone'}',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (lunchTimes.isNotEmpty)
+            _serviceTimes(
+              icon: Icons.wb_sunny_outlined,
+              title: 'PRANZO',
+              times: lunchTimes,
+              service: 'lunch',
+            ),
+
+          if (lunchTimes.isNotEmpty && dinnerTimes.isNotEmpty)
+            const SizedBox(height: 24),
+
+          if (dinnerTimes.isNotEmpty)
+            _serviceTimes(
+              icon: Icons.nightlight_outlined,
+              title: 'CENA',
+              times: dinnerTimes,
+              service: 'dinner',
+            ),
+
+          if (lunchTimes.isEmpty && dinnerTimes.isEmpty)
+            _notice(
+              text: 'Nessun orario disponibile.',
+              icon: Icons.schedule_outlined,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _serviceTimes({
+    required IconData icon,
+    required String title,
+    required List<String> times,
+    required String service,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: gold.withValues(alpha: 0.20),
+                child: Icon(icon, color: dark),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: GoogleFonts.libreBaskerville(
+                  color: dark,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                ),
               ),
             ],
           ),
 
-          const SizedBox(
-            height: 35,
-          ),
+          const SizedBox(height: 18),
 
-          _primaryButton(
-            text:
-                'CONTINUA',
-            onPressed:
-                _continueFromGuests,
-          ),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: times.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 4,
+              crossAxisSpacing: 9,
+              mainAxisSpacing: 9,
+              childAspectRatio: 1.55,
+            ),
+            itemBuilder: (context, index) {
+              final time = times[index];
 
-          _backButton(),
+              return Material(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(13),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(13),
+                  onTap: () {
+                    _selectTime(time: time, service: service);
+                  },
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(13),
+                      border: Border.all(color: border),
+                    ),
+                    child: Text(
+                      time,
+                      style: const TextStyle(
+                        color: dark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );
   }
 
   // =========================================================
-  // STEP DATI
+  // DATI CLIENTE
   // =========================================================
 
   Widget _buildDetailsStep() {
     return _section(
-      icon:
-          Icons.person_outline,
-      title:
-          'I tuoi dati',
+      title: 'I tuoi dati',
       subtitle:
-          'Inserisci i dati per la richiesta di prenotazione.',
+          'Inserisci i dati necessari '
+          'per la prenotazione.',
       child: Column(
         children: [
           TextField(
-            controller:
-                nomeController,
-            textCapitalization:
-                TextCapitalization.words,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Nome *',
-              prefixIcon:
-                  Icon(
-                Icons.person_outline,
-              ),
+            controller: nomeController,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.givenName],
+            decoration: const InputDecoration(
+              labelText: 'Nome *',
+              prefixIcon: Icon(Icons.person_outline),
             ),
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           TextField(
-            controller:
-                cognomeController,
-            textCapitalization:
-                TextCapitalization.words,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Cognome *',
-              prefixIcon:
-                  Icon(
-                Icons.person_outline,
-              ),
+            controller: cognomeController,
+            textCapitalization: TextCapitalization.words,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.familyName],
+            decoration: const InputDecoration(
+              labelText: 'Cognome *',
+              prefixIcon: Icon(Icons.person_outline),
             ),
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           TextField(
-            controller:
-                emailController,
-            keyboardType:
-                TextInputType.emailAddress,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Email *',
-              prefixIcon:
-                  Icon(
-                Icons.email_outlined,
-              ),
+            controller: emailController,
+            keyboardType: TextInputType.emailAddress,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.email],
+            decoration: const InputDecoration(
+              labelText: 'Email *',
+              prefixIcon: Icon(Icons.email_outlined),
             ),
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           TextField(
-            controller:
-                telefonoController,
-            keyboardType:
-                TextInputType.phone,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Telefono *',
-              prefixIcon:
-                  Icon(
-                Icons.phone_outlined,
-              ),
+            controller: telefonoController,
+            keyboardType: TextInputType.phone,
+            textInputAction: TextInputAction.next,
+            autofillHints: const [AutofillHints.telephoneNumber],
+            decoration: const InputDecoration(
+              labelText: 'Telefono *',
+              prefixIcon: Icon(Icons.phone_outlined),
             ),
           ),
 
-          const SizedBox(
-            height: 22,
-          ),
+          const SizedBox(height: 14),
 
           DropdownButtonFormField<String>(
-            initialValue:
-                selectedOccasione,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Occasione speciale',
-              prefixIcon:
-                  Icon(
-                Icons.celebration_outlined,
-              ),
+            initialValue: selectedOccasione,
+            decoration: const InputDecoration(
+              labelText: 'Occasione',
+              prefixIcon: Icon(Icons.celebration_outlined),
             ),
-            items:
-                occasioni.map(
-              (item) {
-                return DropdownMenuItem<String>(
-                  value:
-                      item,
-                  child:
-                      Text(
-                    item,
-                  ),
-                );
-              },
-            ).toList(),
+            items: occasioni
+                .map(
+                  (occasion) =>
+                      DropdownMenuItem(value: occasion, child: Text(occasion)),
+                )
+                .toList(),
             onChanged: (value) {
               if (value == null) {
                 return;
               }
 
               setState(() {
-                selectedOccasione =
-                    value;
+                selectedOccasione = value;
               });
             },
           ),
 
-          const SizedBox(
-            height: 14,
-          ),
+          const SizedBox(height: 14),
 
           TextField(
-            controller:
-                noteController,
-            maxLines: 3,
-            decoration:
-                const InputDecoration(
-              labelText:
-                  'Richieste particolari / Note',
-              alignLabelWithHint:
-                  true,
-              prefixIcon:
-                  Icon(
-                Icons.notes_outlined,
-              ),
+            controller: noteController,
+            minLines: 3,
+            maxLines: 5,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              labelText: 'Richieste particolari',
+              hintText:
+                  'Allergie, intolleranze '
+                  'o altre richieste',
+              prefixIcon: Icon(Icons.notes_outlined),
+              alignLabelWithHint: true,
             ),
           ),
 
-          const SizedBox(
-            height: 28,
-          ),
+          const SizedBox(height: 24),
 
-          _primaryButton(
-            text:
-                'CONTINUA',
-            onPressed:
-                _continueFromDetails,
+          SizedBox(
+            width: double.infinity,
+            height: 56,
+            child: FilledButton.icon(
+              onPressed: _reviewBooking,
+              icon: const Icon(Icons.receipt_long_outlined),
+              label: const Text('RIVEDI PRENOTAZIONE'),
+            ),
           ),
-
-          _backButton(),
         ],
       ),
     );
   }
 
   // =========================================================
-  // STEP RIEPILOGO
+  // RIEPILOGO
   // =========================================================
 
   Widget _buildSummaryStep() {
-    final serviceText =
-        selectedService == 'lunch'
-            ? 'Pranzo'
-            : 'Cena';
+    final serviceText = selectedService == 'lunch' ? 'Pranzo' : 'Cena';
 
     return _section(
-      icon:
-          Icons.check_circle_outline,
-      title:
-          'Riepilogo',
-      subtitle:
-          'Controlla i dati prima di inviare la richiesta.',
+      title: 'Riepilogo',
+      subtitle: 'Controlla i dati prima di prenotare.',
       child: Column(
         children: [
-          _summaryRow(
-            Icons.calendar_today_outlined,
-            'Data',
-            selectedDate == null
-                ? '-'
-                : _formattedDate(
-                    selectedDate!,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: border),
+            ),
+            child: Column(
+              children: [
+                _summaryRow(
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Data',
+                  value: selectedDate == null
+                      ? '-'
+                      : _formattedDate(selectedDate!),
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.groups_outlined,
+                  label: 'Persone',
+                  value: '$persone',
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.restaurant_outlined,
+                  label: 'Servizio',
+                  value: serviceText,
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.schedule_outlined,
+                  label: 'Orario',
+                  value: selectedTime ?? '-',
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Cliente',
+                  value:
+                      '${nomeController.text.trim()} '
+                      '${cognomeController.text.trim()}',
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.email_outlined,
+                  label: 'Email',
+                  value: emailController.text.trim(),
+                ),
+                _summaryDivider(),
+                _summaryRow(
+                  icon: Icons.phone_outlined,
+                  label: 'Telefono',
+                  value: telefonoController.text.trim(),
+                ),
+
+                if (selectedOccasione != 'Nessuna') ...[
+                  _summaryDivider(),
+                  _summaryRow(
+                    icon: Icons.celebration_outlined,
+                    label: 'Occasione',
+                    value: selectedOccasione,
                   ),
-          ),
+                ],
 
-          _summaryRow(
-            selectedService ==
-                    'lunch'
-                ? Icons.wb_sunny_outlined
-                : Icons.nightlight_outlined,
-            'Servizio',
-            serviceText,
-          ),
-
-          _summaryRow(
-            Icons.schedule_outlined,
-            'Orario',
-            selectedTime ?? '-',
-          ),
-
-          _summaryRow(
-            Icons.groups_outlined,
-            'Persone',
-            '$persone',
-          ),
-
-          _summaryRow(
-            Icons.person_outline,
-            'Nome',
-            '${nomeController.text.trim()} '
-                '${cognomeController.text.trim()}',
-          ),
-
-          _summaryRow(
-            Icons.email_outlined,
-            'Email',
-            emailController.text.trim(),
-          ),
-
-          _summaryRow(
-            Icons.phone_outlined,
-            'Telefono',
-            telefonoController.text.trim(),
-          ),
-
-          if (selectedOccasione !=
-              'Nessuna')
-            _summaryRow(
-              Icons.celebration_outlined,
-              'Occasione',
-              selectedOccasione,
+                if (noteController.text.trim().isNotEmpty) ...[
+                  _summaryDivider(),
+                  _summaryRow(
+                    icon: Icons.notes_outlined,
+                    label: 'Richieste',
+                    value: noteController.text.trim(),
+                  ),
+                ],
+              ],
             ),
-
-          if (noteController.text
-              .trim()
-              .isNotEmpty)
-            _summaryRow(
-              Icons.notes_outlined,
-              'Note',
-              noteController.text.trim(),
-            ),
-
-          const SizedBox(
-            height: 28,
           ),
 
-          _primaryButton(
-            text:
+          const SizedBox(height: 18),
+
+          _confirmationNotice(),
+
+          const SizedBox(height: 22),
+
+          SizedBox(
+            width: double.infinity,
+            height: 58,
+            child: FilledButton.icon(
+              onPressed: _saving ? null : _saveBooking,
+              icon: _saving
+                  ? const SizedBox(
+                      width: 21,
+                      height: 21,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2.4,
+                        color: dark,
+                      ),
+                    )
+                  : const Icon(Icons.check_rounded),
+              label: Text(
                 _saving
-                    ? 'INVIO IN CORSO...'
+                    ? 'INVIO IN CORSO…'
+                    : persone <= 4
+                    ? 'CONFERMA PRENOTAZIONE'
                     : 'INVIA RICHIESTA',
-            icon:
-                Icons.check,
-            onPressed:
-                _saving
-                    ? null
-                    : _salvaPrenotazione,
+              ),
+            ),
           ),
+        ],
+      ),
+    );
+  }
 
-          _backButton(),
+  Widget _confirmationNotice() {
+    final automatic = persone <= 4;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: automatic
+            ? Colors.green.withValues(alpha: 0.10)
+            : gold.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: automatic
+              ? Colors.green.withValues(alpha: 0.35)
+              : gold.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            automatic ? Icons.check_circle_outline : Icons.schedule_outlined,
+            color: automatic ? Colors.green : const Color(0xFF8A6726),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              automatic
+                  ? 'La prenotazione sarà '
+                        'confermata immediatamente.'
+                  : 'Le richieste da 5 persone '
+                        'in su devono essere confermate '
+                        'dal ristorante.',
+              style: const TextStyle(
+                color: dark,
+                fontSize: 13,
+                height: 1.4,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -1440,474 +1095,120 @@ class _CustomerBookingScreenState
   // =========================================================
 
   Widget _section({
-    required IconData icon,
     required String title,
     required String subtitle,
     required Widget child,
   }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          textAlign: TextAlign.left,
+          style: GoogleFonts.libreBaskerville(
+            color: dark,
+            fontSize: 27,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+
+        const SizedBox(height: 7),
+
+        Text(
+          subtitle,
+          style: GoogleFonts.libreBaskerville(
+            color: muted,
+            fontSize: 14,
+            height: 1.4,
+          ),
+        ),
+
+        const SizedBox(height: 22),
+
+        child,
+      ],
+    );
+  }
+
+  Widget _notice({required String text, required IconData icon}) {
     return Container(
-      width:
-          double.infinity,
-      padding:
-          const EdgeInsets.all(
-        24,
+      width: double.infinity,
+      padding: const EdgeInsets.all(17),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: border),
       ),
-      decoration:
-          BoxDecoration(
-        color:
-            Colors.white,
-        borderRadius:
-            BorderRadius.circular(
-          24,
-        ),
-        border:
-            Border.all(
-          color:
-              const Color(
-            0xFFE3DDD2,
-          ),
-        ),
-        boxShadow:
-            const [
-          BoxShadow(
-            color:
-                Color(
-              0x12000000,
-            ),
-            blurRadius:
-                20,
-            offset:
-                Offset(
-              0,
-              7,
-            ),
-          ),
-        ],
-      ),
-      child:
-          Column(
+      child: Row(
         children: [
-          Container(
-            width:
-                54,
-            height:
-                54,
-            decoration:
-                const BoxDecoration(
-              color:
-                  Color(
-                0xFFF2E5C8,
-              ),
-              shape:
-                  BoxShape.circle,
-            ),
-            child:
-                Icon(
-              icon,
-              color:
-                  const Color(
-                0xFF8A6726,
-              ),
-              size:
-                  28,
-            ),
+          Icon(icon, color: gold),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(text, style: const TextStyle(color: dark, height: 1.4)),
           ),
-
-          const SizedBox(
-            height:
-                14,
-          ),
-
-          Text(
-            title,
-            textAlign:
-                TextAlign.center,
-            style:
-                const TextStyle(
-              color:
-                  dark,
-              fontSize:
-                  24,
-              fontWeight:
-                  FontWeight.bold,
-            ),
-          ),
-
-          if (subtitle.isNotEmpty) ...[
-            const SizedBox(
-              height:
-                  6,
-            ),
-            Text(
-              subtitle,
-              textAlign:
-                  TextAlign.center,
-              style:
-                  const TextStyle(
-                color:
-                    Colors.grey,
-                fontSize:
-                    14,
-              ),
-            ),
-          ],
-
-          const SizedBox(
-            height:
-                26,
-          ),
-
-          child,
         ],
       ),
     );
   }
 
-  Widget _bigSelectionButton({
-    required String text,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color:
-          ivory,
-      borderRadius:
-          BorderRadius.circular(
-        16,
-      ),
-      child:
-          InkWell(
-        borderRadius:
-            BorderRadius.circular(
-          16,
-        ),
-        onTap:
-            onTap,
-        child:
-            Container(
-          width:
-              double.infinity,
-          padding:
-              const EdgeInsets.all(
-            20,
-          ),
-          decoration:
-              BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(
-              16,
-            ),
-            border:
-                Border.all(
-              color:
-                  const Color(
-                0xFFD8D0C2,
-              ),
-            ),
-          ),
-          child:
-              Row(
-            children: [
-              const Icon(
-                Icons.calendar_month_outlined,
-                color:
-                    gold,
-                size:
-                    28,
-              ),
-
-              const SizedBox(
-                width:
-                    14,
-              ),
-
-              Expanded(
-                child:
-                    Text(
-                  text,
-                  style:
-                      const TextStyle(
-                    color:
-                        dark,
-                    fontSize:
-                        17,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-              ),
-
-              const Icon(
-                Icons.chevron_right,
-                color:
-                    gold,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _primaryButton({
-    required String text,
-    required VoidCallback? onPressed,
-    IconData? icon,
-  }) {
-    return SizedBox(
-      width:
-          double.infinity,
-      height:
-          56,
-      child:
-          FilledButton.icon(
-        style:
-            FilledButton.styleFrom(
-          backgroundColor:
-              dark,
-          foregroundColor:
-              gold,
-          disabledBackgroundColor:
-              Colors.grey.shade300,
-          disabledForegroundColor:
-              Colors.grey.shade500,
-          shape:
-              RoundedRectangleBorder(
-            borderRadius:
-                BorderRadius.circular(
-              15,
-            ),
-          ),
-        ),
-        onPressed:
-            onPressed,
-        icon:
-            Icon(
-          icon ??
-              Icons.arrow_forward,
-        ),
-        label:
-            Text(
-          text,
-          style:
-              const TextStyle(
-            fontSize:
-                16,
-            fontWeight:
-                FontWeight.bold,
-            letterSpacing:
-                .5,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _backButton() {
-    if (currentStep == 0) {
-      return const SizedBox.shrink();
-    }
-
-    return Padding(
-      padding:
-          const EdgeInsets.only(
-        top:
-            8,
-      ),
-      child:
-          TextButton.icon(
-        onPressed:
-            () {
-          setState(
-            () {
-              currentStep--;
-            },
-          );
-        },
-        icon:
-            const Icon(
-          Icons.arrow_back,
-        ),
-        label:
-            const Text(
-          'Indietro',
-        ),
-      ),
-    );
-  }
-
-  Widget _roundButton({
+  Widget _summaryRow({
     required IconData icon,
-    required bool enabled,
-    required VoidCallback onTap,
+    required String label,
+    required String value,
   }) {
-    return IconButton.filled(
-      style:
-          IconButton.styleFrom(
-        backgroundColor:
-            enabled
-                ? gold
-                : Colors.grey.shade300,
-        foregroundColor:
-            enabled
-                ? Colors.black
-                : Colors.grey,
-        minimumSize:
-            const Size(
-          54,
-          54,
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, color: gold, size: 21),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 78,
+          child: Text(
+            label,
+            style: const TextStyle(color: muted, fontSize: 13),
+          ),
         ),
-      ),
-      onPressed:
-          enabled
-              ? onTap
-              : null,
-      icon:
-          Icon(
-        icon,
-      ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            value,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: dark,
+              fontSize: 14,
+              fontWeight: FontWeight.w700,
+              height: 1.35,
+            ),
+          ),
+        ),
+      ],
     );
   }
 
-  Widget _notice(
-    String text,
-    IconData icon,
-  ) {
-    return Container(
-      width:
-          double.infinity,
-      padding:
-          const EdgeInsets.all(
-        18,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            ivory,
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
-      ),
-      child:
-          Row(
-        children: [
-          Icon(
-            icon,
-            color:
-                gold,
-          ),
-
-          const SizedBox(
-            width:
-                12,
-          ),
-
-          Expanded(
-            child:
-                Text(
-              text,
-              style:
-                  const TextStyle(
-                color:
-                    dark,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _summaryRow(
-    IconData icon,
-    String label,
-    String value,
-  ) {
-    return Container(
-      margin:
-          const EdgeInsets.only(
-        bottom:
-            10,
-      ),
-      padding:
-          const EdgeInsets.all(
-        15,
-      ),
-      decoration:
-          BoxDecoration(
-        color:
-            ivory,
-        borderRadius:
-            BorderRadius.circular(
-          14,
-        ),
-      ),
-      child:
-          Row(
-        crossAxisAlignment:
-            CrossAxisAlignment.start,
-        children: [
-          Icon(
-            icon,
-            color:
-                gold,
-          ),
-
-          const SizedBox(
-            width:
-                12,
-          ),
-
-          Expanded(
-            child:
-                Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style:
-                      const TextStyle(
-                    color:
-                        Colors.grey,
-                    fontSize:
-                        12,
-                  ),
-                ),
-
-                const SizedBox(
-                  height:
-                      2,
-                ),
-
-                Text(
-                  value,
-                  style:
-                      const TextStyle(
-                    color:
-                        dark,
-                    fontSize:
-                        16,
-                    fontWeight:
-                        FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
+  Widget _summaryDivider() {
+    return const Padding(
+      padding: EdgeInsets.symmetric(vertical: 13),
+      child: Divider(height: 1, color: Color(0xFFE8E1D6)),
     );
   }
 
   // =========================================================
-  // FORMATO DATA
+  // DATA IN ITALIANO
   // =========================================================
 
-  String _formattedDate(
-    DateTime date,
-  ) {
-    const months = [
+  String _formattedDate(DateTime date) {
+    const weekdayNames = [
+      'Lunedì',
+      'Martedì',
+      'Mercoledì',
+      'Giovedì',
+      'Venerdì',
+      'Sabato',
+      'Domenica',
+    ];
+
+    const monthNames = [
       'gennaio',
       'febbraio',
       'marzo',
@@ -1922,19 +1223,9 @@ class _CustomerBookingScreenState
       'dicembre',
     ];
 
-    const days = [
-      'lunedì',
-      'martedì',
-      'mercoledì',
-      'giovedì',
-      'venerdì',
-      'sabato',
-      'domenica',
-    ];
-
-    return '${days[date.weekday - 1]} '
+    return '${weekdayNames[date.weekday - 1]} '
         '${date.day} '
-        '${months[date.month - 1]} '
+        '${monthNames[date.month - 1]} '
         '${date.year}';
   }
 }
