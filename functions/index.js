@@ -27,9 +27,7 @@ const ADMINS_COLLECTION = "admins";
 const ANDROID_CHANNEL_ID = "le_capase_bookings_high";
 
 const gmailUser = defineSecret("GMAIL_USER");
-const gmailAppPassword = defineSecret(
-    "GMAIL_APP_PASSWORD",
-);
+const gmailAppPassword = defineSecret("GMAIL_APP_PASSWORD");
 
 function customerName(data) {
   const nome =
@@ -42,8 +40,7 @@ function customerName(data) {
       data.cognome.trim() :
       "";
 
-  return `${nome} ${cognome}`.trim() ||
-    "Cliente";
+  return `${nome} ${cognome}`.trim() || "Cliente";
 }
 
 function guestsLabel(guests) {
@@ -122,6 +119,25 @@ function escapeHtml(value) {
       .replaceAll("'", "&#039;");
 }
 
+function bookingDetails(data) {
+  const guests =
+    Number.isInteger(data.guests) ?
+      data.guests :
+      Number(data.guests || 0);
+
+  return {
+    name: customerName(data),
+    guests,
+    guestsText: guestsLabel(guests),
+    date: formatDate(data.dateKey),
+    time:
+      typeof data.time === "string" ?
+        data.time :
+        "",
+    service: serviceLabel(data.service),
+  };
+}
+
 async function getAdminTokens() {
   const snapshot =
     await db
@@ -152,21 +168,16 @@ async function getAdminTokens() {
 }
 
 function buildNotification(data) {
-  const guests =
-    Number.isInteger(data.guests) ?
-      data.guests :
-      Number(data.guests || 0);
+  const details = bookingDetails(data);
 
   const confirmed =
     data.status === "confirmed";
 
   const parts = [
-    customerName(data),
-    guestsLabel(guests),
-    formatDate(data.dateKey),
-    typeof data.time === "string" ?
-      data.time :
-      "",
+    details.name,
+    details.guestsText,
+    details.date,
+    details.time,
   ].filter(
       (value) =>
         typeof value === "string" &&
@@ -192,8 +203,7 @@ exports.onNewBooking =
   onDocumentCreated(
       `${BOOKINGS_COLLECTION}/{bookingId}`,
       async (event) => {
-        const snapshot =
-          event.data;
+        const snapshot = event.data;
 
         if (!snapshot) {
           logger.warn(
@@ -203,8 +213,7 @@ exports.onNewBooking =
           return;
         }
 
-        const data =
-          snapshot.data();
+        const data = snapshot.data();
 
         const bookingId =
           event.params.bookingId;
@@ -234,15 +243,13 @@ exports.onNewBooking =
           return;
         }
 
-        const notification =
-          buildNotification(data);
-
         const response =
           await getMessaging()
               .sendEachForMulticast({
                 tokens,
 
-                notification,
+                notification:
+                  buildNotification(data),
 
                 data: {
                   type:
@@ -252,29 +259,19 @@ exports.onNewBooking =
                     String(bookingId),
 
                   status:
-                    String(
-                        data.status || "",
-                    ),
+                    String(data.status || ""),
 
                   guests:
-                    String(
-                        data.guests || "",
-                    ),
+                    String(data.guests || ""),
 
                   dateKey:
-                    String(
-                        data.dateKey || "",
-                    ),
+                    String(data.dateKey || ""),
 
                   time:
-                    String(
-                        data.time || "",
-                    ),
+                    String(data.time || ""),
 
                   service:
-                    String(
-                        data.service || "",
-                    ),
+                    String(data.service || ""),
                 },
 
                 android: {
@@ -351,18 +348,199 @@ exports.onNewBooking =
   );
 
 // ============================================================
-// BLOCCA L'INVIO DOPPIO DELL'EMAIL
+// CONFIGURAZIONE DELLE EMAIL
 // ============================================================
 
-async function claimConfirmationEmail(
+const EMAIL_TYPES = {
+  received: {
+    status:
+      "pending",
+
+    sentField:
+      "requestReceivedEmailSent",
+
+    sentAtField:
+      "requestReceivedEmailSentAt",
+
+    processingField:
+      "requestReceivedEmailProcessing",
+
+    processingAtField:
+      "requestReceivedEmailProcessingAt",
+
+    errorField:
+      "requestReceivedEmailLastError",
+
+    messageIdField:
+      "requestReceivedEmailMessageId",
+
+    subject:
+      "Richiesta di prenotazione ricevuta – Le Capase",
+
+    title:
+      "Richiesta ricevuta",
+
+    opening:
+      "abbiamo ricevuto la tua richiesta di prenotazione.",
+
+    notice:
+      "La richiesta è stata presa in carico e riceverai " +
+      "la conferma definitiva il prima possibile.",
+
+    warning:
+      "Attenzione: la prenotazione non è ancora confermata.",
+
+    closing:
+      "Ti contatteremo al più presto.",
+  },
+
+  confirmed: {
+    status:
+      "confirmed",
+
+    sentField:
+      "confirmationEmailSent",
+
+    sentAtField:
+      "confirmationEmailSentAt",
+
+    processingField:
+      "confirmationEmailProcessing",
+
+    processingAtField:
+      "confirmationEmailProcessingAt",
+
+    errorField:
+      "confirmationEmailLastError",
+
+    messageIdField:
+      "confirmationEmailMessageId",
+
+    subject:
+      "Conferma prenotazione – Le Capase",
+
+    title:
+      "Prenotazione confermata",
+
+    opening:
+      "la tua prenotazione presso Le Capase è confermata.",
+
+    notice:
+      "Il tuo tavolo è stato riservato.",
+
+    warning:
+      "",
+
+    closing:
+      "Ti aspettiamo!",
+  },
+
+  rejected: {
+    status:
+      "rejected",
+
+    sentField:
+      "rejectionEmailSent",
+
+    sentAtField:
+      "rejectionEmailSentAt",
+
+    processingField:
+      "rejectionEmailProcessing",
+
+    processingAtField:
+      "rejectionEmailProcessingAt",
+
+    errorField:
+      "rejectionEmailLastError",
+
+    messageIdField:
+      "rejectionEmailMessageId",
+
+    subject:
+      "Richiesta di prenotazione non accettata – Le Capase",
+
+    title:
+      "Richiesta non accettata",
+
+    opening:
+      "siamo spiacenti di comunicarti che non possiamo " +
+      "confermare la tua richiesta di prenotazione.",
+
+    notice:
+      "Per esigenze organizzative interne non ci è possibile " +
+      "accogliere la richiesta indicata.",
+
+    warning:
+      "",
+
+    closing:
+      "Ci scusiamo per il disagio.",
+  },
+
+  cancelled: {
+    status:
+      "cancelled",
+
+    sentField:
+      "cancellationEmailSent",
+
+    sentAtField:
+      "cancellationEmailSentAt",
+
+    processingField:
+      "cancellationEmailProcessing",
+
+    processingAtField:
+      "cancellationEmailProcessingAt",
+
+    errorField:
+      "cancellationEmailLastError",
+
+    messageIdField:
+      "cancellationEmailMessageId",
+
+    subject:
+      "Prenotazione annullata – Le Capase",
+
+    title:
+      "Prenotazione annullata",
+
+    opening:
+      "siamo spiacenti di comunicarti che la tua " +
+      "prenotazione è stata annullata.",
+
+    notice:
+      "Per problemi organizzativi interni non ci è possibile " +
+      "mantenere la prenotazione indicata.",
+
+    warning:
+      "",
+
+    closing:
+      "Ci scusiamo sinceramente per il disagio.",
+  },
+};
+
+// ============================================================
+// BLOCCO CONTRO INVII EMAIL DUPLICATI
+// ============================================================
+
+async function claimEmail(
     reference,
+    type,
 ) {
+  const config =
+    EMAIL_TYPES[type];
+
+  if (!config) {
+    return null;
+  }
+
   return db.runTransaction(
       async (transaction) => {
         const snapshot =
-          await transaction.get(
-              reference,
-          );
+          await transaction.get(reference);
 
         if (!snapshot.exists) {
           return null;
@@ -378,10 +556,10 @@ async function claimConfirmationEmail(
 
         if (
           data.source !== "customer" ||
-          data.status !== "confirmed" ||
+          data.status !== config.status ||
           email.length === 0 ||
-          data.confirmationEmailSent === true ||
-          data.confirmationEmailProcessing === true
+          data[config.sentField] === true ||
+          data[config.processingField] === true
         ) {
           return null;
         }
@@ -389,13 +567,13 @@ async function claimConfirmationEmail(
         transaction.update(
             reference,
             {
-              confirmationEmailProcessing:
+              [config.processingField]:
                 true,
 
-              confirmationEmailProcessingAt:
+              [config.processingAtField]:
                 FieldValue.serverTimestamp(),
 
-              confirmationEmailLastError:
+              [config.errorField]:
                 FieldValue.delete(),
 
               updatedAt:
@@ -409,44 +587,60 @@ async function claimConfirmationEmail(
 }
 
 // ============================================================
-// CONTENUTO EMAIL DI CONFERMA
+// CONTENUTO DELLE EMAIL
 // ============================================================
 
-function buildConfirmationEmail(data) {
-  const name =
-    customerName(data);
+function buildEmail(
+    data,
+    type,
+) {
+  const config =
+    EMAIL_TYPES[type];
 
-  const guests =
-    Number.isInteger(data.guests) ?
-      data.guests :
-      Number(data.guests || 0);
+  const details =
+    bookingDetails(data);
 
-  const date =
-    formatDate(data.dateKey);
+  const textLines = [
+    `Gentile ${details.name},`,
+    "",
+    config.opening,
+    "",
+    `Data: ${details.date}`,
+    `Orario: ${details.time}`,
+    `Servizio: ${details.service}`,
+    `Ospiti: ${details.guestsText}`,
+    "",
+    config.notice,
+  ];
 
-  const time =
-    typeof data.time === "string" ?
-      data.time :
+  if (config.warning) {
+    textLines.push(
+        "",
+        config.warning,
+    );
+  }
+
+  textLines.push(
+      "",
+      config.closing,
+      "",
+      "Le Capase – Ristorante Pizzeria",
+  );
+
+  const warningHtml =
+    config.warning ?
+      `
+        <p style="
+          padding:12px;
+          background:#fff4d6;
+          border-left:4px solid #c8a45d;
+        ">
+          <strong>
+            ${escapeHtml(config.warning)}
+          </strong>
+        </p>
+      ` :
       "";
-
-  const service =
-    serviceLabel(data.service);
-
-  const text = [
-    `Gentile ${name},`,
-    "",
-    "la tua prenotazione presso Le Capase è confermata.",
-    "",
-    `Data: ${date}`,
-    `Orario: ${time}`,
-    `Servizio: ${service}`,
-    `Ospiti: ${guestsLabel(guests)}`,
-    "",
-    "Per modifiche o cancellazioni puoi rispondere a questa email.",
-    "",
-    "Ti aspettiamo!",
-    "Le Capase – Ristorante Pizzeria",
-  ].join("\n");
 
   const html = `
     <div style="
@@ -457,18 +651,18 @@ function buildConfirmationEmail(data) {
       line-height:1.6;
     ">
       <h2 style="color:#a7863d">
-        Prenotazione confermata
+        ${escapeHtml(config.title)}
       </h2>
 
       <p>
         Gentile
-        <strong>${escapeHtml(name)}</strong>,
+        <strong>
+          ${escapeHtml(details.name)}
+        </strong>,
       </p>
 
       <p>
-        La tua prenotazione presso
-        <strong>Le Capase</strong>
-        è confermata.
+        ${escapeHtml(config.opening)}
       </p>
 
       <table style="
@@ -489,7 +683,7 @@ function buildConfirmationEmail(data) {
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(date)}
+              ${escapeHtml(details.date)}
             </strong>
           </td>
         </tr>
@@ -507,7 +701,7 @@ function buildConfirmationEmail(data) {
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(time)}
+              ${escapeHtml(details.time)}
             </strong>
           </td>
         </tr>
@@ -525,7 +719,7 @@ function buildConfirmationEmail(data) {
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(service)}
+              ${escapeHtml(details.service)}
             </strong>
           </td>
         </tr>
@@ -543,20 +737,21 @@ function buildConfirmationEmail(data) {
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(
-                  guestsLabel(guests),
-              )}
+              ${escapeHtml(details.guestsText)}
             </strong>
           </td>
         </tr>
       </table>
 
       <p>
-        Per modifiche o cancellazioni
-        puoi rispondere a questa email.
+        ${escapeHtml(config.notice)}
       </p>
 
-      <p>Ti aspettiamo!</p>
+      ${warningHtml}
+
+      <p>
+        ${escapeHtml(config.closing)}
+      </p>
 
       <p>
         <strong>
@@ -567,25 +762,35 @@ function buildConfirmationEmail(data) {
   `;
 
   return {
-    text,
+    text:
+      textLines.join("\n"),
+
     html,
   };
 }
 
 // ============================================================
-// INVIO EMAIL AUTOMATICA
+// INVIO DELL'EMAIL
 // ============================================================
 
-async function sendConfirmationEmail(
+async function sendBookingEmail(
     snapshot,
     bookingId,
+    type,
 ) {
+  const config =
+    EMAIL_TYPES[type];
+
   const data =
-    await claimConfirmationEmail(
+    await claimEmail(
         snapshot.ref,
+        type,
     );
 
-  if (!data) {
+  if (
+    !config ||
+    !data
+  ) {
     return;
   }
 
@@ -593,7 +798,10 @@ async function sendConfirmationEmail(
     data.email.trim();
 
   const content =
-    buildConfirmationEmail(data);
+    buildEmail(
+        data,
+        type,
+    );
 
   const sender =
     gmailUser.value();
@@ -625,7 +833,7 @@ async function sendConfirmationEmail(
           email,
 
         subject:
-          "Conferma prenotazione – Le Capase",
+          config.subject,
 
         text:
           content.text,
@@ -635,16 +843,16 @@ async function sendConfirmationEmail(
       });
 
     await snapshot.ref.update({
-      confirmationEmailSent:
+      [config.sentField]:
         true,
 
-      confirmationEmailSentAt:
+      [config.sentAtField]:
         FieldValue.serverTimestamp(),
 
-      confirmationEmailProcessing:
+      [config.processingField]:
         false,
 
-      confirmationEmailMessageId:
+      [config.messageIdField]:
         result.messageId || null,
 
       updatedAt:
@@ -652,17 +860,18 @@ async function sendConfirmationEmail(
     });
 
     logger.info(
-        "Email di conferma inviata.",
+        "Email prenotazione inviata.",
         {
           bookingId,
+          type,
         },
     );
   } catch (error) {
     await snapshot.ref.update({
-      confirmationEmailProcessing:
+      [config.processingField]:
         false,
 
-      confirmationEmailLastError:
+      [config.errorField]:
         String(error).slice(
             0,
             500,
@@ -673,9 +882,10 @@ async function sendConfirmationEmail(
     });
 
     logger.error(
-        "Invio email di conferma fallito.",
+        "Invio email prenotazione fallito.",
         {
           bookingId,
+          type,
           error,
         },
     );
@@ -685,11 +895,16 @@ async function sendConfirmationEmail(
 }
 
 // ============================================================
-// EMAIL PER PRENOTAZIONE 1-4 PERSONE
-// CONFERMATA AUTOMATICAMENTE ALLA CREAZIONE
+// EMAIL ALLA CREAZIONE
+//
+// 1-4 PERSONE:
+// CONFERMA AUTOMATICA
+//
+// DA 5 PERSONE:
+// RICHIESTA PRESA IN CARICO
 // ============================================================
 
-exports.onConfirmedBookingCreated =
+exports.onCustomerBookingCreated =
   onDocumentCreated(
       {
         document:
@@ -708,18 +923,49 @@ exports.onConfirmedBookingCreated =
           return;
         }
 
-        await sendConfirmationEmail(
-            snapshot,
-            event.params.bookingId,
-        );
+        const data =
+          snapshot.data();
+
+        const status =
+          data.status;
+
+        const bookingId =
+          event.params.bookingId;
+
+        if (status === "confirmed") {
+          await sendBookingEmail(
+              snapshot,
+              bookingId,
+              "confirmed",
+          );
+
+          return;
+        }
+
+        if (status === "pending") {
+          await sendBookingEmail(
+              snapshot,
+              bookingId,
+              "received",
+          );
+        }
       },
   );
 
 // ============================================================
-// EMAIL QUANDO IL GESTIONALE CONFERMA UNA RICHIESTA 5+
+// EMAIL QUANDO IL GESTIONALE CAMBIA LO STATO
+//
+// PENDING -> CONFIRMED:
+// EMAIL DI CONFERMA
+//
+// PENDING -> REJECTED:
+// EMAIL DI RIFIUTO
+//
+// CONFIRMED -> CANCELLED:
+// EMAIL DI ANNULLAMENTO
 // ============================================================
 
-exports.onBookingConfirmed =
+exports.onCustomerBookingStatusChanged =
   onDocumentUpdated(
       {
         document:
@@ -737,7 +983,10 @@ exports.onBookingConfirmed =
         const after =
           event.data?.after;
 
-        if (!before || !after) {
+        if (
+          !before ||
+          !after
+        ) {
           return;
         }
 
@@ -747,16 +996,39 @@ exports.onBookingConfirmed =
         const newStatus =
           after.data().status;
 
-        if (
-          oldStatus === "confirmed" ||
-          newStatus !== "confirmed"
-        ) {
+        if (oldStatus === newStatus) {
           return;
         }
 
-        await sendConfirmationEmail(
-            after,
-            event.params.bookingId,
-        );
+        const bookingId =
+          event.params.bookingId;
+
+        if (newStatus === "confirmed") {
+          await sendBookingEmail(
+              after,
+              bookingId,
+              "confirmed",
+          );
+
+          return;
+        }
+
+        if (newStatus === "rejected") {
+          await sendBookingEmail(
+              after,
+              bookingId,
+              "rejected",
+          );
+
+          return;
+        }
+
+        if (newStatus === "cancelled") {
+          await sendBookingEmail(
+              after,
+              bookingId,
+              "cancelled",
+          );
+        }
       },
   );
