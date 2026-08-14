@@ -161,6 +161,25 @@ class _BookingsScreenState extends State<BookingsScreen> {
         '${months[date.month - 1]} ${date.year}';
   }
 
+  String _monthLabel(DateTime date) {
+    const months = [
+      'Gennaio',
+      'Febbraio',
+      'Marzo',
+      'Aprile',
+      'Maggio',
+      'Giugno',
+      'Luglio',
+      'Agosto',
+      'Settembre',
+      'Ottobre',
+      'Novembre',
+      'Dicembre',
+    ];
+
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
   String _serviceLabel(String service) {
     switch (service) {
       case 'lunch':
@@ -170,6 +189,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
       default:
         return service;
     }
+  }
+
+  DateTime _firstDayOfMonth(DateTime date) {
+    return DateTime(date.year, date.month);
+  }
+
+  DateTime _previousMonth(DateTime date) {
+    return DateTime(date.year, date.month - 1);
+  }
+
+  DateTime _nextMonth(DateTime date) {
+    return DateTime(date.year, date.month + 1);
+  }
+
+  bool _sameDate(DateTime first, DateTime second) {
+    return first.year == second.year &&
+        first.month == second.month &&
+        first.day == second.day;
   }
 
   Future<bool> _confirmStatusChange({
@@ -457,24 +494,202 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
   }
 
-  Future<void> _openCalendar() async {
-    final selected = await showDatePicker(
+  Future<void> _openCalendar(Map<String, int> guestsByDate) async {
+    DateTime visibleMonth = _firstDayOfMonth(_selectedDate);
+    DateTime temporaryDate = _selectedDate;
+
+    final selectedDate = await showDialog<DateTime>(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime(2024),
-      lastDate: DateTime(DateTime.now().year + 5, 12, 31),
-      locale: const Locale('it', 'IT'),
-      helpText: 'Seleziona una data',
-      cancelText: 'ANNULLA',
-      confirmText: 'SELEZIONA',
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final firstDay = _firstDayOfMonth(visibleMonth);
+            final daysInMonth = DateTime(
+              visibleMonth.year,
+              visibleMonth.month + 1,
+              0,
+            ).day;
+
+            final firstWeekday = firstDay.weekday - 1;
+            final totalCells = firstWeekday + daysInMonth;
+            final totalRows = (totalCells / 7).ceil();
+
+            return AlertDialog(
+              insetPadding: const EdgeInsets.all(14),
+              contentPadding: const EdgeInsets.fromLTRB(14, 16, 14, 4),
+              titlePadding: const EdgeInsets.fromLTRB(18, 16, 10, 0),
+              title: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _monthLabel(visibleMonth),
+                      style: const TextStyle(
+                        fontSize: 19,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Mese precedente',
+                    onPressed: () {
+                      setDialogState(() {
+                        visibleMonth = _previousMonth(visibleMonth);
+                      });
+                    },
+                    icon: const Icon(Icons.chevron_left),
+                  ),
+                  IconButton(
+                    tooltip: 'Mese successivo',
+                    onPressed: () {
+                      setDialogState(() {
+                        visibleMonth = _nextMonth(visibleMonth);
+                      });
+                    },
+                    icon: const Icon(Icons.chevron_right),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Row(
+                      children: [
+                        _CalendarWeekday('L'),
+                        _CalendarWeekday('M'),
+                        _CalendarWeekday('M'),
+                        _CalendarWeekday('G'),
+                        _CalendarWeekday('V'),
+                        _CalendarWeekday('S'),
+                        _CalendarWeekday('D'),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ...List.generate(totalRows, (rowIndex) {
+                      return Row(
+                        children: List.generate(7, (columnIndex) {
+                          final cellIndex = rowIndex * 7 + columnIndex;
+                          final day = cellIndex - firstWeekday + 1;
+
+                          if (day < 1 || day > daysInMonth) {
+                            return const Expanded(child: SizedBox(height: 54));
+                          }
+
+                          final date = DateTime(
+                            visibleMonth.year,
+                            visibleMonth.month,
+                            day,
+                          );
+
+                          final key = _dateKey(date);
+                          final guests = guestsByDate[key] ?? 0;
+                          final selected = _sameDate(date, temporaryDate);
+                          final today = _sameDate(date, DateTime.now());
+
+                          return Expanded(
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(14),
+                              onTap: () {
+                                setDialogState(() {
+                                  temporaryDate = date;
+                                });
+                              },
+                              child: Container(
+                                height: 54,
+                                margin: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  color: selected
+                                      ? const Color(0xFFC8A45D)
+                                      : Colors.transparent,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: today && !selected
+                                      ? Border.all(
+                                          color: const Color(0xFFC8A45D),
+                                        )
+                                      : null,
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      '$day',
+                                      style: TextStyle(
+                                        color: selected ? Colors.black : null,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    if (guests > 0)
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 2),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: selected
+                                              ? Colors.black.withValues(
+                                                  alpha: 0.15,
+                                                )
+                                              : const Color(
+                                                  0xFFC8A45D,
+                                                ).withValues(alpha: 0.20),
+                                          borderRadius: BorderRadius.circular(
+                                            10,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${guests}p',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            color: selected
+                                                ? Colors.black
+                                                : const Color(0xFFC8A45D),
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }),
+                      );
+                    }),
+                    const SizedBox(height: 8),
+                    Text(
+                      'I numeri indicano i coperti prenotati.',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: const Text('ANNULLA'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, temporaryDate),
+                  child: const Text('SELEZIONA'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
 
-    if (selected == null || !mounted) {
+    if (selectedDate == null || !mounted) {
       return;
     }
 
     setState(() {
-      _selectedDate = selected;
+      _selectedDate = selectedDate;
     });
   }
 
@@ -634,7 +849,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _dateNavigator() {
+  Widget _dateNavigator(Map<String, int> guestsByDate) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: const BoxDecoration(
@@ -649,7 +864,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           ),
           Expanded(
             child: InkWell(
-              onTap: _openCalendar,
+              onTap: () => _openCalendar(guestsByDate),
               borderRadius: BorderRadius.circular(12),
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -1201,6 +1416,23 @@ class _BookingsScreenState extends State<BookingsScreen> {
           }
 
           final allBookings = snapshot.data?.docs ?? [];
+
+          final guestsByDate = <String, int>{};
+
+          for (final document in allBookings) {
+            final booking = document.data();
+            final status = booking['status'] as String? ?? 'pending';
+            final dateKey = booking['dateKey'] as String? ?? '';
+
+            if (dateKey.isEmpty || !_countsForCapacity(status)) {
+              continue;
+            }
+
+            guestsByDate.update(dateKey, (currentGuests) {
+              return currentGuests + _readInteger(booking['guests']);
+            }, ifAbsent: () => _readInteger(booking['guests']));
+          }
+
           final selectedDateKey = _dateKey(_selectedDate);
 
           final dateBookings = allBookings.where((document) {
@@ -1243,7 +1475,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
           return Column(
             children: [
-              _dateNavigator(),
+              _dateNavigator(guestsByDate),
               _serviceSelector(
                 allGuests: allGuests,
                 lunchGuests: lunchGuests,
@@ -1258,6 +1490,27 @@ class _BookingsScreenState extends State<BookingsScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _CalendarWeekday extends StatelessWidget {
+  final String label;
+
+  const _CalendarWeekday(this.label);
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Center(
+        child: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFC8A45D),
+          ),
+        ),
       ),
     );
   }
