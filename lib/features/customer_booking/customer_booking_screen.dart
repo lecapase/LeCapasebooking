@@ -59,10 +59,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     super.dispose();
   }
 
-  // =========================================================
-  // SELEZIONE DATA
-  // =========================================================
-
   Future<void> _selectDate(DateTime date) async {
     if (_loadingAvailability) {
       return;
@@ -118,12 +114,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           currentStep = 1;
         }
       });
-    } catch (_) {
+    } catch (error) {
       if (!mounted) {
         return;
       }
 
-      _message('Impossibile caricare gli orari disponibili.');
+      _message('Errore disponibilità: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -132,10 +128,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       }
     }
   }
-
-  // =========================================================
-  // SELEZIONE PERSONE
-  // =========================================================
 
   void _selectGuests(int value) {
     setState(() {
@@ -146,10 +138,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     });
   }
 
-  // =========================================================
-  // SELEZIONE ORARIO
-  // =========================================================
-
   void _selectTime({required String time, required String service}) {
     setState(() {
       selectedTime = time;
@@ -157,10 +145,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       currentStep = 3;
     });
   }
-
-  // =========================================================
-  // NAVIGAZIONE
-  // =========================================================
 
   void _goBack() {
     if (currentStep > 0) {
@@ -183,10 +167,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       currentStep = step;
     });
   }
-
-  // =========================================================
-  // VALIDAZIONE DATI
-  // =========================================================
 
   void _reviewBooking() {
     final nome = nomeController.text.trim();
@@ -218,10 +198,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
       );
   }
-
-  // =========================================================
-  // SALVATAGGIO PRENOTAZIONE
-  // =========================================================
 
   Future<void> _saveBooking() async {
     if (_saving) {
@@ -315,15 +291,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       }
 
       _message(error.message);
-    } catch (_) {
+    } catch (error) {
       if (!mounted) {
         return;
       }
 
-      _message(
-        'Non è stato possibile inviare la prenotazione. '
-        'Riprova.',
-      );
+      _message('Errore tecnico: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -332,10 +305,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       }
     }
   }
-
-  // =========================================================
-  // BUILD
-  // =========================================================
 
   @override
   Widget build(BuildContext context) {
@@ -374,7 +343,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             child: Column(
               children: [
                 _buildProgress(),
-
                 Expanded(
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 230),
@@ -394,10 +362,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       ),
     );
   }
-
-  // =========================================================
-  // INDICATORE FASI
-  // =========================================================
 
   Widget _buildProgress() {
     const steps = [
@@ -476,10 +440,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 
-  // =========================================================
-  // FASE ATTUALE
-  // =========================================================
-
   Widget _buildCurrentStep() {
     switch (currentStep) {
       case 0:
@@ -501,10 +461,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return _buildDateStep();
     }
   }
-
-  // =========================================================
-  // DATA
-  // =========================================================
 
   Widget _buildDateStep() {
     final today = DateTime.now();
@@ -533,7 +489,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               ),
             ),
           ),
-
           if (_loadingAvailability) ...[
             const SizedBox(height: 24),
             const CircularProgressIndicator(color: gold),
@@ -543,16 +498,13 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               style: TextStyle(color: muted),
             ),
           ],
-
           if (!_loadingAvailability &&
               selectedDate != null &&
               lunchTimes.isEmpty &&
               dinnerTimes.isEmpty) ...[
             const SizedBox(height: 20),
             _notice(
-              text:
-                  'Non ci sono orari prenotabili '
-                  'per questa data.',
+              text: 'Non ci sono orari prenotabili per questa data.',
               icon: Icons.event_busy_outlined,
             ),
           ],
@@ -561,10 +513,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 
-  // =========================================================
-  // PERSONE
-  // =========================================================
-
   Widget _buildGuestsStep() {
     return _section(
       title: 'Quante persone?',
@@ -572,9 +520,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       child: Column(
         children: [
           _buildGuestsGrid(first: 1, last: 8),
-
           const SizedBox(height: 16),
-
           Material(
             color: gold,
             shape: const CircleBorder(),
@@ -597,7 +543,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               ),
             ),
           ),
-
           AnimatedSize(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeInOut,
@@ -608,9 +553,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   )
                 : const SizedBox.shrink(),
           ),
-
           const SizedBox(height: 18),
-
           Text(
             'Per gruppi superiori a 20 persone '
             'contattaci direttamente.',
@@ -675,10 +618,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 
-  // =========================================================
-  // ORARIO
-  // =========================================================
-
   Widget _buildTimeStep() {
     return _section(
       title: 'Scegli un orario disponibile',
@@ -697,10 +636,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               times: lunchTimes,
               service: 'lunch',
             ),
-
           if (lunchTimes.isNotEmpty && dinnerTimes.isNotEmpty)
             const SizedBox(height: 24),
-
           if (dinnerTimes.isNotEmpty)
             _serviceTimes(
               icon: Icons.nightlight_outlined,
@@ -708,7 +645,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               times: dinnerTimes,
               service: 'dinner',
             ),
-
           if (lunchTimes.isEmpty && dinnerTimes.isEmpty)
             _notice(
               text: 'Nessun orario disponibile.',
@@ -753,9 +689,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               ),
             ],
           ),
-
           const SizedBox(height: 18),
-
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -801,16 +735,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 
-  // =========================================================
-  // DATI CLIENTE
-  // =========================================================
-
   Widget _buildDetailsStep() {
     return _section(
       title: 'I tuoi dati',
-      subtitle:
-          'Inserisci i dati necessari '
-          'per la prenotazione.',
+      subtitle: 'Inserisci i dati necessari per la prenotazione.',
       child: Column(
         children: [
           TextField(
@@ -823,9 +751,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               prefixIcon: Icon(Icons.person_outline),
             ),
           ),
-
           const SizedBox(height: 14),
-
           TextField(
             controller: cognomeController,
             textCapitalization: TextCapitalization.words,
@@ -836,9 +762,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               prefixIcon: Icon(Icons.person_outline),
             ),
           ),
-
           const SizedBox(height: 14),
-
           TextField(
             controller: emailController,
             keyboardType: TextInputType.emailAddress,
@@ -849,9 +773,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               prefixIcon: Icon(Icons.email_outlined),
             ),
           ),
-
           const SizedBox(height: 14),
-
           TextField(
             controller: telefonoController,
             keyboardType: TextInputType.phone,
@@ -862,9 +784,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               prefixIcon: Icon(Icons.phone_outlined),
             ),
           ),
-
           const SizedBox(height: 14),
-
           DropdownButtonFormField<String>(
             initialValue: selectedOccasione,
             decoration: const InputDecoration(
@@ -887,9 +807,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               });
             },
           ),
-
           const SizedBox(height: 14),
-
           TextField(
             controller: noteController,
             minLines: 3,
@@ -904,9 +822,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               alignLabelWithHint: true,
             ),
           ),
-
           const SizedBox(height: 24),
-
           SizedBox(
             width: double.infinity,
             height: 56,
@@ -920,10 +836,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       ),
     );
   }
-
-  // =========================================================
-  // RIEPILOGO
-  // =========================================================
 
   Widget _buildSummaryStep() {
     final serviceText = selectedService == 'lunch' ? 'Pranzo' : 'Cena';
@@ -988,7 +900,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   label: 'Telefono',
                   value: telefonoController.text.trim(),
                 ),
-
                 if (selectedOccasione != 'Nessuna') ...[
                   _summaryDivider(),
                   _summaryRow(
@@ -997,7 +908,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                     value: selectedOccasione,
                   ),
                 ],
-
                 if (noteController.text.trim().isNotEmpty) ...[
                   _summaryDivider(),
                   _summaryRow(
@@ -1009,13 +919,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               ],
             ),
           ),
-
           const SizedBox(height: 18),
-
           _confirmationNotice(),
-
           const SizedBox(height: 22),
-
           SizedBox(
             width: double.infinity,
             height: 58,
@@ -1072,11 +978,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           Expanded(
             child: Text(
               automatic
-                  ? 'La prenotazione sarà '
-                        'confermata immediatamente.'
-                  : 'Le richieste da 5 persone '
-                        'in su devono essere confermate '
-                        'dal ristorante.',
+                  ? 'La prenotazione sarà confermata immediatamente.'
+                  : 'Le richieste da 5 persone in su devono '
+                        'essere confermate dal ristorante.',
               style: const TextStyle(
                 color: dark,
                 fontSize: 13,
@@ -1089,10 +993,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       ),
     );
   }
-
-  // =========================================================
-  // COMPONENTI
-  // =========================================================
 
   Widget _section({
     required String title,
@@ -1112,9 +1012,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             height: 1.2,
           ),
         ),
-
         const SizedBox(height: 7),
-
         Text(
           subtitle,
           style: GoogleFonts.libreBaskerville(
@@ -1123,9 +1021,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             height: 1.4,
           ),
         ),
-
         const SizedBox(height: 22),
-
         child,
       ],
     );
@@ -1192,10 +1088,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       child: Divider(height: 1, color: Color(0xFFE8E1D6)),
     );
   }
-
-  // =========================================================
-  // DATA IN ITALIANO
-  // =========================================================
 
   String _formattedDate(DateTime date) {
     const weekdayNames = [

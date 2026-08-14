@@ -1,0 +1,322 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =====================================================
+    // AMMINISTRATORI
+    // =====================================================
+
+    function isAdmin() {
+      return request.auth != null
+        && exists(
+          /databases/$(database)/documents/admins/$(request.auth.uid)
+        );
+    }
+
+    // =====================================================
+    // VALIDAZIONE PRENOTAZIONE CLIENTE
+    // =====================================================
+
+    function isValidCustomerBooking() {
+      return request.resource.data.keys().hasAll([
+        'nome',
+        'cognome',
+        'email',
+        'normalizedEmail',
+        'telefono',
+        'normalizedPhone',
+        'customerKey',
+        'date',
+        'dateKey',
+        'weekday',
+        'time',
+        'service',
+        'guests',
+        'occasion',
+        'notes',
+        'status',
+        'autoBooked',
+        'autoConfirmed',
+        'requiresManualConfirmation',
+        'source',
+        'marketingEmailConsent',
+        'marketingWhatsappConsent',
+        'marketingConsentVersion',
+        'marketingConsentSource',
+        'marketingConsentRecordedAt',
+        'requestReceivedEmailSent',
+        'confirmationEmailSent',
+        'cancellationEmailSent',
+        'rejectionEmailSent',
+        'confirmationWhatsappSent',
+        'cancellationWhatsappSent',
+        'rejectionWhatsappSent',
+        'adminNotificationSent',
+        'createdAt',
+        'updatedAt'
+      ])
+
+      && request.resource.data.nome is string
+      && request.resource.data.nome.size() >= 1
+      && request.resource.data.nome.size() <= 100
+
+      && request.resource.data.cognome is string
+      && request.resource.data.cognome.size() >= 1
+      && request.resource.data.cognome.size() <= 100
+
+      && request.resource.data.email is string
+      && request.resource.data.email.size() >= 5
+      && request.resource.data.email.size() <= 254
+
+      && request.resource.data.normalizedEmail is string
+      && request.resource.data.normalizedEmail.size() >= 5
+      && request.resource.data.normalizedEmail.size() <= 254
+
+      && request.resource.data.telefono is string
+      && request.resource.data.telefono.size() >= 5
+      && request.resource.data.telefono.size() <= 30
+
+      && request.resource.data.normalizedPhone is string
+      && request.resource.data.normalizedPhone.size() >= 5
+      && request.resource.data.normalizedPhone.size() <= 30
+
+      && request.resource.data.customerKey is string
+      && request.resource.data.customerKey.size() >= 1
+      && request.resource.data.customerKey.size() <= 300
+
+      && request.resource.data.date is timestamp
+
+      && request.resource.data.dateKey is string
+      && request.resource.data.dateKey.size() == 10
+
+      && request.resource.data.weekday is int
+      && request.resource.data.weekday >= 1
+      && request.resource.data.weekday <= 7
+
+      && request.resource.data.time is string
+      && request.resource.data.time.matches(
+        '^[0-2][0-9]:[0-5][0-9]$'
+      )
+
+      && request.resource.data['service'] is string
+      && (
+        request.resource.data['service'] == 'lunch'
+        || request.resource.data['service'] == 'dinner'
+      )
+
+      && request.resource.data.guests is int
+      && request.resource.data.guests >= 1
+      && request.resource.data.guests <= 20
+
+      && request.resource.data.occasion is string
+      && request.resource.data.occasion.size() <= 200
+
+      && request.resource.data.notes is string
+      && request.resource.data.notes.size() <= 2000
+
+      && request.resource.data.source == 'customer'
+
+      && request.resource.data.marketingEmailConsent is bool
+      && request.resource.data.marketingWhatsappConsent is bool
+      && request.resource.data.marketingConsentVersion is string
+      && request.resource.data.marketingConsentSource is string
+      && request.resource.data.marketingConsentRecordedAt is timestamp
+
+      && request.resource.data.requestReceivedEmailSent == false
+      && request.resource.data.confirmationEmailSent == false
+      && request.resource.data.cancellationEmailSent == false
+      && request.resource.data.rejectionEmailSent == false
+
+      && request.resource.data.confirmationWhatsappSent == false
+      && request.resource.data.cancellationWhatsappSent == false
+      && request.resource.data.rejectionWhatsappSent == false
+
+      && request.resource.data.adminNotificationSent == false
+
+      && (
+        (
+          request.resource.data.guests <= 4
+          && request.resource.data.status == 'booked'
+          && request.resource.data.autoBooked == true
+          && request.resource.data.autoConfirmed == true
+          && request.resource.data.requiresManualConfirmation == false
+        )
+        ||
+        (
+          request.resource.data.guests >= 5
+          && request.resource.data.status == 'pending'
+          && request.resource.data.autoBooked == false
+          && request.resource.data.autoConfirmed == false
+          && request.resource.data.requiresManualConfirmation == true
+        )
+      );
+    }
+
+    // =====================================================
+    // CONTROLLO CONTATORE NUOVO
+    // =====================================================
+
+    function validNewCounter() {
+      let bookingId = request.resource.data.lastBookingId;
+      let bookingPath =
+        /databases/$(database)/documents/bookings/$(bookingId);
+
+      return request.resource.data.keys().hasAll([
+          'dateKey',
+          'weekday',
+          'service',
+          'bookedGuests',
+          'lastBookingId',
+          'updatedAt'
+        ])
+
+        && request.resource.data.dateKey is string
+        && request.resource.data.weekday is int
+        && request.resource.data['service'] is string
+        && request.resource.data.bookedGuests is int
+        && request.resource.data.bookedGuests >= 1
+        && request.resource.data.bookedGuests <= 1000
+        && request.resource.data.lastBookingId is string
+
+        && existsAfter(bookingPath)
+
+        && getAfter(bookingPath).data.source == 'customer'
+        && getAfter(bookingPath).data.dateKey
+          == request.resource.data.dateKey
+        && getAfter(bookingPath).data.weekday
+          == request.resource.data.weekday
+        && getAfter(bookingPath).data['service']
+          == request.resource.data['service']
+        && getAfter(bookingPath).data.guests
+          == request.resource.data.bookedGuests;
+    }
+
+    // =====================================================
+    // CONTROLLO AGGIORNAMENTO CONTATORE
+    // =====================================================
+
+    function validUpdatedCounter() {
+      let bookingId = request.resource.data.lastBookingId;
+      let bookingPath =
+        /databases/$(database)/documents/bookings/$(bookingId);
+
+      return request.resource.data.diff(resource.data)
+        .affectedKeys()
+        .hasOnly([
+          'bookedGuests',
+          'lastBookingId',
+          'updatedAt'
+        ])
+
+        && request.resource.data.dateKey
+          == resource.data.dateKey
+        && request.resource.data.weekday
+          == resource.data.weekday
+        && request.resource.data['service']
+          == resource.data['service']
+
+        && request.resource.data.bookedGuests is int
+        && request.resource.data.bookedGuests >= 1
+        && request.resource.data.bookedGuests <= 1000
+
+        && request.resource.data.lastBookingId is string
+
+        && existsAfter(bookingPath)
+
+        && getAfter(bookingPath).data.source == 'customer'
+        && getAfter(bookingPath).data.dateKey
+          == request.resource.data.dateKey
+        && getAfter(bookingPath).data.weekday
+          == request.resource.data.weekday
+        && getAfter(bookingPath).data['service']
+          == request.resource.data['service']
+
+        && request.resource.data.bookedGuests
+          == resource.data.bookedGuests
+            + getAfter(bookingPath).data.guests;
+    }
+
+    // =====================================================
+    // DISPONIBILITÀ PUBBLICHE
+    // =====================================================
+
+    match /availability_weekly/{documentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /availability_exceptions/{documentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /managed_services/{documentId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // =====================================================
+    // PRENOTAZIONI
+    // =====================================================
+
+    match /bookings/{bookingId} {
+      allow create: if isAdmin() || isValidCustomerBooking();
+
+      allow read, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // CONTATORI DEI COPERTI
+    // =====================================================
+
+    match /availability_counters/{counterId} {
+      allow read: if true;
+
+      allow create: if isAdmin() || validNewCounter();
+
+      allow update: if isAdmin() || validUpdatedCounter();
+
+      allow delete: if isAdmin();
+    }
+
+    // =====================================================
+    // ARCHIVIO CLIENTI E CONSENSI MARKETING
+    // =====================================================
+
+    match /customers/{customerId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /customer_profiles/{customerId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /marketing_contacts/{contactId} {
+      allow read, write: if isAdmin();
+    }
+
+    match /email_events/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
+    // =====================================================
+    // AMMINISTRATORI
+    // =====================================================
+
+    match /admins/{adminId} {
+      allow read: if request.auth != null
+        && request.auth.uid == adminId;
+
+      allow create, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // TUTTE LE ALTRE RACCOLTE
+    // =====================================================
+
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
