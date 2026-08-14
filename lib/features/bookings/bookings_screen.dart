@@ -227,7 +227,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
             'Vuoi impostare la prenotazione di $customerName come Prenotata?';
 
         if (!_countsForCapacity(oldStatus)) {
-          message += '\n\nI coperti verranno reinseriti nella disponibilità.';
+          message +=
+              '\n\nI coperti verranno reinseriti nella disponibilitÃƒÂ .';
         }
 
         confirmLabel = 'Prenotata';
@@ -239,13 +240,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         if (oldStatus == 'pending') {
           message +=
-              '\n\nIl cliente riceverà automaticamente l’email di conferma.';
+              '\n\nIl cliente riceverÃƒÂ  automaticamente lÃ¢â‚¬â„¢email di conferma.';
         }
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
-              '\n\nI coperti verranno reinseriti nella disponibilità e il '
-              'cliente riceverà una nuova comunicazione.';
+              '\n\nI coperti verranno reinseriti nella disponibilitÃƒÂ  e il '
+              'cliente riceverÃƒÂ  una nuova comunicazione.';
         }
 
         confirmLabel = 'Conferma';
@@ -257,12 +258,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (oldStatus == 'pending') {
           message =
               'Vuoi annullare la richiesta di $customerName?'
-              '\n\nIl cliente riceverà una email che comunica che la richiesta '
-              'non è stata accettata.';
+              '\n\nIl cliente riceverÃƒÂ  una email che comunica che la richiesta '
+              'non ÃƒÂ¨ stata accettata.';
         } else {
           message =
               'Vuoi annullare la prenotazione di $customerName?'
-              '\n\nIl cliente riceverà automaticamente l’email di annullamento.';
+              '\n\nIl cliente riceverÃƒÂ  automaticamente lÃ¢â‚¬â„¢email di annullamento.';
         }
 
         confirmLabel = 'Annulla';
@@ -271,9 +272,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       case 'no_show':
         title = 'Segna come No-show';
         message =
-            'Confermi che $customerName non si è presentato?'
-            '\n\nL’episodio verrà registrato nello storico del cliente. '
-            'Non verrà inviata alcuna email.';
+            'Confermi che $customerName non si ÃƒÂ¨ presentato?'
+            '\n\nLÃ¢â‚¬â„¢episodio verrÃƒÂ  registrato nello storico del cliente. '
+            'Non verrÃƒÂ  inviata alcuna email.';
 
         confirmLabel = 'No-show';
         break;
@@ -281,9 +282,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       case 'released':
         title = 'Segna come Liberato';
         message =
-            'Confermi che il tavolo di $customerName è stato liberato?'
-            '\n\nI coperti torneranno disponibili e la prenotazione sarà '
-            'spostata tra le passate. Non verrà inviata alcuna email.';
+            'Confermi che il tavolo di $customerName ÃƒÂ¨ stato liberato?'
+            '\n\nI coperti torneranno disponibili e la prenotazione sarÃƒÂ  '
+            'spostata tra le passate. Non verrÃƒÂ  inviata alcuna email.';
 
         confirmLabel = 'Liberato';
         break;
@@ -489,7 +490,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Errore durante l’aggiornamento: $error')),
+        SnackBar(
+          content: Text('Errore durante lÃ¢â‚¬â„¢aggiornamento: $error'),
+        ),
       );
     }
   }
@@ -1122,7 +1125,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final cognome = booking['cognome'] as String? ?? '';
     final email = booking['email'] as String? ?? '';
     final telefono = booking['telefono'] as String? ?? '';
-    final time = booking['time'] as String? ?? '';
     final service = booking['service'] as String? ?? '';
     final occasion = booking['occasion'] as String? ?? '';
     final notes = booking['notes'] as String? ?? '';
@@ -1137,23 +1139,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+        tilePadding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        leading: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          decoration: BoxDecoration(
-            color: const Color(0xFFC8A45D),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Text(
-            time.isEmpty ? '--:--' : time,
-            style: const TextStyle(
-              color: Colors.black,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
         title: Text(
           fullName.isEmpty ? 'Cliente' : fullName,
           maxLines: 1,
