@@ -24,11 +24,11 @@ class FirestoreBookingRepository {
   // =========================================================
   // CREA PRENOTAZIONE E AGGIORNA I COPERTI
   //
-  // 1 - 4 persone:
-  // conferma automatica.
+  // 1-4 persone:
+  // stato "booked" = Prenotata automaticamente.
   //
-  // 5+ persone:
-  // conferma manuale dal gestionale.
+  // Da 5 persone:
+  // stato "pending" = In attesa di conferma.
   // =========================================================
 
   static Future<String> createBooking({
@@ -42,11 +42,27 @@ class FirestoreBookingRepository {
     required String service,
     required String occasion,
     required String notes,
+    bool marketingEmailConsent = false,
+    bool marketingWhatsappConsent = false,
   }) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
 
+    final cleanName = nome.trim();
+    final cleanSurname = cognome.trim();
+    final cleanEmail = email.trim();
+    final cleanPhone = telefono.trim();
+
+    final normalizedEmail = _normalizeEmail(cleanEmail);
+
+    final normalizedPhone = _normalizePhone(cleanPhone);
+
+    final customerKey = _customerKey(
+      normalizedPhone: normalizedPhone,
+      normalizedEmail: normalizedEmail,
+    );
+
     // =======================================================
-    // 1. CONTROLLO DATI DI BASE
+    // CONTROLLO DATI DI BASE
     // =======================================================
 
     if (guests < 1) {
@@ -59,8 +75,20 @@ class FirestoreBookingRepository {
       throw const BookingCapacityException('Servizio non valido.');
     }
 
+    if (cleanName.isEmpty) {
+      throw const BookingCapacityException('Inserisci il nome.');
+    }
+
+    if (cleanEmail.isEmpty) {
+      throw const BookingCapacityException('Inserisci un indirizzo email.');
+    }
+
+    if (cleanPhone.isEmpty) {
+      throw const BookingCapacityException('Inserisci un numero di telefono.');
+    }
+
     // =======================================================
-    // 2. LEGGE IL SERVIZIO EFFETTIVO DELLA DATA
+    // LEGGE IL SERVIZIO EFFETTIVO DELLA DATA
     //
     // Una data specifica ha la precedenza
     // sulla programmazione annuale.
@@ -89,7 +117,7 @@ class FirestoreBookingRepository {
     }
 
     // =======================================================
-    // 3. CONTROLLO ORARIO
+    // CONTROLLO ORARIO
     // =======================================================
 
     final availableTimes = CustomerAvailabilityService.generateAvailableTimes(
@@ -112,7 +140,7 @@ class FirestoreBookingRepository {
     }
 
     // =======================================================
-    // 4. CONTROLLO CAPIENZA DEL SERVIZIO
+    // CONTROLLO CAPIENZA DEL SERVIZIO
     // =======================================================
 
     final maxOnlineGuests = selectedService.maxOnlineGuests;
@@ -125,9 +153,9 @@ class FirestoreBookingRepository {
 
     final dateKey = _dateKey(normalizedDate);
 
-    final autoConfirmed = guests <= 4;
+    final autoBooked = guests <= 4;
 
-    final initialStatus = autoConfirmed ? 'confirmed' : 'pending';
+    final initialStatus = autoBooked ? 'booked' : 'pending';
 
     final bookingReference = _firestore.collection(_bookingsCollection).doc();
 
@@ -136,7 +164,7 @@ class FirestoreBookingRepository {
         .doc('${dateKey}_$service');
 
     // =======================================================
-    // 5. TRANSAZIONE FIRESTORE
+    // TRANSAZIONE FIRESTORE
     //
     // La verifica dei coperti e il salvataggio
     // avvengono insieme, evitando overbooking.
@@ -145,7 +173,7 @@ class FirestoreBookingRepository {
     await _firestore.runTransaction((transaction) async {
       final counterSnapshot = await transaction.get(counterReference);
 
-      int bookedGuests = 0;
+      var bookedGuests = 0;
 
       if (counterSnapshot.exists) {
         final counterData = counterSnapshot.data();
@@ -162,66 +190,190 @@ class FirestoreBookingRepository {
         );
       }
 
-      // ===================================================
+      // =================================================
       // CREA PRENOTAZIONE
-      // ===================================================
+      // =================================================
 
       transaction.set(bookingReference, {
-        'nome': nome.trim(),
-        'cognome': cognome.trim(),
-        'email': email.trim(),
-        'telefono': telefono.trim(),
+        'nome': cleanName,
+
+        'cognome': cleanSurname,
+
+        'email': cleanEmail,
+
+        'normalizedEmail': normalizedEmail,
+
+        'telefono': cleanPhone,
+
+        'normalizedPhone': normalizedPhone,
+
+        'customerKey': customerKey,
 
         'date': Timestamp.fromDate(normalizedDate),
 
         'dateKey': dateKey,
+
         'weekday': normalizedDate.weekday,
+
         'time': time,
+
         'service': service,
+
         'guests': guests,
 
         'occasion': occasion,
+
         'notes': notes.trim(),
 
         'status': initialStatus,
-        'autoConfirmed': autoConfirmed,
-        'requiresManualConfirmation': !autoConfirmed,
+
+        'autoBooked': autoBooked,
+
+        'autoConfirmed': autoBooked,
+
+        'requiresManualConfirmation': !autoBooked,
 
         'source': 'customer',
 
+        // =============================================
+        // CONSENSI MARKETING
+        //
+        // Sono separati dalla prenotazione.
+        // Verranno gestiti successivamente
+        // nella sezione Contatti e Marketing.
+        // =============================================
+        'marketingEmailConsent': marketingEmailConsent,
+
+        'marketingWhatsappConsent': marketingWhatsappConsent,
+
+        'marketingConsentVersion': '1.0',
+
+        'marketingConsentSource': 'customer_booking',
+
+        'marketingConsentRecordedAt': FieldValue.serverTimestamp(),
+
+        // =============================================
+        // EMAIL OPERATIVE
+        // =============================================
+        'requestReceivedEmailSent': false,
+
         'confirmationEmailSent': false,
-        'confirmationWhatsappSent': false,
+
+        'cancellationEmailSent': false,
+
         'rejectionEmailSent': false,
+
+        // =============================================
+        // WHATSAPP OPERATIVO
+        // =============================================
+        'confirmationWhatsappSent': false,
+
+        'cancellationWhatsappSent': false,
+
         'rejectionWhatsappSent': false,
+
+        // =============================================
+        // NOTIFICA GESTIONALE
+        // =============================================
         'adminNotificationSent': false,
 
-        'confirmedAt': autoConfirmed ? FieldValue.serverTimestamp() : null,
+        // =============================================
+        // STORICO STATO
+        // =============================================
+        'bookedAt': autoBooked ? FieldValue.serverTimestamp() : null,
 
-        'confirmedBy': autoConfirmed ? 'automatic' : null,
+        'bookedBy': autoBooked ? 'automatic' : null,
+
+        'confirmedAt': null,
+
+        'confirmedBy': null,
+
+        'cancelledAt': null,
+
+        'cancelledBy': null,
+
+        'noShowAt': null,
+
+        'noShowBy': null,
+
+        'noShowRecorded': false,
 
         'createdAt': FieldValue.serverTimestamp(),
 
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-      // ===================================================
+      // =================================================
       // AGGIORNA CONTATORE COPERTI
       //
-      // Anche le prenotazioni in attesa bloccano
+      // Anche le richieste in attesa bloccano
       // temporaneamente i coperti.
-      // ===================================================
+      // =================================================
 
       transaction.set(counterReference, {
         'dateKey': dateKey,
+
         'weekday': normalizedDate.weekday,
+
         'service': service,
+
         'bookedGuests': newTotal,
+
         'lastBookingId': bookingReference.id,
+
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     });
 
     return bookingReference.id;
+  }
+
+  // =========================================================
+  // NORMALIZZA EMAIL
+  // =========================================================
+
+  static String _normalizeEmail(String email) {
+    return email.trim().toLowerCase();
+  }
+
+  // =========================================================
+  // NORMALIZZA NUMERO TELEFONICO
+  //
+  // Conserva soltanto le cifre.
+  // Se il numero italiano non contiene il prefisso,
+  // aggiunge automaticamente 39.
+  // =========================================================
+
+  static String _normalizePhone(String phone) {
+    var digits = phone.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (digits.startsWith('00') && digits.length > 2) {
+      digits = digits.substring(2);
+    }
+
+    if (digits.length == 10 && digits.startsWith('3')) {
+      digits = '39$digits';
+    }
+
+    return digits;
+  }
+
+  // =========================================================
+  // IDENTIFICATORE CLIENTE
+  //
+  // Prima scelta: telefono normalizzato.
+  // Seconda scelta: email normalizzata.
+  // =========================================================
+
+  static String _customerKey({
+    required String normalizedPhone,
+    required String normalizedEmail,
+  }) {
+    if (normalizedPhone.isNotEmpty) {
+      return 'phone_$normalizedPhone';
+    }
+
+    return 'email_$normalizedEmail';
   }
 
   // =========================================================

@@ -1,33 +1,71 @@
-const {setGlobalOptions} = require("firebase-functions/v2");
+const crypto = require("crypto");
+
+const {
+  setGlobalOptions,
+} = require("firebase-functions/v2");
+
 const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
-const {defineSecret} = require("firebase-functions/params");
-const logger = require("firebase-functions/logger");
-const {initializeApp} = require("firebase-admin/app");
+
+const {
+  defineSecret,
+} = require("firebase-functions/params");
+
+const logger =
+  require("firebase-functions/logger");
+
+const {
+  initializeApp,
+} = require("firebase-admin/app");
+
 const {
   getFirestore,
   FieldValue,
 } = require("firebase-admin/firestore");
-const {getMessaging} = require("firebase-admin/messaging");
-const nodemailer = require("nodemailer");
+
+const {
+  getMessaging,
+} = require("firebase-admin/messaging");
+
+const nodemailer =
+  require("nodemailer");
 
 initializeApp();
 
-const db = getFirestore();
+const db =
+  getFirestore();
 
 setGlobalOptions({
   region: "europe-west1",
   maxInstances: 10,
 });
 
-const BOOKINGS_COLLECTION = "bookings";
-const ADMINS_COLLECTION = "admins";
-const ANDROID_CHANNEL_ID = "le_capase_bookings_high";
+const BOOKINGS_COLLECTION =
+  "bookings";
 
-const gmailUser = defineSecret("GMAIL_USER");
-const gmailAppPassword = defineSecret("GMAIL_APP_PASSWORD");
+const ADMINS_COLLECTION =
+  "admins";
+
+const CUSTOMER_PROFILES_COLLECTION =
+  "customer_profiles";
+
+const EMAIL_EVENTS_COLLECTION =
+  "_system_email_events";
+
+const ANDROID_CHANNEL_ID =
+  "le_capase_bookings_high";
+
+const gmailUser =
+  defineSecret("GMAIL_USER");
+
+const gmailAppPassword =
+  defineSecret("GMAIL_APP_PASSWORD");
+
+// ============================================================
+// UTILITÀ GENERALI
+// ============================================================
 
 function customerName(data) {
   const nome =
@@ -40,7 +78,8 @@ function customerName(data) {
       data.cognome.trim() :
       "";
 
-  return `${nome} ${cognome}`.trim() || "Cliente";
+  return `${nome} ${cognome}`.trim() ||
+    "Cliente";
 }
 
 function guestsLabel(guests) {
@@ -57,15 +96,21 @@ function formatDate(dateKey) {
     return dateKey || "";
   }
 
-  const parts = dateKey.split("-");
+  const parts =
+    dateKey.split("-");
 
   if (parts.length !== 3) {
     return dateKey;
   }
 
-  const year = Number(parts[0]);
-  const month = Number(parts[1]);
-  const day = Number(parts[2]);
+  const year =
+    Number(parts[0]);
+
+  const month =
+    Number(parts[1]);
+
+  const day =
+    Number(parts[2]);
 
   const months = [
     "gennaio",
@@ -119,6 +164,77 @@ function escapeHtml(value) {
       .replaceAll("'", "&#039;");
 }
 
+function normalizeEmail(email) {
+  return typeof email === "string" ?
+    email.trim().toLowerCase() :
+    "";
+}
+
+function normalizePhone(phone) {
+  if (typeof phone !== "string") {
+    return "";
+  }
+
+  let digits =
+    phone.replace(/[^0-9]/g, "");
+
+  if (
+    digits.startsWith("00") &&
+    digits.length > 2
+  ) {
+    digits =
+      digits.substring(2);
+  }
+
+  if (
+    digits.length === 10 &&
+    digits.startsWith("3")
+  ) {
+    digits =
+      `39${digits}`;
+  }
+
+  return digits;
+}
+
+function customerIdentity(data) {
+  const normalizedPhone =
+    normalizePhone(
+        data.normalizedPhone ||
+        data.telefono,
+    );
+
+  const normalizedEmail =
+    normalizeEmail(
+        data.normalizedEmail ||
+        data.email,
+    );
+
+  const source =
+    normalizedPhone.length > 0 ?
+      `phone:${normalizedPhone}` :
+      `email:${normalizedEmail}`;
+
+  if (
+    normalizedPhone.length === 0 &&
+    normalizedEmail.length === 0
+  ) {
+    return null;
+  }
+
+  const profileId =
+    crypto
+        .createHash("sha256")
+        .update(source)
+        .digest("hex");
+
+  return {
+    profileId,
+    normalizedPhone,
+    normalizedEmail,
+  };
+}
+
 function bookingDetails(data) {
   const guests =
     Number.isInteger(data.guests) ?
@@ -126,17 +242,37 @@ function bookingDetails(data) {
       Number(data.guests || 0);
 
   return {
-    name: customerName(data),
+    name:
+      customerName(data),
+
     guests,
-    guestsText: guestsLabel(guests),
-    date: formatDate(data.dateKey),
+
+    guestsText:
+      guestsLabel(guests),
+
+    date:
+      formatDate(data.dateKey),
+
     time:
       typeof data.time === "string" ?
         data.time :
         "",
-    service: serviceLabel(data.service),
+
+    service:
+      serviceLabel(data.service),
   };
 }
+
+function safeEventId(eventId) {
+  return crypto
+      .createHash("sha256")
+      .update(String(eventId || ""))
+      .digest("hex");
+}
+
+// ============================================================
+// NOTIFICA PUSH AMMINISTRATORE
+// ============================================================
 
 async function getAdminTokens() {
   const snapshot =
@@ -144,10 +280,12 @@ async function getAdminTokens() {
         .collection(ADMINS_COLLECTION)
         .get();
 
-  const tokens = new Set();
+  const tokens =
+    new Set();
 
   snapshot.forEach((document) => {
-    const data = document.data();
+    const data =
+      document.data();
 
     const fcmTokens =
       Array.isArray(data.fcmTokens) ?
@@ -159,7 +297,9 @@ async function getAdminTokens() {
         typeof token === "string" &&
         token.trim().length > 0
       ) {
-        tokens.add(token.trim());
+        tokens.add(
+            token.trim(),
+        );
       }
     }
   });
@@ -168,9 +308,11 @@ async function getAdminTokens() {
 }
 
 function buildNotification(data) {
-  const details = bookingDetails(data);
+  const details =
+    bookingDetails(data);
 
-  const confirmed =
+  const active =
+    data.status === "booked" ||
     data.status === "confirmed";
 
   const parts = [
@@ -186,8 +328,8 @@ function buildNotification(data) {
 
   return {
     title:
-      confirmed ?
-        "Nuova prenotazione confermata" :
+      active ?
+        "Nuova prenotazione" :
         "Nuova richiesta da confermare",
 
     body:
@@ -195,15 +337,12 @@ function buildNotification(data) {
   };
 }
 
-// ============================================================
-// NOTIFICA PUSH ALL'AMMINISTRATORE
-// ============================================================
-
 exports.onNewBooking =
   onDocumentCreated(
       `${BOOKINGS_COLLECTION}/{bookingId}`,
       async (event) => {
-        const snapshot = event.data;
+        const snapshot =
+          event.data;
 
         if (!snapshot) {
           logger.warn(
@@ -213,7 +352,8 @@ exports.onNewBooking =
           return;
         }
 
-        const data = snapshot.data();
+        const data =
+          snapshot.data();
 
         const bookingId =
           event.params.bookingId;
@@ -348,32 +488,413 @@ exports.onNewBooking =
   );
 
 // ============================================================
-// CONFIGURAZIONE DELLE EMAIL
+// ARCHIVIO CLIENTI PROTETTO
+// ============================================================
+
+async function syncCustomerProfile(
+    snapshot,
+    bookingId,
+) {
+  const data =
+    snapshot.data();
+
+  if (
+    !data ||
+    data.source !== "customer"
+  ) {
+    return null;
+  }
+
+  const identity =
+    customerIdentity(data);
+
+  if (!identity) {
+    logger.warn(
+        "Impossibile identificare il cliente.",
+        {
+          bookingId,
+        },
+    );
+
+    return null;
+  }
+
+  const profileReference =
+    db
+        .collection(
+            CUSTOMER_PROFILES_COLLECTION,
+        )
+        .doc(
+            identity.profileId,
+        );
+
+  let noShowCount = 0;
+
+  await db.runTransaction(
+      async (transaction) => {
+        const profileSnapshot =
+          await transaction.get(
+              profileReference,
+          );
+
+        const profile =
+          profileSnapshot.exists ?
+            profileSnapshot.data() :
+            null;
+
+        noShowCount =
+          Number(
+              profile?.noShowCount || 0,
+          );
+
+        const profileData = {
+          nome:
+            typeof data.nome === "string" ?
+              data.nome.trim() :
+              "",
+
+          cognome:
+            typeof data.cognome === "string" ?
+              data.cognome.trim() :
+              "",
+
+          email:
+            typeof data.email === "string" ?
+              data.email.trim() :
+              "",
+
+          normalizedEmail:
+            identity.normalizedEmail,
+
+          telefono:
+            typeof data.telefono === "string" ?
+              data.telefono.trim() :
+              "",
+
+          normalizedPhone:
+            identity.normalizedPhone,
+
+          lastBookingId:
+            bookingId,
+
+          lastBookingAt:
+            FieldValue.serverTimestamp(),
+
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        };
+
+        if (!profileSnapshot.exists) {
+          profileData.noShowCount = 0;
+          profileData.createdAt =
+            FieldValue.serverTimestamp();
+        }
+
+        if (
+          data.marketingEmailConsent === true
+        ) {
+          profileData.marketingEmailConsent =
+            true;
+
+          profileData.marketingEmailConsentAt =
+            FieldValue.serverTimestamp();
+
+          profileData.marketingEmailConsentSource =
+            data.marketingConsentSource ||
+            "customer_booking";
+
+          profileData.marketingConsentVersion =
+            data.marketingConsentVersion ||
+            "1.0";
+        }
+
+        if (
+          data.marketingWhatsappConsent === true
+        ) {
+          profileData.marketingWhatsappConsent =
+            true;
+
+          profileData.marketingWhatsappConsentAt =
+            FieldValue.serverTimestamp();
+
+          profileData.marketingWhatsappConsentSource =
+            data.marketingConsentSource ||
+            "customer_booking";
+
+          profileData.marketingConsentVersion =
+            data.marketingConsentVersion ||
+            "1.0";
+        }
+
+        transaction.set(
+            profileReference,
+            profileData,
+            {
+              merge: true,
+            },
+        );
+
+        transaction.set(
+            snapshot.ref,
+            {
+              customerProfileId:
+                identity.profileId,
+
+              normalizedPhone:
+                identity.normalizedPhone,
+
+              normalizedEmail:
+                identity.normalizedEmail,
+
+              customerNoShowCount:
+                noShowCount,
+
+              customerProfileSyncedAt:
+                FieldValue.serverTimestamp(),
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+        );
+      },
+  );
+
+  return {
+    profileId:
+      identity.profileId,
+
+    noShowCount,
+  };
+}
+
+// ============================================================
+// REGISTRA O CORREGGE UN NO-SHOW
+// ============================================================
+
+async function updateNoShowProfile(
+    beforeSnapshot,
+    afterSnapshot,
+    bookingId,
+) {
+  const before =
+    beforeSnapshot.data();
+
+  const after =
+    afterSnapshot.data();
+
+  if (
+    !before ||
+    !after ||
+    after.source !== "customer"
+  ) {
+    return;
+  }
+
+  const oldStatus =
+    before.status;
+
+  const newStatus =
+    after.status;
+
+  const becameNoShow =
+    oldStatus !== "no_show" &&
+    newStatus === "no_show";
+
+  const removedNoShow =
+    oldStatus === "no_show" &&
+    newStatus !== "no_show";
+
+  if (
+    !becameNoShow &&
+    !removedNoShow
+  ) {
+    return;
+  }
+
+  const identity =
+    customerIdentity(after);
+
+  if (!identity) {
+    logger.warn(
+        "No-show senza identificatore cliente.",
+        {
+          bookingId,
+        },
+    );
+
+    return;
+  }
+
+  const profileReference =
+    db
+        .collection(
+            CUSTOMER_PROFILES_COLLECTION,
+        )
+        .doc(
+            identity.profileId,
+        );
+
+  await db.runTransaction(
+      async (transaction) => {
+        const bookingSnapshot =
+          await transaction.get(
+              afterSnapshot.ref,
+          );
+
+        const profileSnapshot =
+          await transaction.get(
+              profileReference,
+          );
+
+        if (!bookingSnapshot.exists) {
+          return;
+        }
+
+        const currentBooking =
+          bookingSnapshot.data();
+
+        if (!currentBooking) {
+          return;
+        }
+
+        const alreadyRecorded =
+          currentBooking.noShowRecorded === true;
+
+        let currentCount =
+          Number(
+              profileSnapshot.data()
+                  ?.noShowCount || 0,
+          );
+
+        if (
+          becameNoShow &&
+          !alreadyRecorded
+        ) {
+          currentCount += 1;
+
+          transaction.set(
+              afterSnapshot.ref,
+              {
+                noShowRecorded:
+                  true,
+
+                customerNoShowCount:
+                  currentCount,
+
+                noShowRecordedAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              {
+                merge: true,
+              },
+          );
+        } else if (
+          removedNoShow &&
+          alreadyRecorded
+        ) {
+          currentCount =
+            Math.max(
+                0,
+                currentCount - 1,
+            );
+
+          transaction.set(
+              afterSnapshot.ref,
+              {
+                noShowRecorded:
+                  false,
+
+                customerNoShowCount:
+                  currentCount,
+
+                noShowCorrectionAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              {
+                merge: true,
+              },
+          );
+        } else {
+          return;
+        }
+
+        transaction.set(
+            profileReference,
+            {
+              nome:
+                typeof after.nome === "string" ?
+                  after.nome.trim() :
+                  "",
+
+              cognome:
+                typeof after.cognome === "string" ?
+                  after.cognome.trim() :
+                  "",
+
+              email:
+                typeof after.email === "string" ?
+                  after.email.trim() :
+                  "",
+
+              normalizedEmail:
+                identity.normalizedEmail,
+
+              telefono:
+                typeof after.telefono === "string" ?
+                  after.telefono.trim() :
+                  "",
+
+              normalizedPhone:
+                identity.normalizedPhone,
+
+              noShowCount:
+                currentCount,
+
+              lastNoShowBookingId:
+                becameNoShow ?
+                  bookingId :
+                  FieldValue.delete(),
+
+              lastNoShowAt:
+                becameNoShow ?
+                  FieldValue.serverTimestamp() :
+                  FieldValue.delete(),
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            {
+              merge: true,
+            },
+        );
+      },
+  );
+
+  logger.info(
+      "Profilo no-show aggiornato.",
+      {
+        bookingId,
+        becameNoShow,
+        removedNoShow,
+      },
+  );
+}
+
+// ============================================================
+// CONFIGURAZIONE EMAIL
 // ============================================================
 
 const EMAIL_TYPES = {
   received: {
-    status:
-      "pending",
-
-    sentField:
-      "requestReceivedEmailSent",
-
-    sentAtField:
-      "requestReceivedEmailSentAt",
-
-    processingField:
-      "requestReceivedEmailProcessing",
-
-    processingAtField:
-      "requestReceivedEmailProcessingAt",
-
-    errorField:
-      "requestReceivedEmailLastError",
-
-    messageIdField:
-      "requestReceivedEmailMessageId",
-
     subject:
       "Richiesta di prenotazione ricevuta – Le Capase",
 
@@ -395,27 +916,6 @@ const EMAIL_TYPES = {
   },
 
   confirmed: {
-    status:
-      "confirmed",
-
-    sentField:
-      "confirmationEmailSent",
-
-    sentAtField:
-      "confirmationEmailSentAt",
-
-    processingField:
-      "confirmationEmailProcessing",
-
-    processingAtField:
-      "confirmationEmailProcessingAt",
-
-    errorField:
-      "confirmationEmailLastError",
-
-    messageIdField:
-      "confirmationEmailMessageId",
-
     subject:
       "Conferma prenotazione – Le Capase",
 
@@ -435,28 +935,28 @@ const EMAIL_TYPES = {
       "Ti aspettiamo!",
   },
 
+  restored: {
+    subject:
+      "Prenotazione nuovamente attiva – Le Capase",
+
+    title:
+      "Prenotazione nuovamente attiva",
+
+    opening:
+      "la tua prenotazione presso Le Capase è stata " +
+      "nuovamente attivata.",
+
+    notice:
+      "Il tuo tavolo è stato nuovamente riservato.",
+
+    warning:
+      "",
+
+    closing:
+      "Ti aspettiamo!",
+  },
+
   rejected: {
-    status:
-      "rejected",
-
-    sentField:
-      "rejectionEmailSent",
-
-    sentAtField:
-      "rejectionEmailSentAt",
-
-    processingField:
-      "rejectionEmailProcessing",
-
-    processingAtField:
-      "rejectionEmailProcessingAt",
-
-    errorField:
-      "rejectionEmailLastError",
-
-    messageIdField:
-      "rejectionEmailMessageId",
-
     subject:
       "Richiesta di prenotazione non accettata – Le Capase",
 
@@ -479,27 +979,6 @@ const EMAIL_TYPES = {
   },
 
   cancelled: {
-    status:
-      "cancelled",
-
-    sentField:
-      "cancellationEmailSent",
-
-    sentAtField:
-      "cancellationEmailSentAt",
-
-    processingField:
-      "cancellationEmailProcessing",
-
-    processingAtField:
-      "cancellationEmailProcessingAt",
-
-    errorField:
-      "cancellationEmailLastError",
-
-    messageIdField:
-      "cancellationEmailMessageId",
-
     subject:
       "Prenotazione annullata – Le Capase",
 
@@ -523,71 +1002,138 @@ const EMAIL_TYPES = {
 };
 
 // ============================================================
-// BLOCCO CONTRO INVII EMAIL DUPLICATI
+// BLOCCO CONTRO EMAIL DUPLICATE
+//
+// Ogni evento Firestore possiede un ID univoco.
+// Lo stesso evento non può inviare due volte la stessa email.
 // ============================================================
 
-async function claimEmail(
-    reference,
-    type,
-) {
-  const config =
-    EMAIL_TYPES[type];
-
-  if (!config) {
-    return null;
-  }
+async function claimEmailEvent({
+  eventId,
+  bookingId,
+  type,
+  email,
+}) {
+  const eventReference =
+    db
+        .collection(
+            EMAIL_EVENTS_COLLECTION,
+        )
+        .doc(
+            safeEventId(eventId),
+        );
 
   return db.runTransaction(
       async (transaction) => {
-        const snapshot =
-          await transaction.get(reference);
+        const eventSnapshot =
+          await transaction.get(
+              eventReference,
+          );
 
-        if (!snapshot.exists) {
-          return null;
+        if (eventSnapshot.exists) {
+          const eventData =
+            eventSnapshot.data();
+
+          if (
+            eventData?.status === "sent" ||
+            eventData?.status === "processing"
+          ) {
+            return false;
+          }
         }
 
-        const data =
-          snapshot.data();
-
-        const email =
-          typeof data.email === "string" ?
-            data.email.trim() :
-            "";
-
-        if (
-          data.source !== "customer" ||
-          data.status !== config.status ||
-          email.length === 0 ||
-          data[config.sentField] === true ||
-          data[config.processingField] === true
-        ) {
-          return null;
-        }
-
-        transaction.update(
-            reference,
+        transaction.set(
+            eventReference,
             {
-              [config.processingField]:
-                true,
+              bookingId,
+              type,
+              email,
+              status:
+                "processing",
 
-              [config.processingAtField]:
+              processingAt:
                 FieldValue.serverTimestamp(),
-
-              [config.errorField]:
-                FieldValue.delete(),
 
               updatedAt:
                 FieldValue.serverTimestamp(),
             },
+            {
+              merge: true,
+            },
         );
 
-        return data;
+        return true;
       },
   );
 }
 
+async function completeEmailEvent({
+  eventId,
+  messageId,
+}) {
+  await db
+      .collection(
+          EMAIL_EVENTS_COLLECTION,
+      )
+      .doc(
+          safeEventId(eventId),
+      )
+      .set(
+          {
+            status:
+              "sent",
+
+            messageId:
+              messageId || null,
+
+            sentAt:
+              FieldValue.serverTimestamp(),
+
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          },
+      );
+}
+
+async function failEmailEvent({
+  eventId,
+  error,
+}) {
+  await db
+      .collection(
+          EMAIL_EVENTS_COLLECTION,
+      )
+      .doc(
+          safeEventId(eventId),
+      )
+      .set(
+          {
+            status:
+              "failed",
+
+            error:
+              String(error).slice(
+                  0,
+                  500,
+              ),
+
+            failedAt:
+              FieldValue.serverTimestamp(),
+
+            updatedAt:
+              FieldValue.serverTimestamp(),
+          },
+          {
+            merge: true,
+          },
+      );
+}
+
 // ============================================================
-// CONTENUTO DELLE EMAIL
+// CONTENUTO EMAIL
 // ============================================================
 
 function buildEmail(
@@ -770,41 +1316,58 @@ function buildEmail(
 }
 
 // ============================================================
-// INVIO DELL'EMAIL
+// INVIO EMAIL
 // ============================================================
 
-async function sendBookingEmail(
-    snapshot,
-    bookingId,
-    type,
-) {
+async function sendBookingEmail({
+  snapshot,
+  bookingId,
+  type,
+  eventId,
+}) {
+  const data =
+    snapshot.data();
+
   const config =
     EMAIL_TYPES[type];
 
-  const data =
-    await claimEmail(
-        snapshot.ref,
-        type,
-    );
-
   if (
+    !data ||
     !config ||
-    !data
+    data.source !== "customer"
   ) {
     return;
   }
 
   const email =
-    data.email.trim();
+    typeof data.email === "string" ?
+      data.email.trim() :
+      "";
+
+  if (email.length === 0) {
+    return;
+  }
+
+  const claimed =
+    await claimEmailEvent({
+      eventId,
+      bookingId,
+      type,
+      email,
+    });
+
+  if (!claimed) {
+    return;
+  }
+
+  const sender =
+    gmailUser.value();
 
   const content =
     buildEmail(
         data,
         type,
     );
-
-  const sender =
-    gmailUser.value();
 
   try {
     const transporter =
@@ -842,22 +1405,55 @@ async function sendBookingEmail(
           content.html,
       });
 
-    await snapshot.ref.update({
-      [config.sentField]:
-        true,
+    await completeEmailEvent({
+      eventId,
+      messageId:
+        result.messageId,
+    });
 
-      [config.sentAtField]:
+    const updateData = {
+      lastCustomerEmailType:
+        type,
+
+      lastCustomerEmailSentAt:
         FieldValue.serverTimestamp(),
 
-      [config.processingField]:
-        false,
-
-      [config.messageIdField]:
+      lastCustomerEmailMessageId:
         result.messageId || null,
 
       updatedAt:
         FieldValue.serverTimestamp(),
-    });
+    };
+
+    if (type === "received") {
+      updateData.requestReceivedEmailSent =
+        true;
+    }
+
+    if (
+      type === "confirmed" ||
+      type === "restored"
+    ) {
+      updateData.confirmationEmailSent =
+        true;
+    }
+
+    if (type === "cancelled") {
+      updateData.cancellationEmailSent =
+        true;
+    }
+
+    if (type === "rejected") {
+      updateData.rejectionEmailSent =
+        true;
+    }
+
+    await snapshot.ref.set(
+        updateData,
+        {
+          merge: true,
+        },
+    );
 
     logger.info(
         "Email prenotazione inviata.",
@@ -867,18 +1463,9 @@ async function sendBookingEmail(
         },
     );
   } catch (error) {
-    await snapshot.ref.update({
-      [config.processingField]:
-        false,
-
-      [config.errorField]:
-        String(error).slice(
-            0,
-            500,
-        ),
-
-      updatedAt:
-        FieldValue.serverTimestamp(),
+    await failEmailEvent({
+      eventId,
+      error,
     });
 
     logger.error(
@@ -895,13 +1482,15 @@ async function sendBookingEmail(
 }
 
 // ============================================================
-// EMAIL ALLA CREAZIONE
+// CREAZIONE PRENOTAZIONE
 //
-// 1-4 PERSONE:
-// CONFERMA AUTOMATICA
+// BOOKED / CONFIRMED:
+// email conferma.
 //
-// DA 5 PERSONE:
-// RICHIESTA PRESA IN CARICO
+// PENDING:
+// email presa in carico.
+//
+// Inoltre crea/aggiorna il profilo cliente.
 // ============================================================
 
 exports.onCustomerBookingCreated =
@@ -923,46 +1512,50 @@ exports.onCustomerBookingCreated =
           return;
         }
 
-        const data =
-          snapshot.data();
-
-        const status =
-          data.status;
-
         const bookingId =
           event.params.bookingId;
 
-        if (status === "confirmed") {
-          await sendBookingEmail(
-              snapshot,
-              bookingId,
+        const data =
+          snapshot.data();
+
+        await syncCustomerProfile(
+            snapshot,
+            bookingId,
+        );
+
+        if (
+          data.status === "booked" ||
+          data.status === "confirmed"
+        ) {
+          await sendBookingEmail({
+            snapshot,
+            bookingId,
+            type:
               "confirmed",
-          );
+
+            eventId:
+              `${event.id}:confirmed`,
+          });
 
           return;
         }
 
-        if (status === "pending") {
-          await sendBookingEmail(
-              snapshot,
-              bookingId,
+        if (data.status === "pending") {
+          await sendBookingEmail({
+            snapshot,
+            bookingId,
+            type:
               "received",
-          );
+
+            eventId:
+              `${event.id}:received`,
+          });
         }
       },
   );
 
 // ============================================================
-// EMAIL QUANDO IL GESTIONALE CAMBIA LO STATO
-//
-// PENDING -> CONFIRMED:
-// EMAIL DI CONFERMA
-//
-// PENDING -> REJECTED:
-// EMAIL DI RIFIUTO
-//
-// CONFIRMED -> CANCELLED:
-// EMAIL DI ANNULLAMENTO
+// CAMBIO STATO DAL GESTIONALE
 // ============================================================
 
 exports.onCustomerBookingStatusChanged =
@@ -990,11 +1583,17 @@ exports.onCustomerBookingStatusChanged =
           return;
         }
 
+        const beforeData =
+          before.data();
+
+        const afterData =
+          after.data();
+
         const oldStatus =
-          before.data().status;
+          beforeData.status;
 
         const newStatus =
-          after.data().status;
+          afterData.status;
 
         if (oldStatus === newStatus) {
           return;
@@ -1003,32 +1602,103 @@ exports.onCustomerBookingStatusChanged =
         const bookingId =
           event.params.bookingId;
 
-        if (newStatus === "confirmed") {
-          await sendBookingEmail(
+        await updateNoShowProfile(
+            before,
+            after,
+            bookingId,
+        );
+
+        // Nessuna email per No-show.
+        if (newStatus === "no_show") {
+          return;
+        }
+
+        // Da annullata/no-show/rifiutata
+        // torna attiva.
+        if (
+          (
+            oldStatus === "cancelled" ||
+            oldStatus === "no_show" ||
+            oldStatus === "rejected"
+          ) &&
+          (
+            newStatus === "booked" ||
+            newStatus === "confirmed"
+          )
+        ) {
+          await sendBookingEmail({
+            snapshot:
               after,
-              bookingId,
+
+            bookingId,
+
+            type:
+              "restored",
+
+            eventId:
+              `${event.id}:restored`,
+          });
+
+          return;
+        }
+
+        // Da in attesa a prenotata/confermata.
+        if (
+          newStatus === "booked" ||
+          newStatus === "confirmed"
+        ) {
+          await sendBookingEmail({
+            snapshot:
+              after,
+
+            bookingId,
+
+            type:
               "confirmed",
-          );
+
+            eventId:
+              `${event.id}:confirmed`,
+          });
 
           return;
         }
 
-        if (newStatus === "rejected") {
-          await sendBookingEmail(
+        // Una richiesta in attesa viene annullata:
+        // email di richiesta non accettata.
+        if (
+          oldStatus === "pending" &&
+          newStatus === "cancelled"
+        ) {
+          await sendBookingEmail({
+            snapshot:
               after,
-              bookingId,
+
+            bookingId,
+
+            type:
               "rejected",
-          );
+
+            eventId:
+              `${event.id}:rejected`,
+          });
 
           return;
         }
 
+        // Una prenotazione attiva viene annullata.
         if (newStatus === "cancelled") {
-          await sendBookingEmail(
+          await sendBookingEmail({
+            snapshot:
               after,
-              bookingId,
+
+            bookingId,
+
+            type:
               "cancelled",
-          );
+
+            eventId:
+              `${event.id}:cancelled`,
+          });
         }
       },
   );
