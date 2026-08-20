@@ -4,14 +4,115 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // =====================================================
-    // AMMINISTRATORI
+    // ACCESSO E RUOLI
     // =====================================================
 
-    function isAdmin() {
-      return request.auth != null
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function legacyAdminExists() {
+      return isSignedIn()
         && exists(
           /databases/$(database)/documents/admins/$(request.auth.uid)
         );
+    }
+
+    function staffProfileExists() {
+      return isSignedIn()
+        && exists(
+          /databases/$(database)/documents/staff_users/$(request.auth.uid)
+        );
+    }
+
+    function staffProfile() {
+      return get(
+        /databases/$(database)/documents/staff_users/$(request.auth.uid)
+      ).data;
+    }
+
+    function isActiveStaff() {
+      return staffProfileExists()
+        && staffProfile().active == true;
+    }
+
+    function hasRole(roleName) {
+      return isActiveStaff()
+        && staffProfile().role == roleName;
+    }
+
+    function isAdmin() {
+      return legacyAdminExists()
+        || hasRole('admin');
+    }
+
+    function isManager() {
+      return isAdmin()
+        || hasRole('manager');
+    }
+
+    function isSupervisor() {
+      return isManager()
+        || hasRole('supervisor');
+    }
+
+    function canViewBookings() {
+      return isSupervisor()
+        || hasRole('staff');
+    }
+
+    function isOnlySupervisor() {
+      return hasRole('supervisor');
+    }
+
+    // =====================================================
+    // AGGIORNAMENTI CONSENTITI AL SUPERVISOR
+    // =====================================================
+
+    function validSupervisorBookingUpdate() {
+      return isOnlySupervisor()
+
+        && resource.data.status == 'pending'
+
+        && (
+          request.resource.data.status == 'confirmed'
+          || request.resource.data.status == 'cancelled'
+          || request.resource.data.status == 'rejected'
+        )
+
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'status',
+            'previousStatus',
+            'updatedAt',
+            'statusChangedAt',
+            'statusChangedBy',
+            'requiresManualConfirmation',
+            'confirmedAt',
+            'confirmedBy',
+            'cancelledAt',
+            'cancelledBy',
+            'rejectedAt',
+            'rejectedBy'
+          ]);
+    }
+
+    function validSupervisorCounterUpdate() {
+      return isOnlySupervisor()
+
+        && request.resource.data
+          .diff(resource.data)
+          .affectedKeys()
+          .hasOnly([
+            'bookedGuests',
+            'updatedAt'
+          ])
+
+        && request.resource.data.bookedGuests is int
+        && request.resource.data.bookedGuests >= 0
+        && request.resource.data.bookedGuests <= 1000;
     }
 
     // =====================================================
@@ -154,7 +255,7 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // CONTROLLO CONTATORE NUOVO
+    // CONTROLLO CONTATORE NUOVO DEL CLIENTE
     // =====================================================
 
     function validNewCounter() {
@@ -193,7 +294,7 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // CONTROLLO AGGIORNAMENTO CONTATORE
+    // CONTROLLO AGGIORNAMENTO CONTATORE DEL CLIENTE
     // =====================================================
 
     function validUpdatedCounter() {
@@ -201,7 +302,8 @@ service cloud.firestore {
       let bookingPath =
         /databases/$(database)/documents/bookings/$(bookingId);
 
-      return request.resource.data.diff(resource.data)
+      return request.resource.data
+        .diff(resource.data)
         .affectedKeys()
         .hasOnly([
           'bookedGuests',
@@ -238,22 +340,22 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // DISPONIBILITÀ PUBBLICHE
+    // DISPONIBILITÀ E SERVIZI
     // =====================================================
 
     match /availability_weekly/{documentId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
 
     match /availability_exceptions/{documentId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
 
     match /managed_services/{documentId} {
       allow read: if true;
-      allow write: if isAdmin();
+      allow write: if isManager();
     }
 
     // =====================================================
@@ -261,9 +363,15 @@ service cloud.firestore {
     // =====================================================
 
     match /bookings/{bookingId} {
-      allow create: if isAdmin() || isValidCustomerBooking();
+      allow create: if isManager()
+        || isValidCustomerBooking();
 
-      allow read, update, delete: if isAdmin();
+      allow read: if canViewBookings();
+
+      allow update: if isManager()
+        || validSupervisorBookingUpdate();
+
+      allow delete: if isAdmin();
     }
 
     // =====================================================
@@ -273,24 +381,31 @@ service cloud.firestore {
     match /availability_counters/{counterId} {
       allow read: if true;
 
-      allow create: if isAdmin() || validNewCounter();
+      allow create: if isManager()
+        || validNewCounter();
 
-      allow update: if isAdmin() || validUpdatedCounter();
+      allow update: if isManager()
+        || validSupervisorCounterUpdate()
+        || validUpdatedCounter();
 
       allow delete: if isAdmin();
     }
 
     // =====================================================
-    // ARCHIVIO CLIENTI E CONSENSI MARKETING
+    // ARCHIVIO CLIENTI
     // =====================================================
 
     match /customers/{customerId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isManager();
     }
 
     match /customer_profiles/{customerId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isManager();
     }
+
+    // =====================================================
+    // MARKETING ED EVENTI EMAIL
+    // =====================================================
 
     match /marketing_contacts/{contactId} {
       allow read, write: if isAdmin();
@@ -300,13 +415,42 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    match /_system_email_events/{eventId} {
+      allow read, write: if isAdmin();
+    }
+
     // =====================================================
-    // AMMINISTRATORI
+    // PROFILI DELLO STAFF
+    // =====================================================
+
+    match /staff_users/{staffId} {
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == staffId
+        );
+
+      allow create, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // INVITI PER NUOVI UTENTI
+    // =====================================================
+
+    match /staff_user_invites/{inviteId} {
+      allow read, create, update, delete: if isAdmin();
+    }
+
+    // =====================================================
+    // AMMINISTRATORI PREESISTENTI
     // =====================================================
 
     match /admins/{adminId} {
-      allow read: if request.auth != null
-        && request.auth.uid == adminId;
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == adminId
+        );
 
       allow create, update, delete: if isAdmin();
     }

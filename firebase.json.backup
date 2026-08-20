@@ -1,4 +1,4 @@
-﻿{
+{
   "flutter": {
     "platforms": {
       "android": {
@@ -24,7 +24,6 @@
     "rules": "firestore.rules"
   },
   "hosting": {
-    "target": "gestionale",
     "public": "build/web",
     "ignore": [
       "firebase.json",

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -130,158 +129,14 @@ class AdminAuthGate extends StatelessWidget {
           return const AdminLoginScreen();
         }
 
-        return StaffAccessGate(user: snapshot.data!);
-      },
-    );
-  }
-}
-
-class StaffAccessGate extends StatelessWidget {
-  const StaffAccessGate({super.key, required this.user});
-
-  final User user;
-
-  Widget _loading() {
-    return const Scaffold(body: Center(child: CircularProgressIndicator()));
-  }
-
-  Widget _accessDenied(String message) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        title: const Text('Le Capase Booking'),
-      ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.lock_person_outlined,
-                  size: 58,
-                  color: Colors.redAccent,
-                ),
-                const SizedBox(height: 20),
-                const Text(
-                  'Accesso non autorizzato',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 12),
-                Text(message, textAlign: TextAlign.center),
-                const SizedBox(height: 24),
-                FilledButton.icon(
-                  onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
-                  },
-                  icon: const Icon(Icons.logout),
-                  label: const Text('Esci'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final staffReference = FirebaseFirestore.instance
-        .collection('staff_users')
-        .doc(user.uid);
-
-    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: staffReference.snapshots(),
-      builder: (context, staffSnapshot) {
-        if (staffSnapshot.connectionState == ConnectionState.waiting) {
-          return _loading();
-        }
-
-        if (staffSnapshot.hasData && staffSnapshot.data!.exists) {
-          final data = staffSnapshot.data!.data() ?? {};
-
-          final active = data['active'] == true;
-          final role = (data['role'] ?? '').toString();
-
-          const allowedRoles = {'staff', 'supervisor', 'manager', 'admin'};
-
-          if (!active) {
-            return _accessDenied('Questo account ÃƒÂ¨ stato disattivato.');
-          }
-
-          if (!allowedRoles.contains(role)) {
-            return _accessDenied(
-              'Il ruolo assegnato a questo account non ÃƒÂ¨ valido.',
-            );
-          }
-
-          final displayName =
-              (data['displayName'] ??
-                      user.displayName ??
-                      user.email ??
-                      'Utente')
-                  .toString();
-
-          final email = (data['email'] ?? user.email ?? '').toString();
-
-          return BiometricGate(
-            displayName: displayName,
-            email: email,
-            role: role,
-          );
-        }
-
-        // CompatibilitÃƒÂ  con l'amministratore storico.
-        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance
-              .collection('admins')
-              .doc(user.uid)
-              .get(),
-          builder: (context, adminSnapshot) {
-            if (adminSnapshot.connectionState == ConnectionState.waiting) {
-              return _loading();
-            }
-
-            if (adminSnapshot.hasData && adminSnapshot.data!.exists) {
-              final data = adminSnapshot.data!.data() ?? {};
-
-              return BiometricGate(
-                displayName:
-                    (data['displayName'] ??
-                            user.displayName ??
-                            user.email ??
-                            'Amministratore')
-                        .toString(),
-                email: (data['email'] ?? user.email ?? '').toString(),
-                role: 'admin',
-              );
-            }
-
-            return _accessDenied(
-              'Questo account non dispone dei permessi per accedere al gestionale.',
-            );
-          },
-        );
+        return const BiometricGate();
       },
     );
   }
 }
 
 class BiometricGate extends StatefulWidget {
-  const BiometricGate({
-    super.key,
-    required this.displayName,
-    required this.email,
-    required this.role,
-  });
-
-  final String displayName;
-  final String email;
-  final String role;
+  const BiometricGate({super.key});
 
   @override
   State<BiometricGate> createState() => _BiometricGateState();
@@ -388,8 +243,8 @@ class _BiometricGateState extends State<BiometricGate> {
         ..showSnackBar(
           const SnackBar(
             content: Text(
-              'Il blocco biometrico ÃƒÆ’Ã‚Â¨ disponibile '
-              'nellÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢app mobile.',
+              'Il blocco biometrico è disponibile '
+              'nell’app mobile.',
             ),
             behavior: SnackBarBehavior.floating,
           ),
@@ -469,13 +324,7 @@ class _BiometricGateState extends State<BiometricGate> {
         _initializePushIfNeeded();
       });
 
-      return BookingsScreen(
-        onLock: _lockApp,
-        onLogout: _signOut,
-        displayName: widget.displayName,
-        email: widget.email,
-        userRole: widget.role,
-      );
+      return BookingsScreen(onLock: _lockApp, onLogout: _signOut);
     }
 
     return Scaffold(

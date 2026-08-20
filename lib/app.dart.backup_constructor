@@ -210,12 +210,12 @@ class StaffAccessGate extends StatelessWidget {
           const allowedRoles = {'staff', 'supervisor', 'manager', 'admin'};
 
           if (!active) {
-            return _accessDenied('Questo account ÃƒÂ¨ stato disattivato.');
+            return _accessDenied('Questo account Ã¨ stato disattivato.');
           }
 
           if (!allowedRoles.contains(role)) {
             return _accessDenied(
-              'Il ruolo assegnato a questo account non ÃƒÂ¨ valido.',
+              'Il ruolo assegnato a questo account non Ã¨ valido.',
             );
           }
 
@@ -235,7 +235,7 @@ class StaffAccessGate extends StatelessWidget {
           );
         }
 
-        // CompatibilitÃƒÂ  con l'amministratore storico.
+        // CompatibilitÃ  con l'amministratore storico.
         return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
           future: FirebaseFirestore.instance
               .collection('admins')
@@ -272,16 +272,7 @@ class StaffAccessGate extends StatelessWidget {
 }
 
 class BiometricGate extends StatefulWidget {
-  const BiometricGate({
-    super.key,
-    required this.displayName,
-    required this.email,
-    required this.role,
-  });
-
-  final String displayName;
-  final String email;
-  final String role;
+  const BiometricGate({super.key});
 
   @override
   State<BiometricGate> createState() => _BiometricGateState();
@@ -388,8 +379,8 @@ class _BiometricGateState extends State<BiometricGate> {
         ..showSnackBar(
           const SnackBar(
             content: Text(
-              'Il blocco biometrico ÃƒÆ’Ã‚Â¨ disponibile '
-              'nellÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢app mobile.',
+              'Il blocco biometrico ÃƒÂ¨ disponibile '
+              'nellÃ¢â‚¬â„¢app mobile.',
             ),
             behavior: SnackBarBehavior.floating,
           ),

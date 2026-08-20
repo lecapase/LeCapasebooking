@@ -1702,3 +1702,11 @@ exports.onCustomerBookingStatusChanged =
         }
       },
   );
+const staffUserFunctions =
+  require("./staff_users");
+
+exports.onStaffUserInviteCreated =
+  staffUserFunctions.onStaffUserInviteCreated;
+
+exports.onStaffUserUpdated =
+  staffUserFunctions.onStaffUserUpdated;

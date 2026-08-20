@@ -159,13 +159,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final weekEnd = weekStart.add(const Duration(days: 6));
 
     if (weekStart.month == weekEnd.month) {
-      return '${weekStart.day}–${weekEnd.day} '
+      return '${weekStart.day}ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ${weekEnd.day} '
           '${_monthNames[weekStart.month - 1]} '
           '${weekStart.year}';
     }
 
     return '${weekStart.day} '
-        '${_monthNames[weekStart.month - 1]} – '
+        '${_monthNames[weekStart.month - 1]} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã…â€œ '
         '${weekEnd.day} '
         '${_monthNames[weekEnd.month - 1]} '
         '${weekEnd.year}';
@@ -390,16 +390,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _saveManualBooking() async {
-    if (!_isManager) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Solo Manager e Amministratore possono aggiungere prenotazioni.',
-          ),
-        ),
-      );
-      return;
-    }
     final firstName = _manualFirstNameController.text.trim();
 
     if (firstName.isEmpty) {
@@ -524,7 +514,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         buttonLabel = 'Prenotata';
@@ -538,14 +528,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         if (oldStatus == 'pending') {
           message +=
-              '\n\nIl cliente riceverà automaticamente '
-              'l’email di conferma.';
+              '\n\nIl cliente riceverÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  automaticamente '
+              'lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢email di conferma.';
         }
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         buttonLabel = 'Conferma';
@@ -560,12 +550,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverà '
-            'l’email di annullamento.';
+            '\n\nSe presente, il cliente riceverÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  '
+            'lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢email di annullamento.';
 
         buttonLabel = 'Annulla';
         break;
@@ -579,12 +569,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverà '
-            'l’email di rifiuto.';
+            '\n\nSe presente, il cliente riceverÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  '
+            'lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢email di rifiuto.';
 
         buttonLabel = 'Rifiuta';
         break;
@@ -598,7 +588,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         buttonLabel = 'Arrivata';
@@ -608,16 +598,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
         title = 'Segna come no-show';
         message =
             'Vuoi segnalare che $customerName '
-            'non si è presentato?';
+            'non si ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¨ presentato?';
 
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         message +=
-            '\n\nIl cliente sarà contrassegnato '
+            '\n\nIl cliente sarÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  contrassegnato '
             'nello storico come possibile cliente a rischio.';
 
         buttonLabel = 'No-show';
@@ -632,7 +622,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â .';
         }
 
         buttonLabel = 'Liberato';
@@ -1533,7 +1523,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           _infoRow(
             icon: Icons.restaurant_outlined,
             text:
-                '${_serviceLabel(service)} • '
+                '${_serviceLabel(service)} ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â¢ '
                 '$guests '
                 '${guests == 1 ? 'persona' : 'persone'}',
           ),
@@ -1645,7 +1635,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: Text(
-                  '$time — ${guests}p',
+                  '$time ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â ${guests}p',
                   style: const TextStyle(
                     color: Colors.black,
                     fontSize: 14,
@@ -1908,7 +1898,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${_italianDateFromKey(dateKey)} · $time · '
+                  '${_italianDateFromKey(dateKey)} ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· $time ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· '
                   '${_serviceLabel(service)}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
@@ -1996,10 +1986,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
         return AlertDialog(
           title: const Text('Uscire dal gestionale?'),
           content: const Text(
-            'Il logout richiederà nuovamente '
+            'Il logout richiederÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  nuovamente '
             'email e password al prossimo accesso.\n\n'
             'Se vuoi soltanto proteggere il gestionale, '
-            'usa \u201CBlocca gestionale\u201D.',
+            'usa ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€¦Ã¢â‚¬Å“Blocca gestionaleÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬Ãƒâ€šÃ‚Â.',
           ),
           actions: [
             TextButton(
@@ -2094,7 +2084,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.history,
           title: 'Prenotazioni passate',
-          subtitle: 'Apri l’archivio della data selezionata',
+          subtitle:
+              'Apri lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢archivio della data selezionata',
           onTap: () {
             setState(() {
               _bottomIndex = 0;
@@ -2112,7 +2103,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(
                   content: Text(
-                    'La rubrica clienti sarà '
+                    'La rubrica clienti sarÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â  '
                     'attivata con la gestione utenti.',
                   ),
                 ),
@@ -2120,25 +2111,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
             },
           ),
         const Divider(),
-        if (_isManager)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
-            child: Text(
-              'GESTIONE',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
+          child: Text(
+            'GESTIONE',
+            style: TextStyle(
+              color: Colors.grey,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.2,
             ),
           ),
+        ),
         if (_isManager)
           item(
             icon: Icons.calendar_month_outlined,
             title: 'Gestione servizi',
             subtitle:
-                'Calendario, disponibilità, orari, '
+                'Calendario, disponibilitÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â , orari, '
                 'coperti e chiusure',
             onTap: () {
               Navigator.of(context).push(
@@ -2184,7 +2174,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.lock_outline_rounded,
           title: 'Blocca gestionale',
-          subtitle: 'Proteggi l’accesso senza effettuare il logout',
+          subtitle:
+              'Proteggi lÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢accesso senza effettuare il logout',
           onTap: () async {
             final lock = widget.onLock;
 
@@ -2196,7 +2187,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.logout_rounded,
           title: 'Logout',
-          subtitle: 'Esci dal tuo account',
+          subtitle:
+              'Esci dallÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â‚¬Å¡Ã‚Â¬ÃƒÂ¢Ã¢â‚¬Å¾Ã‚Â¢account amministratore',
           color: Colors.redAccent,
           onTap: _confirmLogout,
         ),
@@ -2410,10 +2402,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
         selectedIndex: _bottomIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         onDestinationSelected: (index) {
-          if (index == 2 && !_isManager) {
-            return;
-          }
-
           setState(() {
             _bottomIndex = index;
 
@@ -2436,26 +2424,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
             selectedIcon: Icon(Icons.calendar_month, color: Colors.black),
             label: 'Calendario',
           ),
-          if (_isManager)
-            const NavigationDestination(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: Color(0xFFE9E1D2),
-                size: 30,
-              ),
-              selectedIcon: Icon(
-                Icons.add_circle,
-                color: Colors.black,
-                size: 30,
-              ),
-              label: 'Aggiungi',
-            )
-          else
-            const NavigationDestination(
-              icon: SizedBox.shrink(),
-              selectedIcon: SizedBox.shrink(),
-              label: '',
+          const NavigationDestination(
+            icon: Icon(
+              Icons.add_circle_outline,
+              color: Color(0xFFE9E1D2),
+              size: 30,
             ),
+            selectedIcon: Icon(Icons.add_circle, color: Colors.black, size: 30),
+            label: 'Aggiungi',
+          ),
           NavigationDestination(
             icon: Badge(
               isLabelVisible: pendingCount > 0,

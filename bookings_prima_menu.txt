@@ -1,26 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
-import '../availability/availability_screen.dart';
-import '../settings/settings_screen.dart';
-import '../staff/staff_users_screen.dart';
-
 class BookingsScreen extends StatefulWidget {
-  const BookingsScreen({
-    super.key,
-    this.onLock,
-    this.onLogout,
-    required this.displayName,
-    required this.email,
-    required this.userRole,
-  });
-
-  final Future<void> Function()? onLock;
-  final Future<void> Function()? onLogout;
-
-  final String displayName;
-  final String email;
-  final String userRole;
+  const BookingsScreen({super.key});
 
   @override
   State<BookingsScreen> createState() => _BookingsScreenState();
@@ -28,27 +10,6 @@ class BookingsScreen extends StatefulWidget {
 
 class _BookingsScreenState extends State<BookingsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  bool get _isAdmin => widget.userRole == 'admin';
-
-  bool get _isManager => _isAdmin || widget.userRole == 'manager';
-
-  bool get _isSupervisor => _isManager || widget.userRole == 'supervisor';
-
-  String get _roleLabel {
-    switch (widget.userRole) {
-      case 'admin':
-        return 'Amministratore';
-      case 'manager':
-        return 'Manager';
-      case 'supervisor':
-        return 'Supervisor';
-      case 'staff':
-        return 'Staff';
-      default:
-        return widget.userRole;
-    }
-  }
 
   DateTime _selectedDate = DateTime.now();
 
@@ -390,16 +351,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _saveManualBooking() async {
-    if (!_isManager) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Solo Manager e Amministratore possono aggiungere prenotazioni.',
-          ),
-        ),
-      );
-      return;
-    }
     final firstName = _manualFirstNameController.text.trim();
 
     if (firstName.isEmpty) {
@@ -675,32 +626,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
   ) async {
     final booking = document.data();
     final oldStatus = booking['status'] as String? ?? 'pending';
-
-    if (!_isSupervisor) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Il tuo ruolo consente solo la consultazione delle prenotazioni.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    if (widget.userRole == 'supervisor') {
-      const allowed = {'confirmed', 'cancelled', 'rejected'};
-
-      if (oldStatus != 'pending' || !allowed.contains(newStatus)) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Il Supervisor può gestire solo le richieste in attesa.',
-            ),
-          ),
-        );
-        return;
-      }
-    }
 
     if (oldStatus == newStatus) {
       return;
@@ -1927,7 +1852,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     Expanded(
                       child: OutlinedButton(
                         onPressed: () {
-                          _changeStatus(document, 'rejected');
+                          _changeStatus(document, 'cancelled');
                         },
                         child: const Text(
                           'Rifiuta',
@@ -1989,66 +1914,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Future<void> _confirmLogout() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Uscire dal gestionale?'),
-          content: const Text(
-            'Il logout richiederà nuovamente '
-            'email e password al prossimo accesso.\n\n'
-            'Se vuoi soltanto proteggere il gestionale, '
-            'usa \u201CBlocca gestionale\u201D.',
-          ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(false);
-              },
-              child: const Text('ANNULLA'),
-            ),
-            FilledButton.icon(
-              onPressed: () {
-                Navigator.of(dialogContext).pop(true);
-              },
-              icon: const Icon(Icons.logout_rounded),
-              label: const Text('LOGOUT'),
-            ),
-          ],
-        );
-      },
-    );
-
-    if (confirmed != true) {
-      return;
-    }
-
-    final logout = widget.onLogout;
-
-    if (logout != null) {
-      await logout();
-    }
-  }
-
   Widget _morePage() {
     Widget item({
       required IconData icon,
       required String title,
       required String subtitle,
       required VoidCallback onTap,
-      Color color = const Color(0xFFC8A45D),
     }) {
       return ListTile(
         dense: true,
-        leading: Icon(icon, size: 21, color: color),
+        leading: Icon(icon, size: 21, color: const Color(0xFFC8A45D)),
         title: Text(
           title,
-          style: TextStyle(
-            color: color == Colors.redAccent ? Colors.redAccent : null,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
         trailing: const Icon(Icons.chevron_right, size: 20),
@@ -2059,38 +1937,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
       children: [
-        Card(
-          margin: const EdgeInsets.fromLTRB(8, 4, 8, 14),
-          child: ListTile(
-            leading: const Icon(
-              Icons.account_circle_outlined,
-              color: Color(0xFFC8A45D),
-              size: 34,
-            ),
-            title: Text(
-              widget.displayName,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-            subtitle: Text(
-              widget.email.isEmpty
-                  ? _roleLabel
-                  : '${widget.email}\n$_roleLabel',
-            ),
-            isThreeLine: widget.email.isNotEmpty,
-          ),
-        ),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
-          child: Text(
-            'PRENOTAZIONI',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ),
         item(
           icon: Icons.history,
           title: 'Prenotazioni passate',
@@ -2103,102 +1949,45 @@ class _BookingsScreenState extends State<BookingsScreen> {
             });
           },
         ),
-        if (_isManager)
-          item(
-            icon: Icons.people_outline,
-            title: 'Clienti e no-show',
-            subtitle: 'Consulta segnalazioni e storico clienti',
-            onTap: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text(
-                    'La rubrica clienti sarà '
-                    'attivata con la gestione utenti.',
-                  ),
-                ),
-              );
-            },
-          ),
-        const Divider(),
-        if (_isManager)
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
-            child: Text(
-              'GESTIONE',
-              style: TextStyle(
-                color: Colors.grey,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-        if (_isManager)
-          item(
-            icon: Icons.calendar_month_outlined,
-            title: 'Gestione servizi',
-            subtitle:
-                'Calendario, disponibilità, orari, '
-                'coperti e chiusure',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AvailabilityScreen()),
-              );
-            },
-          ),
-        if (_isAdmin)
-          item(
-            icon: Icons.manage_accounts_outlined,
-            title: 'Utenti e permessi',
-            subtitle: 'Gestisci staff, ruoli e accessi al gestionale',
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const StaffUsersScreen()),
-              );
-            },
-          ),
-        if (_isAdmin)
-          item(
-            icon: Icons.settings_outlined,
-            title: 'Impostazioni',
-            subtitle: 'Notifiche, sicurezza e preferenze',
-            onTap: () {
-              Navigator.of(
-                context,
-              ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
-            },
-          ),
-        const Divider(),
-        const Padding(
-          padding: EdgeInsets.fromLTRB(16, 8, 16, 6),
-          child: Text(
-            'SICUREZZA',
-            style: TextStyle(
-              color: Colors.grey,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1.2,
-            ),
-          ),
-        ),
         item(
-          icon: Icons.lock_outline_rounded,
-          title: 'Blocca gestionale',
-          subtitle: 'Proteggi l’accesso senza effettuare il logout',
-          onTap: () async {
-            final lock = widget.onLock;
-
-            if (lock != null) {
-              await lock();
-            }
+          icon: Icons.people_outline,
+          title: 'Clienti e no-show',
+          subtitle: 'Consulta segnalazioni e storico clienti',
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'La rubrica clienti sarà '
+                  'il prossimo modulo.',
+                ),
+              ),
+            );
           },
         ),
         item(
-          icon: Icons.logout_rounded,
-          title: 'Logout',
-          subtitle: 'Esci dal tuo account',
-          color: Colors.redAccent,
-          onTap: _confirmLogout,
+          icon: Icons.schedule_outlined,
+          title: 'Gestione servizi',
+          subtitle: 'Orari, disponibilità e chiusure',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
+        ),
+        item(
+          icon: Icons.settings_outlined,
+          title: 'Impostazioni',
+          subtitle: 'Notifiche, sicurezza e preferenze',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
+        ),
+        const Divider(),
+        item(
+          icon: Icons.home_outlined,
+          title: 'Home gestionale',
+          subtitle: 'Torna alla schermata principale',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
         ),
       ],
     );
@@ -2410,10 +2199,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
         selectedIndex: _bottomIndex,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         onDestinationSelected: (index) {
-          if (index == 2 && !_isManager) {
-            return;
-          }
-
           setState(() {
             _bottomIndex = index;
 
@@ -2436,26 +2221,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
             selectedIcon: Icon(Icons.calendar_month, color: Colors.black),
             label: 'Calendario',
           ),
-          if (_isManager)
-            const NavigationDestination(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: Color(0xFFE9E1D2),
-                size: 30,
-              ),
-              selectedIcon: Icon(
-                Icons.add_circle,
-                color: Colors.black,
-                size: 30,
-              ),
-              label: 'Aggiungi',
-            )
-          else
-            const NavigationDestination(
-              icon: SizedBox.shrink(),
-              selectedIcon: SizedBox.shrink(),
-              label: '',
+          const NavigationDestination(
+            icon: Icon(
+              Icons.add_circle_outline,
+              color: Color(0xFFE9E1D2),
+              size: 30,
             ),
+            selectedIcon: Icon(Icons.add_circle, color: Colors.black, size: 30),
+            label: 'Aggiungi',
+          ),
           NavigationDestination(
             icon: Badge(
               isLabelVisible: pendingCount > 0,
@@ -2640,13 +2414,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             leading: IconButton(
               tooltip: 'Home',
               onPressed: () {
-                setState(() {
-                  _selectedDate = DateTime.now();
-                  _bottomIndex = 0;
-                  _selectedSection = 0;
-                  _selectedService = 'all';
-                  _selectedFilter = 'all';
-                });
+                Navigator.maybePop(context);
               },
               icon: const Icon(Icons.home_outlined, size: 22),
             ),

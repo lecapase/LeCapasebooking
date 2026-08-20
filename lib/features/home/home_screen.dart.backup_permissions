@@ -10,15 +10,17 @@ class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  State<HomeScreen> createState() =>
+      _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState
+    extends State<HomeScreen> {
   int selectedIndex = 0;
 
   final List<Widget> pages = [
     const DashboardScreen(),
-    const BookingsScreen(displayName: 'Utente', email: '', userRole: 'staff'),
+    const BookingsScreen(),
     const CustomerBookingScreen(),
     const TablesScreen(),
     const SettingsScreen(),
@@ -34,11 +36,17 @@ class _HomeScreenState extends State<HomeScreen> {
 
         decoration: const BoxDecoration(
           color: Color(0xFF0B0B0B),
-          border: Border(top: BorderSide(color: Color(0xFFC8A45D), width: 0.5)),
+          border: Border(
+            top: BorderSide(
+              color: Color(0xFFC8A45D),
+              width: 0.5,
+            ),
+          ),
         ),
 
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          mainAxisAlignment:
+              MainAxisAlignment.spaceAround,
 
           children: [
             _navItem(
@@ -50,8 +58,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
             _navItem(
               index: 1,
-              icon: Icons.calendar_month_outlined,
-              activeIcon: Icons.calendar_month,
+              icon:
+                  Icons.calendar_month_outlined,
+              activeIcon:
+                  Icons.calendar_month,
               label: 'Prenotazioni',
             ),
 
@@ -65,19 +75,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 65,
                 height: 65,
 
-                decoration: const BoxDecoration(
+                decoration:
+                    const BoxDecoration(
                   color: Color(0xFFC8A45D),
                   shape: BoxShape.circle,
                 ),
 
-                child: const Icon(Icons.add, color: Colors.black, size: 36),
+                child: const Icon(
+                  Icons.add,
+                  color: Colors.black,
+                  size: 36,
+                ),
               ),
             ),
 
             _navItem(
               index: 3,
-              icon: Icons.table_restaurant_outlined,
-              activeIcon: Icons.table_restaurant,
+              icon:
+                  Icons.table_restaurant_outlined,
+              activeIcon:
+                  Icons.table_restaurant,
               label: 'Tavoli',
             ),
 
@@ -99,7 +116,8 @@ class _HomeScreenState extends State<HomeScreen> {
     required IconData activeIcon,
     required String label,
   }) {
-    final selected = selectedIndex == index;
+    final selected =
+        selectedIndex == index;
 
     return InkWell(
       onTap: () {
@@ -108,11 +126,18 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       },
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment:
+            MainAxisAlignment.center,
         children: [
           Icon(
-            selected ? activeIcon : icon,
-            color: selected ? const Color(0xFFC8A45D) : Colors.white70,
+            selected
+                ? activeIcon
+                : icon,
+            color: selected
+                ? const Color(
+                    0xFFC8A45D,
+                  )
+                : Colors.white70,
           ),
 
           const SizedBox(height: 4),
@@ -121,7 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: selected ? const Color(0xFFC8A45D) : Colors.white70,
+              color: selected
+                  ? const Color(
+                      0xFFC8A45D,
+                    )
+                  : Colors.white70,
             ),
           ),
         ],

@@ -1,5 +1,15 @@
 {
   "projects": {
     "default": "lecapase-booking-3af33"
-  }
+  },
+  "targets": {
+    "lecapase-booking-3af33": {
+      "hosting": {
+        "gestionale": [
+          "lecapase-gestionale"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }
