@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
@@ -253,9 +253,10 @@ class PushNotificationService {
       return;
     }
 
-    await _firestore.collection('admins').doc(user.uid).set({
+    await _firestore.collection('notification_devices').doc(user.uid).set({
       'fcmTokens': FieldValue.arrayUnion([token]),
       'lastTokenUpdate': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 }
+

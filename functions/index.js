@@ -1,4 +1,4 @@
-const crypto = require("crypto");
+﻿const crypto = require("crypto");
 
 const {
   setGlobalOptions,
@@ -47,6 +47,9 @@ const BOOKINGS_COLLECTION =
 
 const ADMINS_COLLECTION =
   "admins";
+
+const NOTIFICATION_DEVICES_COLLECTION =
+  "notification_devices";
 
 const CUSTOMER_PROFILES_COLLECTION =
   "customer_profiles";
@@ -274,35 +277,33 @@ function safeEventId(eventId) {
 // NOTIFICA PUSH AMMINISTRATORE
 // ============================================================
 
-async function getAdminTokens() {
-  const snapshot =
-    await db
-        .collection(ADMINS_COLLECTION)
-        .get();
+async function getNotificationTokens() {
+  const [deviceSnapshot, adminSnapshot] = await Promise.all([
+    db.collection(NOTIFICATION_DEVICES_COLLECTION).get(),
+    db.collection(ADMINS_COLLECTION).get(),
+  ]);
 
-  const tokens =
-    new Set();
+  const tokens = new Set();
 
-  snapshot.forEach((document) => {
-    const data =
-      document.data();
+  for (const snapshot of [deviceSnapshot, adminSnapshot]) {
+    snapshot.forEach((document) => {
+      const data = document.data();
 
-    const fcmTokens =
-      Array.isArray(data.fcmTokens) ?
-        data.fcmTokens :
-        [];
+      const fcmTokens =
+        Array.isArray(data.fcmTokens) ?
+          data.fcmTokens :
+          [];
 
-    for (const token of fcmTokens) {
-      if (
-        typeof token === "string" &&
-        token.trim().length > 0
-      ) {
-        tokens.add(
-            token.trim(),
-        );
+      for (const token of fcmTokens) {
+        if (
+          typeof token === "string" &&
+          token.trim().length > 0
+        ) {
+          tokens.add(token.trim());
+        }
       }
-    }
-  });
+    });
+  }
 
   return Array.from(tokens);
 }
@@ -370,7 +371,7 @@ exports.onNewBooking =
         }
 
         const tokens =
-          await getAdminTokens();
+          await getNotificationTokens();
 
         if (tokens.length === 0) {
           logger.warn(
@@ -1710,3 +1711,4 @@ exports.onStaffUserInviteCreated =
 
 exports.onStaffUserUpdated =
   staffUserFunctions.onStaffUserUpdated;
+

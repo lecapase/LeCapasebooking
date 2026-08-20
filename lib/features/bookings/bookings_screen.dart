@@ -1,5 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+
+import '../../services/push_notification_service.dart';
 
 import '../availability/availability_screen.dart';
 import '../settings/settings_screen.dart';
@@ -1989,6 +1991,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Future<void> _enableNotifications() async {
+    final enabled = await PushNotificationService.enableWebNotifications();
+
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          enabled
+              ? 'Notifiche attivate su questo dispositivo.'
+              : 'Permesso notifiche non concesso. Controlla le impostazioni del dispositivo.',
+        ),
+      ),
+    );
+  }
+
   Future<void> _confirmLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -2168,6 +2188,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
           ),
+        item(
+          icon: Icons.notifications_active_outlined,
+          title: 'Notifiche',
+          subtitle: 'Attiva gli avvisi delle nuove prenotazioni',
+          onTap: _enableNotifications,
+        ),
         const Divider(),
         const Padding(
           padding: EdgeInsets.fromLTRB(16, 8, 16, 6),

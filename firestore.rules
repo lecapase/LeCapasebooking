@@ -445,6 +445,37 @@ service cloud.firestore {
     // AMMINISTRATORI PREESISTENTI
     // =====================================================
 
+    // =====================================================
+    // DISPOSITIVI PER NOTIFICHE PUSH
+    // =====================================================
+
+    match /notification_devices/{userId} {
+      allow read: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && canViewBookings()
+        );
+
+      allow create, update: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && canViewBookings()
+          && request.resource.data.keys().hasOnly([
+            'fcmTokens',
+            'lastTokenUpdate'
+          ])
+        );
+
+      allow delete: if isAdmin()
+        || (
+          isSignedIn()
+          && request.auth.uid == userId
+          && canViewBookings()
+        );
+    }
+
     match /admins/{adminId} {
       allow read: if isAdmin()
         || (
