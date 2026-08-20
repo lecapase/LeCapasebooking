@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class BookingsScreen extends StatefulWidget {
@@ -14,10 +14,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int _selectedSection = 0;
-
   String _selectedService = 'all';
-
   String _selectedFilter = 'all';
+  int _bottomIndex = 0;
+
+  bool _savingManualBooking = false;
+
+  final TextEditingController _manualFirstNameController =
+      TextEditingController();
+  final TextEditingController _manualLastNameController =
+      TextEditingController();
+  final TextEditingController _manualPhoneController = TextEditingController();
+  final TextEditingController _manualEmailController = TextEditingController();
+  final TextEditingController _manualNotesController = TextEditingController();
+
+  int _manualGuests = 2;
+  String _manualService = 'dinner';
+
+  TimeOfDay _manualTime = const TimeOfDay(hour: 20, minute: 0);
 
   static const List<String> _selectableStatuses = [
     'booked',
@@ -34,6 +48,41 @@ class _BookingsScreenState extends State<BookingsScreen> {
     'completed',
     'rejected',
   };
+
+  static const List<String> _monthNames = [
+    'gennaio',
+    'febbraio',
+    'marzo',
+    'aprile',
+    'maggio',
+    'giugno',
+    'luglio',
+    'agosto',
+    'settembre',
+    'ottobre',
+    'novembre',
+    'dicembre',
+  ];
+
+  static const List<String> _weekdayNames = [
+    'lun',
+    'mar',
+    'mer',
+    'gio',
+    'ven',
+    'sab',
+    'dom',
+  ];
+
+  @override
+  void dispose() {
+    _manualFirstNameController.dispose();
+    _manualLastNameController.dispose();
+    _manualPhoneController.dispose();
+    _manualEmailController.dispose();
+    _manualNotesController.dispose();
+    super.dispose();
+  }
 
   int _readInteger(dynamic value) {
     if (value is int) {
@@ -59,6 +108,49 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final normalized = DateTime(date.year, date.month, date.day);
 
     return normalized.subtract(Duration(days: normalized.weekday - 1));
+  }
+
+  void _changeWeek(int numberOfWeeks) {
+    setState(() {
+      _selectedDate = _selectedDate.add(Duration(days: numberOfWeeks * 7));
+    });
+  }
+
+  String _weekLabel(DateTime weekStart) {
+    final weekEnd = weekStart.add(const Duration(days: 6));
+
+    if (weekStart.month == weekEnd.month) {
+      return '${weekStart.day}–${weekEnd.day} '
+          '${_monthNames[weekStart.month - 1]} '
+          '${weekStart.year}';
+    }
+
+    return '${weekStart.day} '
+        '${_monthNames[weekStart.month - 1]} – '
+        '${weekEnd.day} '
+        '${_monthNames[weekEnd.month - 1]} '
+        '${weekEnd.year}';
+  }
+
+  String _fullDateLabel(DateTime date) {
+    return '${_weekdayNames[date.weekday - 1]} '
+        '${date.day} '
+        '${_monthNames[date.month - 1]} '
+        '${date.year}';
+  }
+
+  String _italianDateFromKey(String dateKey) {
+    final parts = dateKey.split('-');
+
+    if (parts.length != 3) {
+      return dateKey;
+    }
+
+    return '${parts[2]}/${parts[1]}/${parts[0]}';
+  }
+
+  bool _countsAsConfirmedCover(String status) {
+    return status == 'booked' || status == 'confirmed' || status == 'arrived';
   }
 
   bool _isPastStatus(String status) {
@@ -188,43 +280,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
   }
 
-  String _weekLabel(DateTime weekStart) {
-    final weekEnd = weekStart.add(const Duration(days: 6));
-
-    const months = [
-      'gen',
-      'feb',
-      'mar',
-      'apr',
-      'mag',
-      'giu',
-      'lug',
-      'ago',
-      'set',
-      'ott',
-      'nov',
-      'dic',
-    ];
-
-    if (weekStart.month == weekEnd.month) {
-      return '${weekStart.day}–${weekEnd.day} '
-          '${months[weekStart.month - 1]} '
-          '${weekStart.year}';
-    }
-
-    return '${weekStart.day} '
-        '${months[weekStart.month - 1]} – '
-        '${weekEnd.day} '
-        '${months[weekEnd.month - 1]} '
-        '${weekEnd.year}';
-  }
-
-  void _changeWeek(int numberOfWeeks) {
-    setState(() {
-      _selectedDate = _selectedDate.add(Duration(days: numberOfWeeks * 7));
-    });
-  }
-
   Future<void> _openCalendar() async {
     final selectedDate = await showDatePicker(
       context: context,
@@ -244,7 +299,161 @@ class _BookingsScreenState extends State<BookingsScreen> {
     setState(() {
       _selectedDate = selectedDate;
       _selectedSection = 0;
+      _selectedFilter = 'all';
+      _bottomIndex = 0;
     });
+  }
+
+  Future<void> _selectManualDate() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      lastDate: DateTime(DateTime.now().year + 5, 12, 31),
+      locale: const Locale('it', 'IT'),
+      helpText: 'Data della prenotazione',
+      cancelText: 'ANNULLA',
+      confirmText: 'SELEZIONA',
+    );
+
+    if (selectedDate == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedDate = selectedDate;
+    });
+  }
+
+  Future<void> _selectManualTime() async {
+    final selectedTime = await showTimePicker(
+      context: context,
+      initialTime: _manualTime,
+      helpText: 'Orario della prenotazione',
+      cancelText: 'ANNULLA',
+      confirmText: 'SELEZIONA',
+    );
+
+    if (selectedTime == null || !mounted) {
+      return;
+    }
+
+    setState(() {
+      _manualTime = selectedTime;
+    });
+  }
+
+  String _manualTimeValue() {
+    final hour = _manualTime.hour.toString().padLeft(2, '0');
+    final minute = _manualTime.minute.toString().padLeft(2, '0');
+
+    return '$hour:$minute';
+  }
+
+  Future<void> _saveManualBooking() async {
+    final firstName = _manualFirstNameController.text.trim();
+
+    if (firstName.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inserisci il nome del cliente.')),
+      );
+      return;
+    }
+
+    setState(() {
+      _savingManualBooking = true;
+    });
+
+    final normalizedDate = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+    );
+
+    final dateKey = _dateKey(normalizedDate);
+
+    final bookingReference = _firestore.collection('bookings').doc();
+
+    final counterReference = _firestore
+        .collection('availability_counters')
+        .doc('${dateKey}_$_manualService');
+
+    try {
+      await _firestore.runTransaction((transaction) async {
+        final counterSnapshot = await transaction.get(counterReference);
+
+        final currentGuests = counterSnapshot.exists
+            ? _readInteger(counterSnapshot.data()?['bookedGuests'])
+            : 0;
+
+        transaction.set(bookingReference, {
+          'nome': firstName,
+          'cognome': _manualLastNameController.text.trim(),
+          'email': _manualEmailController.text.trim(),
+          'telefono': _manualPhoneController.text.trim(),
+          'date': Timestamp.fromDate(normalizedDate),
+          'dateKey': dateKey,
+          'weekday': normalizedDate.weekday,
+          'time': _manualTimeValue(),
+          'service': _manualService,
+          'guests': _manualGuests,
+          'occasion': 'Nessuna',
+          'notes': _manualNotesController.text.trim(),
+          'status': 'booked',
+          'autoBooked': false,
+          'autoConfirmed': false,
+          'requiresManualConfirmation': false,
+          'source': 'admin',
+          'manualBooking': true,
+          'bookedAt': FieldValue.serverTimestamp(),
+          'bookedBy': 'admin',
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        transaction.set(counterReference, {
+          'dateKey': dateKey,
+          'weekday': normalizedDate.weekday,
+          'service': _manualService,
+          'bookedGuests': currentGuests + _manualGuests,
+          'lastBookingId': bookingReference.id,
+          'updatedAt': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      });
+
+      _manualFirstNameController.clear();
+      _manualLastNameController.clear();
+      _manualPhoneController.clear();
+      _manualEmailController.clear();
+      _manualNotesController.clear();
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _savingManualBooking = false;
+        _bottomIndex = 0;
+        _selectedSection = 0;
+        _selectedFilter = 'all';
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Prenotazione aggiunta.')));
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _savingManualBooking = false;
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Salvataggio non riuscito: $error')),
+      );
+    }
   }
 
   Future<bool> _confirmStatusChange({
@@ -295,41 +504,87 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       case 'cancelled':
         title = 'Annulla prenotazione';
+        message =
+            'Vuoi annullare la prenotazione di '
+            '$customerName?';
 
-        if (oldStatus == 'pending') {
-          message =
-              'Vuoi annullare la richiesta di '
-              '$customerName?'
-              '\n\nIl cliente riceverà una comunicazione '
-              'che la richiesta non è stata accettata.';
-        } else {
-          message =
-              'Vuoi annullare la prenotazione di '
-              '$customerName?'
-              '\n\nIl cliente riceverà automaticamente '
-              'l’email di annullamento.';
+        if (_countsForCapacity(oldStatus)) {
+          message +=
+              '\n\nI coperti verranno liberati '
+              'dalla disponibilità.';
         }
+
+        message +=
+            '\n\nSe presente, il cliente riceverà '
+            'l’email di annullamento.';
 
         buttonLabel = 'Annulla';
         break;
 
-      case 'no_show':
-        title = 'Segna come No-show';
+      case 'rejected':
+        title = 'Rifiuta prenotazione';
         message =
-            'Confermi che $customerName non si è presentato?'
-            '\n\nL’episodio verrà registrato nello storico '
-            'del cliente e i coperti torneranno disponibili.';
+            'Vuoi rifiutare la richiesta di '
+            '$customerName?';
+
+        if (_countsForCapacity(oldStatus)) {
+          message +=
+              '\n\nI coperti verranno liberati '
+              'dalla disponibilità.';
+        }
+
+        message +=
+            '\n\nSe presente, il cliente riceverà '
+            'l’email di rifiuto.';
+
+        buttonLabel = 'Rifiuta';
+        break;
+
+      case 'arrived':
+        title = 'Cliente arrivato';
+        message =
+            'Vuoi segnare la prenotazione di '
+            '$customerName come Arrivata?';
+
+        if (!_countsForCapacity(oldStatus)) {
+          message +=
+              '\n\nI coperti verranno reinseriti '
+              'nella disponibilità.';
+        }
+
+        buttonLabel = 'Arrivata';
+        break;
+
+      case 'no_show':
+        title = 'Segna come no-show';
+        message =
+            'Vuoi segnalare che $customerName '
+            'non si è presentato?';
+
+        if (_countsForCapacity(oldStatus)) {
+          message +=
+              '\n\nI coperti verranno liberati '
+              'dalla disponibilità.';
+        }
+
+        message +=
+            '\n\nIl cliente sarà contrassegnato '
+            'nello storico come possibile cliente a rischio.';
 
         buttonLabel = 'No-show';
         break;
 
       case 'released':
-        title = 'Segna come Liberato';
+        title = 'Segna come liberato';
         message =
-            'Confermi che il tavolo di $customerName '
-            'è stato liberato?'
-            '\n\nI coperti torneranno disponibili e '
-            'la prenotazione passerà tra le passate.';
+            'Vuoi segnare il tavolo di '
+            '$customerName come Liberato?';
+
+        if (_countsForCapacity(oldStatus)) {
+          message +=
+              '\n\nI coperti verranno liberati '
+              'dalla disponibilità.';
+        }
 
         buttonLabel = 'Liberato';
         break;
@@ -347,19 +602,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
           actions: [
             TextButton(
               onPressed: () {
-                Navigator.pop(dialogContext, false);
+                Navigator.of(dialogContext).pop(false);
               },
-              child: const Text('Indietro'),
+              child: const Text('INDIETRO'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: _statusColor(newStatus),
-                foregroundColor: Colors.white,
-              ),
               onPressed: () {
-                Navigator.pop(dialogContext, true);
+                Navigator.of(dialogContext).pop(true);
               },
-              child: Text(buttonLabel),
+              child: Text(buttonLabel.toUpperCase()),
             ),
           ],
         );
@@ -369,12 +620,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return confirmed == true;
   }
 
-  Future<void> _requestStatusChange(
+  Future<void> _changeStatus(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
     String newStatus,
   ) async {
     final booking = document.data();
-
     final oldStatus = booking['status'] as String? ?? 'pending';
 
     if (oldStatus == newStatus) {
@@ -382,154 +632,114 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     final firstName = booking['nome'] as String? ?? '';
-
     final lastName = booking['cognome'] as String? ?? '';
 
-    final fullName = '$firstName $lastName'.trim();
+    final customerName = '$firstName $lastName'.trim().isEmpty
+        ? 'questo cliente'
+        : '$firstName $lastName'.trim();
 
     final confirmed = await _confirmStatusChange(
       oldStatus: oldStatus,
       newStatus: newStatus,
-      customerName: fullName.isEmpty ? 'il cliente' : fullName,
+      customerName: customerName,
     );
 
-    if (!confirmed) {
+    if (!confirmed || !mounted) {
       return;
     }
 
-    await _setStatus(document.reference, newStatus);
-  }
+    final guests = _readInteger(booking['guests']);
+    final service = booking['service'] as String? ?? '';
+    final dateKey = booking['dateKey'] as String? ?? '';
 
-  Future<void> _setStatus(
-    DocumentReference<Map<String, dynamic>> bookingReference,
-    String newStatus,
-  ) async {
+    final oldCounts = _countsForCapacity(oldStatus);
+    final newCounts = _countsForCapacity(newStatus);
+
+    final bookingReference = document.reference;
+
+    final counterReference = _firestore
+        .collection('availability_counters')
+        .doc('${dateKey}_$service');
+
     try {
       await _firestore.runTransaction((transaction) async {
         final bookingSnapshot = await transaction.get(bookingReference);
 
         if (!bookingSnapshot.exists) {
-          return;
+          throw Exception('Prenotazione non trovata.');
         }
 
-        final booking = bookingSnapshot.data();
+        int guestsDifference = 0;
 
-        if (booking == null) {
-          return;
+        if (oldCounts && !newCounts) {
+          guestsDifference = -guests;
+        } else if (!oldCounts && newCounts) {
+          guestsDifference = guests;
         }
 
-        final oldStatus = booking['status'] as String? ?? 'pending';
-
-        if (oldStatus == newStatus) {
-          return;
-        }
-
-        final guests = _readInteger(booking['guests']);
-
-        final dateKey = booking['dateKey'] as String? ?? '';
-
-        final service = booking['service'] as String? ?? '';
-
-        final oldCounts = _countsForCapacity(oldStatus);
-
-        final newCounts = _countsForCapacity(newStatus);
-
-        final counterReference = _firestore
-            .collection('availability_counters')
-            .doc('${dateKey}_$service');
-
-        if (oldCounts &&
-            !newCounts &&
-            dateKey.isNotEmpty &&
-            service.isNotEmpty) {
+        if (guestsDifference != 0 && dateKey.isNotEmpty && service.isNotEmpty) {
           final counterSnapshot = await transaction.get(counterReference);
 
-          if (counterSnapshot.exists) {
-            final counter = counterSnapshot.data();
+          final currentGuests = counterSnapshot.exists
+              ? _readInteger(counterSnapshot.data()?['bookedGuests'])
+              : 0;
 
-            final current = _readInteger(counter?['bookedGuests']);
-
-            var updated = current - guests;
-
-            if (updated < 0) {
-              updated = 0;
-            }
-
-            transaction.update(counterReference, {
-              'bookedGuests': updated,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          }
-        }
-
-        if (!oldCounts &&
-            newCounts &&
-            dateKey.isNotEmpty &&
-            service.isNotEmpty) {
-          final counterSnapshot = await transaction.get(counterReference);
-
-          var current = 0;
-
-          if (counterSnapshot.exists) {
-            current = _readInteger(counterSnapshot.data()?['bookedGuests']);
-          }
+          final updatedGuests = (currentGuests + guestsDifference).clamp(
+            0,
+            100000,
+          );
 
           transaction.set(counterReference, {
             'dateKey': dateKey,
             'service': service,
-            'bookedGuests': current + guests,
+            'bookedGuests': updatedGuests,
             'updatedAt': FieldValue.serverTimestamp(),
           }, SetOptions(merge: true));
         }
 
-        final updateData = <String, dynamic>{
+        final updates = <String, dynamic>{
           'status': newStatus,
-          'previousStatus': oldStatus,
-          'statusChangedAt': FieldValue.serverTimestamp(),
-          'statusChangedBy': 'admin',
           'updatedAt': FieldValue.serverTimestamp(),
         };
 
         switch (newStatus) {
           case 'booked':
-            updateData.addAll({
-              'bookedAt': FieldValue.serverTimestamp(),
-              'bookedBy': 'admin',
-              'requiresManualConfirmation': false,
-            });
+            updates['bookedAt'] = FieldValue.serverTimestamp();
+            updates['bookedBy'] = 'admin';
             break;
 
           case 'confirmed':
-            updateData.addAll({
-              'confirmedAt': FieldValue.serverTimestamp(),
-              'confirmedBy': 'admin',
-              'requiresManualConfirmation': false,
-            });
+            updates['confirmedAt'] = FieldValue.serverTimestamp();
+            updates['confirmedBy'] = 'admin';
+            break;
+
+          case 'arrived':
+            updates['arrivedAt'] = FieldValue.serverTimestamp();
+            updates['arrivedBy'] = 'admin';
             break;
 
           case 'cancelled':
-            updateData.addAll({
-              'cancelledAt': FieldValue.serverTimestamp(),
-              'cancelledBy': 'admin',
-            });
+            updates['cancelledAt'] = FieldValue.serverTimestamp();
+            updates['cancelledBy'] = 'admin';
+            break;
+
+          case 'rejected':
+            updates['rejectedAt'] = FieldValue.serverTimestamp();
+            updates['rejectedBy'] = 'admin';
             break;
 
           case 'no_show':
-            updateData.addAll({
-              'noShowAt': FieldValue.serverTimestamp(),
-              'noShowBy': 'admin',
-            });
+            updates['noShowAt'] = FieldValue.serverTimestamp();
+            updates['noShowBy'] = 'admin';
             break;
 
           case 'released':
-            updateData.addAll({
-              'releasedAt': FieldValue.serverTimestamp(),
-              'releasedBy': 'admin',
-            });
+            updates['releasedAt'] = FieldValue.serverTimestamp();
+            updates['releasedBy'] = 'admin';
             break;
         }
 
-        transaction.update(bookingReference, updateData);
+        transaction.update(bookingReference, updates);
       });
 
       if (!mounted) {
@@ -538,10 +748,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            'Nuovo stato: '
-            '${_statusLabel(newStatus)}',
-          ),
+          content: Text('Stato aggiornato: ${_statusLabel(newStatus)}.'),
         ),
       );
     } catch (error) {
@@ -550,12 +757,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Errore durante l’aggiornamento: '
-            '$error',
-          ),
-        ),
+        SnackBar(content: Text('Aggiornamento non riuscito: $error')),
       );
     }
   }
@@ -587,7 +789,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 onPressed: () {
                   _changeWeek(-1);
                 },
-                icon: const Icon(Icons.chevron_left, size: 32),
+                icon: const Icon(Icons.chevron_left, size: 24),
               ),
               Expanded(
                 child: InkWell(
@@ -605,7 +807,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             _weekLabel(weekStart),
                             textAlign: TextAlign.center,
                             style: const TextStyle(
-                              fontSize: 17,
+                              fontSize: 14,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -620,7 +822,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 onPressed: () {
                   _changeWeek(1);
                 },
-                icon: const Icon(Icons.chevron_right, size: 32),
+                icon: const Icon(Icons.chevron_right, size: 24),
               ),
             ],
           ),
@@ -628,7 +830,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
           Row(
             children: List.generate(7, (index) {
               final date = weekDays[index];
-
               final key = _dateKey(date);
 
               final selected = key == _dateKey(_selectedDate);
@@ -651,7 +852,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     },
                     child: AnimatedContainer(
                       duration: const Duration(milliseconds: 160),
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      padding: const EdgeInsets.symmetric(vertical: 6),
                       decoration: BoxDecoration(
                         color: selected
                             ? const Color(0xFFC8A45D)
@@ -659,39 +860,64 @@ class _BookingsScreenState extends State<BookingsScreen> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Column(
-                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             weekdayLabels[index],
                             style: TextStyle(
-                              fontSize: 12,
-                              color: selected ? Colors.black : null,
+                              color: selected
+                                  ? Colors.black
+                                  : Colors.grey.shade500,
+                              fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 2),
                           Text(
                             '${date.day}',
                             style: TextStyle(
-                              fontSize: 17,
-                              color: selected ? Colors.black : null,
+                              color: selected ? Colors.black : Colors.white,
+                              fontSize: 15,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          const SizedBox(height: 5),
-                          Container(
-                            width: 7,
-                            height: 7,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: !hasBookings
-                                  ? Colors.transparent
-                                  : hasPending
-                                  ? Colors.orange
-                                  : selected
-                                  ? Colors.black
-                                  : const Color(0xFFC8A45D),
-                            ),
+                          const SizedBox(height: 3),
+                          SizedBox(
+                            height: 18,
+                            child: hasBookings
+                                ? Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: selected
+                                          ? Colors.black.withValues(alpha: 0.18)
+                                          : const Color(0xFF2F775F),
+                                      borderRadius: BorderRadius.circular(9),
+                                    ),
+                                    child: FittedBox(
+                                      child: Text(
+                                        '${guestsByDate[key]}p',
+                                        style: TextStyle(
+                                          color: selected
+                                              ? Colors.black
+                                              : Colors.white,
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : hasPending
+                                ? Container(
+                                    width: 7,
+                                    height: 7,
+                                    decoration: const BoxDecoration(
+                                      color: Colors.orange,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ],
                       ),
@@ -714,23 +940,35 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }) {
     final selected = _selectedService == value;
 
-    const gold = Color(0xFFC8A45D);
-
-    return ChoiceChip(
-      selected: selected,
-      onSelected: (_) {
-        setState(() {
-          _selectedService = value;
-        });
-      },
-      avatar: Icon(icon, size: 18, color: selected ? Colors.black : gold),
-      label: Text('$label  ${guests}p'),
-      selectedColor: gold,
-      labelStyle: TextStyle(
-        color: selected ? Colors.black : null,
-        fontWeight: FontWeight.bold,
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 3),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            backgroundColor: selected
+                ? const Color(0xFFC8A45D)
+                : Colors.transparent,
+            foregroundColor: selected ? Colors.black : const Color(0xFFC8A45D),
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+            side: const BorderSide(color: Color(0xFF6C5733)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: () {
+            setState(() {
+              _selectedService = value;
+            });
+          },
+          icon: Icon(icon, size: 17),
+          label: FittedBox(
+            child: Text(
+              '$label ${guests}p',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
       ),
-      side: BorderSide(color: selected ? gold : const Color(0xFF62553E)),
     );
   }
 
@@ -739,9 +977,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required int lunchGuests,
     required int dinnerGuests,
   }) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
       child: Row(
         children: [
           _serviceButton(
@@ -750,18 +987,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
             icon: Icons.restaurant,
             guests: allGuests,
           ),
-          const SizedBox(width: 8),
           _serviceButton(
             value: 'lunch',
             label: 'Pranzo',
-            icon: Icons.wb_sunny_outlined,
+            icon: Icons.light_mode_outlined,
             guests: lunchGuests,
           ),
-          const SizedBox(width: 8),
           _serviceButton(
             value: 'dinner',
             label: 'Cena',
-            icon: Icons.nightlight_outlined,
+            icon: Icons.dark_mode_outlined,
             guests: dinnerGuests,
           ),
         ],
@@ -770,54 +1005,63 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Widget _sectionButton({
-    required int index,
+    required int value,
     required String label,
     required IconData icon,
+    required int count,
   }) {
-    final selected = _selectedSection == index;
+    final selected = _selectedSection == value;
 
-    if (selected) {
-      return FilledButton.icon(
-        onPressed: () {
-          setState(() {
-            _selectedSection = index;
-          });
-        },
-        icon: Icon(icon),
-        label: Text(label),
-      );
-    }
-
-    return OutlinedButton.icon(
-      onPressed: () {
-        setState(() {
-          _selectedSection = index;
-        });
-      },
-      icon: Icon(icon),
-      label: Text(label),
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: OutlinedButton.icon(
+          style: OutlinedButton.styleFrom(
+            backgroundColor: selected
+                ? const Color(0xFFC8A45D)
+                : Colors.transparent,
+            foregroundColor: selected ? Colors.black : const Color(0xFFC8A45D),
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            side: BorderSide(
+              color: selected ? const Color(0xFFC8A45D) : Colors.grey.shade600,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(22),
+            ),
+          ),
+          onPressed: () {
+            setState(() {
+              _selectedSection = value;
+            });
+          },
+          icon: Icon(icon, size: 18),
+          label: FittedBox(
+            child: Text(
+              '$label ($count)',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
   Widget _sectionSelector({required int activeCount, required int pastCount}) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 5),
       child: Row(
         children: [
-          Expanded(
-            child: _sectionButton(
-              index: 0,
-              label: 'Attive ($activeCount)',
-              icon: Icons.event_available_outlined,
-            ),
+          _sectionButton(
+            value: 0,
+            label: 'Attive',
+            icon: Icons.event_available_outlined,
+            count: activeCount,
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: _sectionButton(
-              index: 1,
-              label: 'Passate ($pastCount)',
-              icon: Icons.history,
-            ),
+          _sectionButton(
+            value: 1,
+            label: 'Passate',
+            icon: Icons.history,
+            count: pastCount,
           ),
         ],
       ),
@@ -849,7 +1093,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 });
               },
               avatar: Icon(filter.$3, size: 17),
-              label: Text(filter.$2),
+              label: Text(filter.$2, style: const TextStyle(fontSize: 12)),
             ),
           );
         }).toList(),
@@ -1008,6 +1252,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                         'no-show precedenti',
               style: const TextStyle(
                 color: Colors.deepPurple,
+                fontSize: 12,
                 fontWeight: FontWeight.bold,
               ),
             ),
@@ -1023,7 +1268,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       children: [
         Icon(icon, size: 17),
         const SizedBox(width: 8),
-        Expanded(child: Text(text)),
+        Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
       ],
     );
   }
@@ -1037,7 +1282,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return PopupMenuButton<String>(
       tooltip: 'Cambia stato',
       onSelected: (newStatus) {
-        _requestStatusChange(document, newStatus);
+        _changeStatus(document, newStatus);
       },
       itemBuilder: (context) {
         return _selectableStatuses.map((status) {
@@ -1046,9 +1291,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
             enabled: status != currentStatus,
             child: Row(
               children: [
-                Icon(_statusIcon(status), color: _statusColor(status)),
+                Icon(
+                  _statusIcon(status),
+                  color: _statusColor(status),
+                  size: 19,
+                ),
                 const SizedBox(width: 12),
-                Expanded(child: Text(_statusLabel(status))),
+                Expanded(
+                  child: Text(
+                    _statusLabel(status),
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
                 if (status == currentStatus) const Icon(Icons.check, size: 18),
               ],
             ),
@@ -1056,7 +1310,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }).toList();
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
@@ -1065,13 +1319,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.flag_outlined, color: color),
-            const SizedBox(width: 8),
+            Icon(Icons.flag_outlined, color: color, size: 18),
+            const SizedBox(width: 7),
             Text(
               'Cambia stato',
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-            const Icon(Icons.arrow_drop_down),
+            const Icon(Icons.arrow_drop_down, size: 18),
           ],
         ),
       ),
@@ -1111,13 +1369,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       clipBehavior: Clip.antiAlias,
       child: ExpansionTile(
-        tilePadding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
+        tilePadding: const EdgeInsets.fromLTRB(14, 6, 8, 6),
         childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         title: Text(
           fullName.isEmpty ? 'Cliente' : fullName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 7),
@@ -1136,7 +1394,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       const SizedBox(width: 3),
                       Text(
                         '${guests}p',
-                        style: const TextStyle(fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -1178,7 +1439,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           notes,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ],
@@ -1249,10 +1513,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
             const SizedBox(height: 14),
             Text(
               _selectedSection == 0
-                  ? 'Nessuna prenotazione attiva per questa data'
-                  : 'Nessuna prenotazione passata per questa data',
+                  ? 'Nessuna prenotazione attiva '
+                        'per questa data'
+                  : 'Nessuna prenotazione passata '
+                        'per questa data',
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18),
+              style: const TextStyle(fontSize: 15),
             ),
           ],
         ),
@@ -1283,7 +1549,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
       itemCount: times.length,
       itemBuilder: (context, index) {
         final time = times[index];
-
         final group = groups[time]!;
 
         final guests = group.fold<int>(0, (total, document) {
@@ -1297,8 +1562,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
               padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+                  horizontal: 10,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
                   color: const Color(0xFFC8A45D),
@@ -1308,7 +1573,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   '$time — ${guests}p',
                   style: const TextStyle(
                     color: Colors.black,
-                    fontSize: 17,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -1321,78 +1586,765 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Prenotazioni'),
-        actions: [
-          IconButton(
-            tooltip: 'Vai a oggi',
-            onPressed: () {
-              setState(() {
-                _selectedDate = DateTime.now();
-                _selectedSection = 0;
-                _selectedFilter = 'all';
-              });
-            },
-            icon: const Icon(Icons.today_outlined),
+  Widget _manualBookingForm() {
+    InputDecoration decoration(String label, IconData icon) {
+      return InputDecoration(
+        labelText: label,
+        prefixIcon: Icon(icon, size: 18),
+        isDense: true,
+        border: const OutlineInputBorder(),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+      children: [
+        const Text(
+          'Inserimento manuale',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 4),
+        const Text(
+          'Per clienti telefonici o persone di passaggio.',
+          style: TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 14),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _selectManualDate,
+                icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                label: Text(
+                  _fullDateLabel(_selectedDate),
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _selectManualTime,
+                icon: const Icon(Icons.schedule_outlined, size: 17),
+                label: Text(
+                  _manualTimeValue(),
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SegmentedButton<String>(
+          segments: const [
+            ButtonSegment<String>(
+              value: 'lunch',
+              label: Text('Pranzo', style: TextStyle(fontSize: 12)),
+              icon: Icon(Icons.wb_sunny_outlined, size: 17),
+            ),
+            ButtonSegment<String>(
+              value: 'dinner',
+              label: Text('Cena', style: TextStyle(fontSize: 12)),
+              icon: Icon(Icons.nightlight_outlined, size: 17),
+            ),
+          ],
+          selected: {_manualService},
+          onSelectionChanged: (selection) {
+            setState(() {
+              _manualService = selection.first;
+            });
+          },
+        ),
+        const SizedBox(height: 10),
+        DropdownButtonFormField<int>(
+          initialValue: _manualGuests,
+          decoration: decoration('Numero di persone', Icons.people_outline),
+          items: List.generate(20, (index) {
+            final guests = index + 1;
+
+            return DropdownMenuItem<int>(
+              value: guests,
+              child: Text(
+                '$guests '
+                '${guests == 1 ? 'persona' : 'persone'}',
+                style: const TextStyle(fontSize: 13),
+              ),
+            );
+          }),
+          onChanged: (value) {
+            if (value == null) {
+              return;
+            }
+
+            setState(() {
+              _manualGuests = value;
+            });
+          },
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _manualFirstNameController,
+          textCapitalization: TextCapitalization.words,
+          decoration: decoration('Nome', Icons.person_outline),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _manualLastNameController,
+          textCapitalization: TextCapitalization.words,
+          decoration: decoration('Cognome', Icons.person_outline),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _manualPhoneController,
+          keyboardType: TextInputType.phone,
+          decoration: decoration('Telefono facoltativo', Icons.phone_outlined),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _manualEmailController,
+          keyboardType: TextInputType.emailAddress,
+          decoration: decoration('Email facoltativa', Icons.email_outlined),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _manualNotesController,
+          minLines: 2,
+          maxLines: 4,
+          decoration: decoration('Note', Icons.notes_outlined),
+          style: const TextStyle(fontSize: 13),
+        ),
+        const SizedBox(height: 14),
+        FilledButton.icon(
+          onPressed: _savingManualBooking ? null : _saveManualBooking,
+          icon: _savingManualBooking
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.add, size: 18),
+          label: Text(
+            _savingManualBooking ? 'Salvataggio...' : 'Aggiungi prenotazione',
+            style: const TextStyle(fontSize: 13),
           ),
-        ],
-      ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: _firestore.collection('bookings').snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Errore nel caricamento '
-                  'delle prenotazioni:\n'
-                  '${snapshot.error}',
-                  textAlign: TextAlign.center,
+        ),
+      ],
+    );
+  }
+
+  Widget _pendingRequests(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
+  ) {
+    final pending = bookings.where((document) {
+      final status = document.data()['status'] as String? ?? '';
+
+      return status == 'pending';
+    }).toList();
+
+    pending.sort((first, second) {
+      final firstData = first.data();
+      final secondData = second.data();
+
+      final firstValue =
+          '${firstData['dateKey'] ?? ''} '
+          '${firstData['time'] ?? ''}';
+
+      final secondValue =
+          '${secondData['dateKey'] ?? ''} '
+          '${secondData['time'] ?? ''}';
+
+      return firstValue.compareTo(secondValue);
+    });
+
+    if (pending.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(28),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.notifications_none, size: 44, color: Colors.grey),
+              SizedBox(height: 12),
+              Text(
+                'Nessuna richiesta da confermare',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
+      itemCount: pending.length,
+      itemBuilder: (context, index) {
+        final document = pending[index];
+        final booking = document.data();
+
+        final firstName = booking['nome'] as String? ?? '';
+
+        final lastName = booking['cognome'] as String? ?? '';
+
+        final fullName = '$firstName $lastName'.trim();
+
+        final dateKey = booking['dateKey'] as String? ?? '';
+
+        final time = booking['time'] as String? ?? '--:--';
+
+        final guests = _readInteger(booking['guests']);
+
+        final notes = booking['notes'] as String? ?? '';
+
+        final service = booking['service'] as String? ?? '';
+
+        return Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        fullName.isEmpty ? 'Cliente' : fullName,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '${guests}p',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  '${_italianDateFromKey(dateKey)} · $time · '
+                  '${_serviceLabel(service)}',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+                if (notes.trim().isNotEmpty) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    notes,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: () {
+                          _changeStatus(document, 'cancelled');
+                        },
+                        child: const Text(
+                          'Rifiuta',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: FilledButton(
+                        onPressed: () {
+                          _changeStatus(document, 'confirmed');
+                        },
+                        child: const Text(
+                          'Conferma',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      final parts = dateKey.split('-');
+
+                      if (parts.length != 3) {
+                        return;
+                      }
+
+                      final year = int.tryParse(parts[0]);
+                      final month = int.tryParse(parts[1]);
+                      final day = int.tryParse(parts[2]);
+
+                      if (year == null || month == null || day == null) {
+                        return;
+                      }
+
+                      setState(() {
+                        _selectedDate = DateTime(year, month, day);
+
+                        _bottomIndex = 0;
+                        _selectedSection = 0;
+                        _selectedFilter = 'all';
+                      });
+                    },
+                    child: const Text(
+                      'Apri nel servizio',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _morePage() {
+    Widget item({
+      required IconData icon,
+      required String title,
+      required String subtitle,
+      required VoidCallback onTap,
+    }) {
+      return ListTile(
+        dense: true,
+        leading: Icon(icon, size: 21, color: const Color(0xFFC8A45D)),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 11)),
+        trailing: const Icon(Icons.chevron_right, size: 20),
+        onTap: onTap,
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(8, 8, 8, 24),
+      children: [
+        item(
+          icon: Icons.history,
+          title: 'Prenotazioni passate',
+          subtitle: 'Apri l’archivio della data selezionata',
+          onTap: () {
+            setState(() {
+              _bottomIndex = 0;
+              _selectedSection = 1;
+              _selectedFilter = 'all';
+            });
+          },
+        ),
+        item(
+          icon: Icons.people_outline,
+          title: 'Clienti e no-show',
+          subtitle: 'Consulta segnalazioni e storico clienti',
+          onTap: () {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'La rubrica clienti sarà '
+                  'il prossimo modulo.',
                 ),
               ),
             );
-          }
+          },
+        ),
+        item(
+          icon: Icons.schedule_outlined,
+          title: 'Gestione servizi',
+          subtitle: 'Orari, disponibilità e chiusure',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
+        ),
+        item(
+          icon: Icons.settings_outlined,
+          title: 'Impostazioni',
+          subtitle: 'Notifiche, sicurezza e preferenze',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
+        ),
+        const Divider(),
+        item(
+          icon: Icons.home_outlined,
+          title: 'Home gestionale',
+          subtitle: 'Torna alla schermata principale',
+          onTap: () {
+            Navigator.maybePop(context);
+          },
+        ),
+      ],
+    );
+  }
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+  Widget _monthlyCalendar({
+    required Map<String, int> confirmedGuestsByDate,
+    required Set<String> pendingDates,
+  }) {
+    final firstDay = DateTime(_selectedDate.year, _selectedDate.month, 1);
 
-          final allBookings = snapshot.data?.docs ?? [];
+    final nextMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
 
-          final guestsByDate = <String, int>{};
+    final daysInMonth = nextMonth.subtract(const Duration(days: 1)).day;
 
-          final pendingDates = <String>{};
+    final leadingEmptyDays = firstDay.weekday - 1;
 
-          for (final document in allBookings) {
-            final booking = document.data();
+    final cellCount = leadingEmptyDays + daysInMonth;
 
-            final status = booking['status'] as String? ?? 'pending';
-
-            final dateKey = booking['dateKey'] as String? ?? '';
-
-            if (dateKey.isEmpty || !_countsForCapacity(status)) {
-              continue;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              tooltip: 'Mese precedente',
+              onPressed: () {
+                setState(() {
+                  _selectedDate = DateTime(
+                    _selectedDate.year,
+                    _selectedDate.month - 1,
+                    1,
+                  );
+                });
+              },
+              icon: const Icon(Icons.chevron_left, size: 24),
+            ),
+            Expanded(
+              child: Text(
+                '${_monthNames[_selectedDate.month - 1]} '
+                '${_selectedDate.year}',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Mese successivo',
+              onPressed: () {
+                setState(() {
+                  _selectedDate = DateTime(
+                    _selectedDate.year,
+                    _selectedDate.month + 1,
+                    1,
+                  );
+                });
+              },
+              icon: const Icon(Icons.chevron_right, size: 24),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        const Row(
+          children: [
+            _CalendarWeekday('Lun'),
+            _CalendarWeekday('Mar'),
+            _CalendarWeekday('Mer'),
+            _CalendarWeekday('Gio'),
+            _CalendarWeekday('Ven'),
+            _CalendarWeekday('Sab'),
+            _CalendarWeekday('Dom'),
+          ],
+        ),
+        const SizedBox(height: 4),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisExtent: 64,
+            crossAxisSpacing: 4,
+            mainAxisSpacing: 4,
+          ),
+          itemCount: cellCount,
+          itemBuilder: (context, index) {
+            if (index < leadingEmptyDays) {
+              return const SizedBox.shrink();
             }
 
-            if (status == 'pending') {
-              pendingDates.add(dateKey);
-            }
+            final day = index - leadingEmptyDays + 1;
 
-            guestsByDate.update(
+            final date = DateTime(_selectedDate.year, _selectedDate.month, day);
+
+            final key = _dateKey(date);
+
+            final guests = confirmedGuestsByDate[key] ?? 0;
+
+            final hasPending = pendingDates.contains(key);
+
+            final selected = key == _dateKey(_selectedDate);
+
+            return InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                setState(() {
+                  _selectedDate = date;
+                  _bottomIndex = 0;
+                  _selectedSection = 0;
+                  _selectedFilter = 'all';
+                });
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  color: selected
+                      ? const Color(0xFFC8A45D).withValues(alpha: 0.22)
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: selected
+                        ? const Color(0xFFC8A45D)
+                        : const Color(0xFF3A342B),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned(
+                      top: 6,
+                      left: 0,
+                      right: 0,
+                      child: Text(
+                        '$day',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (guests > 0)
+                      Positioned(
+                        right: 3,
+                        bottom: 3,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC8A45D),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            '${guests}p',
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    if (hasPending)
+                      const Positioned(
+                        left: 5,
+                        bottom: 6,
+                        child: CircleAvatar(
+                          radius: 3,
+                          backgroundColor: Colors.orange,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 14),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _CalendarLegend(color: Color(0xFFC8A45D), label: 'Coperti'),
+            SizedBox(width: 18),
+            _CalendarLegend(color: Colors.orange, label: 'Da confermare'),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _bottomNavigation(int pendingCount) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF201D18),
+        border: Border(top: BorderSide(color: Color(0xFFC8A45D), width: 1)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black54,
+            blurRadius: 10,
+            offset: Offset(0, -2),
+          ),
+        ],
+      ),
+      child: NavigationBar(
+        height: 62,
+        backgroundColor: const Color(0xFF201D18),
+        indicatorColor: const Color(0xFFC8A45D),
+        selectedIndex: _bottomIndex,
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
+        onDestinationSelected: (index) {
+          setState(() {
+            _bottomIndex = index;
+
+            if (index == 0) {
+              _selectedDate = DateTime.now();
+              _selectedSection = 0;
+              _selectedService = 'all';
+              _selectedFilter = 'all';
+            }
+          });
+        },
+        destinations: [
+          const NavigationDestination(
+            icon: Icon(Icons.menu_book_outlined, color: Color(0xFFE9E1D2)),
+            selectedIcon: Icon(Icons.menu_book, color: Colors.black),
+            label: 'Servizio',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.calendar_month_outlined, color: Color(0xFFE9E1D2)),
+            selectedIcon: Icon(Icons.calendar_month, color: Colors.black),
+            label: 'Calendario',
+          ),
+          const NavigationDestination(
+            icon: Icon(
+              Icons.add_circle_outline,
+              color: Color(0xFFE9E1D2),
+              size: 30,
+            ),
+            selectedIcon: Icon(Icons.add_circle, color: Colors.black, size: 30),
+            label: 'Aggiungi',
+          ),
+          NavigationDestination(
+            icon: Badge(
+              isLabelVisible: pendingCount > 0,
+              label: Text('$pendingCount'),
+              child: const Icon(
+                Icons.notifications_none,
+                color: Color(0xFFE9E1D2),
+              ),
+            ),
+            selectedIcon: Badge(
+              isLabelVisible: pendingCount > 0,
+              label: Text('$pendingCount'),
+              child: const Icon(Icons.notifications, color: Colors.black),
+            ),
+            label: 'Richieste',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.more_horiz, color: Color(0xFFE9E1D2)),
+            selectedIcon: Icon(Icons.more_horiz, color: Colors.black),
+            label: 'Altro',
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const titles = [
+      'Servizio',
+      'Calendario',
+      'Nuova prenotazione',
+      'Richieste',
+      'Altro',
+    ];
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: _firestore.collection('bookings').snapshots(),
+      builder: (context, snapshot) {
+        final allBookings = snapshot.data?.docs ?? [];
+
+        final allCapacityGuestsByDate = <String, int>{};
+
+        final confirmedGuestsByDate = <String, int>{};
+
+        final pendingDates = <String>{};
+
+        for (final document in allBookings) {
+          final booking = document.data();
+
+          final status = booking['status'] as String? ?? 'pending';
+
+          final dateKey = booking['dateKey'] as String? ?? '';
+
+          final guests = _readInteger(booking['guests']);
+
+          if (dateKey.isEmpty) {
+            continue;
+          }
+
+          if (_countsForCapacity(status)) {
+            allCapacityGuestsByDate.update(
               dateKey,
-              (currentGuests) {
-                return currentGuests + _readInteger(booking['guests']);
-              },
-              ifAbsent: () {
-                return _readInteger(booking['guests']);
-              },
+              (current) => current + guests,
+              ifAbsent: () => guests,
             );
           }
 
+          if (_countsAsConfirmedCover(status)) {
+            confirmedGuestsByDate.update(
+              dateKey,
+              (current) => current + guests,
+              ifAbsent: () => guests,
+            );
+          }
+
+          if (status == 'pending') {
+            pendingDates.add(dateKey);
+          }
+        }
+
+        final pendingCount = allBookings.where((document) {
+          final status = document.data()['status'] as String? ?? '';
+
+          return status == 'pending';
+        }).length;
+
+        Widget body;
+
+        if (snapshot.hasError) {
+          body = Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(
+                'Errore nel caricamento '
+                'delle prenotazioni:\n'
+                '${snapshot.error}',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          );
+        } else if (snapshot.connectionState == ConnectionState.waiting) {
+          body = const Center(child: CircularProgressIndicator());
+        } else if (_bottomIndex == 1) {
+          body = _monthlyCalendar(
+            confirmedGuestsByDate: confirmedGuestsByDate,
+            pendingDates: pendingDates,
+          );
+        } else if (_bottomIndex == 2) {
+          body = _manualBookingForm();
+        } else if (_bottomIndex == 3) {
+          body = _pendingRequests(allBookings);
+        } else if (_bottomIndex == 4) {
+          body = _morePage();
+        } else {
           final selectedDateKey = _dateKey(_selectedDate);
 
           final dateBookings = allBookings.where((document) {
@@ -1435,10 +2387,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
           final dinnerGuests = _guestTotal(activeForDate, 'dinner');
 
-          return Column(
+          body = Column(
             children: [
               _weeklyCalendar(
-                guestsByDate: guestsByDate,
+                guestsByDate: allCapacityGuestsByDate,
                 pendingDates: pendingDates,
               ),
               _serviceSelector(
@@ -1454,8 +2406,90 @@ class _BookingsScreenState extends State<BookingsScreen> {
               Expanded(child: _bookingList(visibleBookings)),
             ],
           );
-        },
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            automaticallyImplyLeading: false,
+            leading: IconButton(
+              tooltip: 'Home',
+              onPressed: () {
+                Navigator.maybePop(context);
+              },
+              icon: const Icon(Icons.home_outlined, size: 22),
+            ),
+            toolbarHeight: 52,
+            title: Text(
+              titles[_bottomIndex],
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold),
+            ),
+            actions: [
+              if (_bottomIndex == 0)
+                IconButton(
+                  tooltip: 'Vai a oggi',
+                  onPressed: () {
+                    setState(() {
+                      _selectedDate = DateTime.now();
+
+                      _selectedSection = 0;
+                      _selectedFilter = 'all';
+                    });
+                  },
+                  icon: const Icon(Icons.today_outlined, size: 22),
+                ),
+            ],
+          ),
+          body: body,
+          bottomNavigationBar: _bottomNavigation(pendingCount),
+        );
+      },
+    );
+  }
+}
+
+class _CalendarWeekday extends StatelessWidget {
+  const _CalendarWeekday(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 5),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 11,
+            color: Colors.grey,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
+    );
+  }
+}
+
+class _CalendarLegend extends StatelessWidget {
+  const _CalendarLegend({required this.color, required this.label});
+
+  final Color color;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 5),
+        Text(label, style: const TextStyle(fontSize: 11)),
+      ],
     );
   }
 }
