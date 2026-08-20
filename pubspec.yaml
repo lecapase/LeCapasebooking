@@ -1,9 +1,9 @@
-name: lecapase_booking
+﻿name: lecapase_booking
 description: "Le Capase Booking"
 
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 0.1.1+2
 
 environment:
   sdk: ^3.12.2
