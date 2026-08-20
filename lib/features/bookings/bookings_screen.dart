@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 class BookingsScreen extends StatefulWidget {
@@ -11,9 +11,12 @@ class BookingsScreen extends StatefulWidget {
 class _BookingsScreenState extends State<BookingsScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  int _selectedSection = 0;
   DateTime _selectedDate = DateTime.now();
+
+  int _selectedSection = 0;
+
   String _selectedService = 'all';
+
   String _selectedFilter = 'all';
 
   static const List<String> _selectableStatuses = [
@@ -31,93 +34,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
     'completed',
     'rejected',
   };
-
-  String _statusLabel(String status) {
-    switch (status) {
-      case 'booked':
-        return 'Prenotata';
-      case 'confirmed':
-        return 'Confermata';
-      case 'cancelled':
-        return 'Annullata';
-      case 'no_show':
-        return 'No-show';
-      case 'released':
-        return 'Liberato';
-      case 'pending':
-        return 'In attesa di conferma';
-      case 'arrived':
-        return 'Arrivata';
-      case 'completed':
-        return 'Completata';
-      case 'rejected':
-        return 'Rifiutata';
-      default:
-        return 'Stato sconosciuto';
-    }
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'booked':
-        return const Color(0xFFC8A45D);
-      case 'confirmed':
-        return Colors.green;
-      case 'cancelled':
-        return Colors.red;
-      case 'no_show':
-        return Colors.deepPurple;
-      case 'released':
-        return Colors.teal;
-      case 'pending':
-        return Colors.orange;
-      case 'arrived':
-        return Colors.blue;
-      case 'completed':
-        return Colors.blueGrey;
-      case 'rejected':
-        return Colors.redAccent;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'booked':
-        return Icons.event_available_outlined;
-      case 'confirmed':
-        return Icons.check_circle_outline;
-      case 'cancelled':
-        return Icons.cancel_outlined;
-      case 'no_show':
-        return Icons.person_off_outlined;
-      case 'released':
-        return Icons.table_restaurant_outlined;
-      case 'pending':
-        return Icons.schedule_outlined;
-      case 'arrived':
-        return Icons.login;
-      case 'completed':
-        return Icons.task_alt;
-      case 'rejected':
-        return Icons.block;
-      default:
-        return Icons.flag_outlined;
-    }
-  }
-
-  bool _countsForCapacity(String status) {
-    return status != 'cancelled' &&
-        status != 'rejected' &&
-        status != 'no_show' &&
-        status != 'released' &&
-        status != 'completed';
-  }
-
-  bool _isPastStatus(String status) {
-    return _pastStatuses.contains(status);
-  }
 
   int _readInteger(dynamic value) {
     if (value is int) {
@@ -139,8 +55,141 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return '$year-$month-$day';
   }
 
-  String _italianDate(DateTime date) {
-    const weekdays = ['lun', 'mar', 'mer', 'gio', 'ven', 'sab', 'dom'];
+  DateTime _startOfWeek(DateTime date) {
+    final normalized = DateTime(date.year, date.month, date.day);
+
+    return normalized.subtract(Duration(days: normalized.weekday - 1));
+  }
+
+  bool _isPastStatus(String status) {
+    return _pastStatuses.contains(status);
+  }
+
+  bool _countsForCapacity(String status) {
+    return status != 'cancelled' &&
+        status != 'rejected' &&
+        status != 'no_show' &&
+        status != 'released' &&
+        status != 'completed';
+  }
+
+  String _statusLabel(String status) {
+    switch (status) {
+      case 'booked':
+        return 'Prenotata';
+
+      case 'confirmed':
+        return 'Confermata';
+
+      case 'pending':
+        return 'In attesa';
+
+      case 'cancelled':
+        return 'Annullata';
+
+      case 'rejected':
+        return 'Rifiutata';
+
+      case 'arrived':
+        return 'Arrivata';
+
+      case 'no_show':
+        return 'No-show';
+
+      case 'released':
+        return 'Liberato';
+
+      case 'completed':
+        return 'Completata';
+
+      default:
+        return 'Stato sconosciuto';
+    }
+  }
+
+  Color _statusColor(String status) {
+    switch (status) {
+      case 'booked':
+        return const Color(0xFFC8A45D);
+
+      case 'confirmed':
+        return Colors.green;
+
+      case 'pending':
+        return Colors.orange;
+
+      case 'cancelled':
+        return Colors.red;
+
+      case 'rejected':
+        return Colors.redAccent;
+
+      case 'arrived':
+        return Colors.blue;
+
+      case 'no_show':
+        return Colors.deepPurple;
+
+      case 'released':
+        return Colors.teal;
+
+      case 'completed':
+        return Colors.blueGrey;
+
+      default:
+        return Colors.grey;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status) {
+      case 'booked':
+        return Icons.event_available_outlined;
+
+      case 'confirmed':
+        return Icons.check_circle_outline;
+
+      case 'pending':
+        return Icons.schedule_outlined;
+
+      case 'cancelled':
+        return Icons.cancel_outlined;
+
+      case 'rejected':
+        return Icons.block;
+
+      case 'arrived':
+        return Icons.login;
+
+      case 'no_show':
+        return Icons.person_off_outlined;
+
+      case 'released':
+        return Icons.table_restaurant_outlined;
+
+      case 'completed':
+        return Icons.task_alt;
+
+      default:
+        return Icons.flag_outlined;
+    }
+  }
+
+  String _serviceLabel(String service) {
+    switch (service) {
+      case 'lunch':
+        return 'Pranzo';
+
+      case 'dinner':
+        return 'Cena';
+
+      default:
+        return service;
+    }
+  }
+
+  String _weekLabel(DateTime weekStart) {
+    final weekEnd = weekStart.add(const Duration(days: 6));
 
     const months = [
       'gen',
@@ -157,56 +206,45 @@ class _BookingsScreenState extends State<BookingsScreen> {
       'dic',
     ];
 
-    return '${weekdays[date.weekday - 1]} ${date.day} '
-        '${months[date.month - 1]} ${date.year}';
-  }
-
-  String _monthLabel(DateTime date) {
-    const months = [
-      'Gennaio',
-      'Febbraio',
-      'Marzo',
-      'Aprile',
-      'Maggio',
-      'Giugno',
-      'Luglio',
-      'Agosto',
-      'Settembre',
-      'Ottobre',
-      'Novembre',
-      'Dicembre',
-    ];
-
-    return '${months[date.month - 1]} ${date.year}';
-  }
-
-  String _serviceLabel(String service) {
-    switch (service) {
-      case 'lunch':
-        return 'Pranzo';
-      case 'dinner':
-        return 'Cena';
-      default:
-        return service;
+    if (weekStart.month == weekEnd.month) {
+      return '${weekStart.day}–${weekEnd.day} '
+          '${months[weekStart.month - 1]} '
+          '${weekStart.year}';
     }
+
+    return '${weekStart.day} '
+        '${months[weekStart.month - 1]} – '
+        '${weekEnd.day} '
+        '${months[weekEnd.month - 1]} '
+        '${weekEnd.year}';
   }
 
-  DateTime _firstDayOfMonth(DateTime date) {
-    return DateTime(date.year, date.month);
+  void _changeWeek(int numberOfWeeks) {
+    setState(() {
+      _selectedDate = _selectedDate.add(Duration(days: numberOfWeeks * 7));
+    });
   }
 
-  DateTime _previousMonth(DateTime date) {
-    return DateTime(date.year, date.month - 1);
-  }
+  Future<void> _openCalendar() async {
+    final selectedDate = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate,
+      firstDate: DateTime(2024),
+      lastDate: DateTime(DateTime.now().year + 5, 12, 31),
+      locale: const Locale('it', 'IT'),
+      helpText: 'Seleziona una data',
+      cancelText: 'ANNULLA',
+      confirmText: 'SELEZIONA',
+    );
 
-  DateTime _nextMonth(DateTime date) {
-    return DateTime(date.year, date.month + 1);
-  }
+    if (selectedDate == null || !mounted) {
+      return;
+    }
 
-  bool _sameDate(DateTime first, DateTime second) {
-    return first.year == second.year &&
-        first.month == second.month &&
-        first.day == second.day;
+    setState(() {
+      _selectedDate = selectedDate;
+      _selectedSection = 0;
+    });
   }
 
   Future<bool> _confirmStatusChange({
@@ -216,40 +254,43 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }) async {
     String title;
     String message;
-    String confirmLabel;
-
-    final color = _statusColor(newStatus);
+    String buttonLabel;
 
     switch (newStatus) {
       case 'booked':
         title = 'Segna come prenotata';
         message =
-            'Vuoi impostare la prenotazione di $customerName come Prenotata?';
+            'Vuoi impostare la prenotazione di '
+            '$customerName come Prenotata?';
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
-              '\n\nI coperti verranno reinseriti nella disponibilitÃƒÂ .';
+              '\n\nI coperti verranno reinseriti '
+              'nella disponibilità.';
         }
 
-        confirmLabel = 'Prenotata';
+        buttonLabel = 'Prenotata';
         break;
 
       case 'confirmed':
         title = 'Conferma prenotazione';
-        message = 'Vuoi confermare la prenotazione di $customerName?';
+        message =
+            'Vuoi confermare la prenotazione di '
+            '$customerName?';
 
         if (oldStatus == 'pending') {
           message +=
-              '\n\nIl cliente riceverÃƒÂ  automaticamente lÃ¢â‚¬â„¢email di conferma.';
+              '\n\nIl cliente riceverà automaticamente '
+              'l’email di conferma.';
         }
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
-              '\n\nI coperti verranno reinseriti nella disponibilitÃƒÂ  e il '
-              'cliente riceverÃƒÂ  una nuova comunicazione.';
+              '\n\nI coperti verranno reinseriti '
+              'nella disponibilità.';
         }
 
-        confirmLabel = 'Conferma';
+        buttonLabel = 'Conferma';
         break;
 
       case 'cancelled':
@@ -257,36 +298,40 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         if (oldStatus == 'pending') {
           message =
-              'Vuoi annullare la richiesta di $customerName?'
-              '\n\nIl cliente riceverÃƒÂ  una email che comunica che la richiesta '
-              'non ÃƒÂ¨ stata accettata.';
+              'Vuoi annullare la richiesta di '
+              '$customerName?'
+              '\n\nIl cliente riceverà una comunicazione '
+              'che la richiesta non è stata accettata.';
         } else {
           message =
-              'Vuoi annullare la prenotazione di $customerName?'
-              '\n\nIl cliente riceverÃƒÂ  automaticamente lÃ¢â‚¬â„¢email di annullamento.';
+              'Vuoi annullare la prenotazione di '
+              '$customerName?'
+              '\n\nIl cliente riceverà automaticamente '
+              'l’email di annullamento.';
         }
 
-        confirmLabel = 'Annulla';
+        buttonLabel = 'Annulla';
         break;
 
       case 'no_show':
         title = 'Segna come No-show';
         message =
-            'Confermi che $customerName non si ÃƒÂ¨ presentato?'
-            '\n\nLÃ¢â‚¬â„¢episodio verrÃƒÂ  registrato nello storico del cliente. '
-            'Non verrÃƒÂ  inviata alcuna email.';
+            'Confermi che $customerName non si è presentato?'
+            '\n\nL’episodio verrà registrato nello storico '
+            'del cliente e i coperti torneranno disponibili.';
 
-        confirmLabel = 'No-show';
+        buttonLabel = 'No-show';
         break;
 
       case 'released':
         title = 'Segna come Liberato';
         message =
-            'Confermi che il tavolo di $customerName ÃƒÂ¨ stato liberato?'
-            '\n\nI coperti torneranno disponibili e la prenotazione sarÃƒÂ  '
-            'spostata tra le passate. Non verrÃƒÂ  inviata alcuna email.';
+            'Confermi che il tavolo di $customerName '
+            'è stato liberato?'
+            '\n\nI coperti torneranno disponibili e '
+            'la prenotazione passerà tra le passate.';
 
-        confirmLabel = 'Liberato';
+        buttonLabel = 'Liberato';
         break;
 
       default:
@@ -301,16 +346,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
           content: Text(message),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
+              onPressed: () {
+                Navigator.pop(dialogContext, false);
+              },
               child: const Text('Indietro'),
             ),
             FilledButton(
               style: FilledButton.styleFrom(
-                backgroundColor: color,
+                backgroundColor: _statusColor(newStatus),
                 foregroundColor: Colors.white,
               ),
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: Text(confirmLabel),
+              onPressed: () {
+                Navigator.pop(dialogContext, true);
+              },
+              child: Text(buttonLabel),
             ),
           ],
         );
@@ -325,15 +374,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
     String newStatus,
   ) async {
     final booking = document.data();
+
     final oldStatus = booking['status'] as String? ?? 'pending';
 
     if (oldStatus == newStatus) {
       return;
     }
 
-    final nome = booking['nome'] as String? ?? '';
-    final cognome = booking['cognome'] as String? ?? '';
-    final fullName = '$nome $cognome'.trim();
+    final firstName = booking['nome'] as String? ?? '';
+
+    final lastName = booking['cognome'] as String? ?? '';
+
+    final fullName = '$firstName $lastName'.trim();
 
     final confirmed = await _confirmStatusChange(
       oldStatus: oldStatus,
@@ -373,10 +425,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }
 
         final guests = _readInteger(booking['guests']);
+
         final dateKey = booking['dateKey'] as String? ?? '';
+
         final service = booking['service'] as String? ?? '';
 
         final oldCounts = _countsForCapacity(oldStatus);
+
         final newCounts = _countsForCapacity(newStatus);
 
         final counterReference = _firestore
@@ -391,6 +446,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
           if (counterSnapshot.exists) {
             final counter = counterSnapshot.data();
+
             final current = _readInteger(counter?['bookedGuests']);
 
             var updated = current - guests;
@@ -415,8 +471,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           var current = 0;
 
           if (counterSnapshot.exists) {
-            final counter = counterSnapshot.data();
-            current = _readInteger(counter?['bookedGuests']);
+            current = _readInteger(counterSnapshot.data()?['bookedGuests']);
           }
 
           transaction.set(counterReference, {
@@ -482,7 +537,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nuovo stato: ${_statusLabel(newStatus)}')),
+        SnackBar(
+          content: Text(
+            'Nuovo stato: '
+            '${_statusLabel(newStatus)}',
+          ),
+        ),
       );
     } catch (error) {
       if (!mounted) {
@@ -491,407 +551,155 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Errore durante lÃ¢â‚¬â„¢aggiornamento: $error'),
+          content: Text(
+            'Errore durante l’aggiornamento: '
+            '$error',
+          ),
         ),
       );
     }
   }
 
-  Future<void> _openCalendar(Map<String, int> guestsByDate) async {
-    DateTime visibleMonth = _firstDayOfMonth(_selectedDate);
-    DateTime temporaryDate = _selectedDate;
+  Widget _weeklyCalendar({
+    required Map<String, int> guestsByDate,
+    required Set<String> pendingDates,
+  }) {
+    final weekStart = _startOfWeek(_selectedDate);
 
-    final selectedDate = await showDialog<DateTime>(
-      context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            final firstDay = _firstDayOfMonth(visibleMonth);
-            final daysInMonth = DateTime(
-              visibleMonth.year,
-              visibleMonth.month + 1,
-              0,
-            ).day;
-
-            final firstWeekday = firstDay.weekday - 1;
-            final totalCells = firstWeekday + daysInMonth;
-            final totalRows = (totalCells / 7).ceil();
-
-            return AlertDialog(
-              insetPadding: const EdgeInsets.all(14),
-              contentPadding: const EdgeInsets.fromLTRB(14, 16, 14, 4),
-              titlePadding: const EdgeInsets.fromLTRB(18, 16, 10, 0),
-              title: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      _monthLabel(visibleMonth),
-                      style: const TextStyle(
-                        fontSize: 19,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Mese precedente',
-                    onPressed: () {
-                      setDialogState(() {
-                        visibleMonth = _previousMonth(visibleMonth);
-                      });
-                    },
-                    icon: const Icon(Icons.chevron_left),
-                  ),
-                  IconButton(
-                    tooltip: 'Mese successivo',
-                    onPressed: () {
-                      setDialogState(() {
-                        visibleMonth = _nextMonth(visibleMonth);
-                      });
-                    },
-                    icon: const Icon(Icons.chevron_right),
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Row(
-                      children: [
-                        _CalendarWeekday('L'),
-                        _CalendarWeekday('M'),
-                        _CalendarWeekday('M'),
-                        _CalendarWeekday('G'),
-                        _CalendarWeekday('V'),
-                        _CalendarWeekday('S'),
-                        _CalendarWeekday('D'),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    ...List.generate(totalRows, (rowIndex) {
-                      return Row(
-                        children: List.generate(7, (columnIndex) {
-                          final cellIndex = rowIndex * 7 + columnIndex;
-                          final day = cellIndex - firstWeekday + 1;
-
-                          if (day < 1 || day > daysInMonth) {
-                            return const Expanded(child: SizedBox(height: 54));
-                          }
-
-                          final date = DateTime(
-                            visibleMonth.year,
-                            visibleMonth.month,
-                            day,
-                          );
-
-                          final key = _dateKey(date);
-                          final guests = guestsByDate[key] ?? 0;
-                          final selected = _sameDate(date, temporaryDate);
-                          final today = _sameDate(date, DateTime.now());
-
-                          return Expanded(
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(14),
-                              onTap: () {
-                                setDialogState(() {
-                                  temporaryDate = date;
-                                });
-                              },
-                              child: Container(
-                                height: 54,
-                                margin: const EdgeInsets.all(2),
-                                decoration: BoxDecoration(
-                                  color: selected
-                                      ? const Color(0xFFC8A45D)
-                                      : Colors.transparent,
-                                  borderRadius: BorderRadius.circular(14),
-                                  border: today && !selected
-                                      ? Border.all(
-                                          color: const Color(0xFFC8A45D),
-                                        )
-                                      : null,
-                                ),
-                                child: Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      '$day',
-                                      style: TextStyle(
-                                        color: selected ? Colors.black : null,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    if (guests > 0)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 2),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 5,
-                                          vertical: 1,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: selected
-                                              ? Colors.black.withValues(
-                                                  alpha: 0.15,
-                                                )
-                                              : const Color(
-                                                  0xFFC8A45D,
-                                                ).withValues(alpha: 0.20),
-                                          borderRadius: BorderRadius.circular(
-                                            10,
-                                          ),
-                                        ),
-                                        child: Text(
-                                          '${guests}p',
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            color: selected
-                                                ? Colors.black
-                                                : const Color(0xFFC8A45D),
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        }),
-                      );
-                    }),
-                    const SizedBox(height: 8),
-                    Text(
-                      'I numeri indicano i coperti prenotati.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(dialogContext),
-                  child: const Text('ANNULLA'),
-                ),
-                FilledButton(
-                  onPressed: () => Navigator.pop(dialogContext, temporaryDate),
-                  child: const Text('SELEZIONA'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+    final weekDays = List.generate(
+      7,
+      (index) => weekStart.add(Duration(days: index)),
     );
 
-    if (selectedDate == null || !mounted) {
-      return;
-    }
-
-    setState(() {
-      _selectedDate = selectedDate;
-    });
-  }
-
-  void _changeDay(int days) {
-    setState(() {
-      _selectedDate = _selectedDate.add(Duration(days: days));
-    });
-  }
-
-  Widget _statusBadge(String status) {
-    final color = _statusColor(status);
+    const weekdayLabels = ['L', 'M', 'M', 'G', 'V', 'S', 'D'];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_statusIcon(status), size: 14, color: color),
-          const SizedBox(width: 5),
-          Text(
-            _statusLabel(status),
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _onlineBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.amber.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: const Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.language_outlined, size: 14, color: Colors.amber),
-          SizedBox(width: 5),
-          Text(
-            'Online',
-            style: TextStyle(
-              color: Colors.amber,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _noShowWarning(int noShowCount) {
-    if (noShowCount < 1) {
-      return const SizedBox.shrink();
-    }
-
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.deepPurple.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.deepPurple),
-      ),
-      child: Row(
-        children: [
-          const Icon(Icons.warning_amber_rounded, color: Colors.deepPurple),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              noShowCount == 1
-                  ? 'Cliente con 1 no-show precedente'
-                  : 'Cliente con $noShowCount no-show precedenti',
-              style: const TextStyle(
-                color: Colors.deepPurple,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _infoRow({required IconData icon, required String text}) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 17),
-        const SizedBox(width: 8),
-        Expanded(child: Text(text)),
-      ],
-    );
-  }
-
-  Widget _statusFlagMenu(
-    QueryDocumentSnapshot<Map<String, dynamic>> document,
-    String currentStatus,
-  ) {
-    final color = _statusColor(currentStatus);
-
-    return PopupMenuButton<String>(
-      tooltip: 'Cambia stato',
-      onSelected: (newStatus) {
-        _requestStatusChange(document, newStatus);
-      },
-      itemBuilder: (context) {
-        return _selectableStatuses
-            .map(
-              (status) => PopupMenuItem<String>(
-                value: status,
-                enabled: status != currentStatus,
-                child: Row(
-                  children: [
-                    Icon(_statusIcon(status), color: _statusColor(status)),
-                    const SizedBox(width: 12),
-                    Expanded(child: Text(_statusLabel(status))),
-                    if (status == currentStatus)
-                      const Icon(Icons.check, size: 18),
-                  ],
-                ),
-              ),
-            )
-            .toList();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: color),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.flag_outlined, color: color),
-            const SizedBox(width: 8),
-            Text(
-              'Cambia stato',
-              style: TextStyle(color: color, fontWeight: FontWeight.bold),
-            ),
-            const Icon(Icons.arrow_drop_down),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _dateNavigator(Map<String, int> guestsByDate) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: const EdgeInsets.fromLTRB(8, 6, 8, 12),
       decoration: const BoxDecoration(
         border: Border(bottom: BorderSide(color: Color(0xFF3A342B))),
       ),
-      child: Row(
+      child: Column(
         children: [
-          IconButton(
-            tooltip: 'Giorno precedente',
-            onPressed: () => _changeDay(-1),
-            icon: const Icon(Icons.chevron_left, size: 34),
-          ),
-          Expanded(
-            child: InkWell(
-              onTap: () => _openCalendar(guestsByDate),
-              borderRadius: BorderRadius.circular(12),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.calendar_month_outlined, size: 21),
-                    const SizedBox(width: 9),
-                    Text(
-                      _italianDate(_selectedDate),
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
+          Row(
+            children: [
+              IconButton(
+                tooltip: 'Settimana precedente',
+                onPressed: () {
+                  _changeWeek(-1);
+                },
+                icon: const Icon(Icons.chevron_left, size: 32),
+              ),
+              Expanded(
+                child: InkWell(
+                  onTap: _openCalendar,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.calendar_month_outlined, size: 20),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _weekLabel(weekStart),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ],
+                  ),
                 ),
               ),
-            ),
+              IconButton(
+                tooltip: 'Settimana successiva',
+                onPressed: () {
+                  _changeWeek(1);
+                },
+                icon: const Icon(Icons.chevron_right, size: 32),
+              ),
+            ],
           ),
-          IconButton(
-            tooltip: 'Giorno successivo',
-            onPressed: () => _changeDay(1),
-            icon: const Icon(Icons.chevron_right, size: 34),
+          const SizedBox(height: 4),
+          Row(
+            children: List.generate(7, (index) {
+              final date = weekDays[index];
+
+              final key = _dateKey(date);
+
+              final selected = key == _dateKey(_selectedDate);
+
+              final hasBookings = guestsByDate.containsKey(key);
+
+              final hasPending = pendingDates.contains(key);
+
+              return Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 2),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(14),
+                    onTap: () {
+                      setState(() {
+                        _selectedDate = date;
+                        _selectedSection = 0;
+                        _selectedFilter = 'all';
+                      });
+                    },
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 160),
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? const Color(0xFFC8A45D)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            weekdayLabels[index],
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: selected ? Colors.black : null,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${date.day}',
+                            style: TextStyle(
+                              fontSize: 17,
+                              color: selected ? Colors.black : null,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          Container(
+                            width: 7,
+                            height: 7,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: !hasBookings
+                                  ? Colors.transparent
+                                  : hasPending
+                                  ? Colors.orange
+                                  : selected
+                                  ? Colors.black
+                                  : const Color(0xFFC8A45D),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            }),
           ),
         ],
       ),
@@ -905,6 +713,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required int guests,
   }) {
     final selected = _selectedService == value;
+
     const gold = Color(0xFFC8A45D);
 
     return ChoiceChip(
@@ -1050,6 +859,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   bool _matchesQuickFilter(Map<String, dynamic> booking) {
     final status = booking['status'] as String? ?? 'pending';
+
     final notes = booking['notes'] as String? ?? '';
 
     switch (_selectedFilter) {
@@ -1060,14 +870,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
         return notes.trim().isNotEmpty;
 
       case 'upcoming':
-        final today = _dateKey(DateTime.now());
         final selectedDay = _dateKey(_selectedDate);
+
+        final today = _dateKey(DateTime.now());
 
         if (selectedDay != today) {
           return true;
         }
 
         final now = DateTime.now();
+
         final currentTime =
             '${now.hour.toString().padLeft(2, '0')}:'
             '${now.minute.toString().padLeft(2, '0')}';
@@ -1088,6 +900,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return bookings
         .where((document) {
           final booking = document.data();
+
           final status = booking['status'] as String? ?? 'pending';
 
           if (!_countsForCapacity(status)) {
@@ -1108,6 +921,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     sorted.sort((first, second) {
       final firstTime = first.data()['time'] as String? ?? '';
+
       final secondTime = second.data()['time'] as String? ?? '';
 
       return firstTime.compareTo(secondTime);
@@ -1116,24 +930,182 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return sorted;
   }
 
+  Widget _statusBadge(String status) {
+    final color = _statusColor(status);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_statusIcon(status), size: 14, color: color),
+          const SizedBox(width: 5),
+          Text(
+            _statusLabel(status),
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _onlineBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.amber.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.language_outlined, size: 14, color: Colors.amber),
+          SizedBox(width: 5),
+          Text(
+            'Online',
+            style: TextStyle(
+              color: Colors.amber,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _noShowWarning(int noShowCount) {
+    if (noShowCount < 1) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.deepPurple.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.deepPurple),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Colors.deepPurple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              noShowCount == 1
+                  ? 'Cliente con 1 no-show precedente'
+                  : 'Cliente con $noShowCount '
+                        'no-show precedenti',
+              style: const TextStyle(
+                color: Colors.deepPurple,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow({required IconData icon, required String text}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 17),
+        const SizedBox(width: 8),
+        Expanded(child: Text(text)),
+      ],
+    );
+  }
+
+  Widget _statusFlagMenu(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+    String currentStatus,
+  ) {
+    final color = _statusColor(currentStatus);
+
+    return PopupMenuButton<String>(
+      tooltip: 'Cambia stato',
+      onSelected: (newStatus) {
+        _requestStatusChange(document, newStatus);
+      },
+      itemBuilder: (context) {
+        return _selectableStatuses.map((status) {
+          return PopupMenuItem<String>(
+            value: status,
+            enabled: status != currentStatus,
+            child: Row(
+              children: [
+                Icon(_statusIcon(status), color: _statusColor(status)),
+                const SizedBox(width: 12),
+                Expanded(child: Text(_statusLabel(status))),
+                if (status == currentStatus) const Icon(Icons.check, size: 18),
+              ],
+            ),
+          );
+        }).toList();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.flag_outlined, color: color),
+            const SizedBox(width: 8),
+            Text(
+              'Cambia stato',
+              style: TextStyle(color: color, fontWeight: FontWeight.bold),
+            ),
+            const Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildBookingCard(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) {
     final booking = document.data();
 
-    final nome = booking['nome'] as String? ?? '';
-    final cognome = booking['cognome'] as String? ?? '';
+    final firstName = booking['nome'] as String? ?? '';
+
+    final lastName = booking['cognome'] as String? ?? '';
+
     final email = booking['email'] as String? ?? '';
-    final telefono = booking['telefono'] as String? ?? '';
+
+    final phone = booking['telefono'] as String? ?? '';
+
     final service = booking['service'] as String? ?? '';
+
     final occasion = booking['occasion'] as String? ?? '';
+
     final notes = booking['notes'] as String? ?? '';
+
     final status = booking['status'] as String? ?? 'pending';
+
     final source = booking['source'] as String? ?? '';
+
     final guests = _readInteger(booking['guests']);
+
     final noShowCount = _readInteger(booking['customerNoShowCount']);
 
-    final fullName = '$nome $cognome'.trim();
+    final fullName = '$firstName $lastName'.trim();
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1222,16 +1194,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
           _infoRow(
             icon: Icons.restaurant_outlined,
             text:
-                '${_serviceLabel(service)} • $guests '
+                '${_serviceLabel(service)} • '
+                '$guests '
                 '${guests == 1 ? 'persona' : 'persone'}',
           ),
           if (email.isNotEmpty) ...[
             const SizedBox(height: 8),
             _infoRow(icon: Icons.email_outlined, text: email),
           ],
-          if (telefono.isNotEmpty) ...[
+          if (phone.isNotEmpty) ...[
             const SizedBox(height: 8),
-            _infoRow(icon: Icons.phone_outlined, text: telefono),
+            _infoRow(icon: Icons.phone_outlined, text: phone),
           ],
           if (occasion.isNotEmpty && occasion != 'Nessuna') ...[
             const SizedBox(height: 8),
@@ -1310,6 +1283,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       itemCount: times.length,
       itemBuilder: (context, index) {
         final time = times[index];
+
         final group = groups[time]!;
 
         final guests = group.fold<int>(0, (total, document) {
@@ -1321,41 +1295,23 @@ class _BookingsScreenState extends State<BookingsScreen> {
           children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 7,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFC8A45D),
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    child: Text(
-                      time,
-                      style: const TextStyle(
-                        color: Colors.black,
-                        fontSize: 17,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFC8A45D),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: Text(
+                  '$time — ${guests}p',
+                  style: const TextStyle(
+                    color: Colors.black,
+                    fontSize: 17,
+                    fontWeight: FontWeight.bold,
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      '${group.length} '
-                      '${group.length == 1 ? 'prenotazione' : 'prenotazioni'}',
-                      style: const TextStyle(fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                  const Icon(Icons.person_outline, size: 18),
-                  const SizedBox(width: 3),
-                  Text(
-                    '${guests}p',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ],
+                ),
               ),
             ),
             ...group.map(_buildBookingCard),
@@ -1376,6 +1332,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
             onPressed: () {
               setState(() {
                 _selectedDate = DateTime.now();
+                _selectedSection = 0;
+                _selectedFilter = 'all';
               });
             },
             icon: const Icon(Icons.today_outlined),
@@ -1390,7 +1348,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  'Errore nel caricamento delle prenotazioni:\n'
+                  'Errore nel caricamento '
+                  'delle prenotazioni:\n'
                   '${snapshot.error}',
                   textAlign: TextAlign.center,
                 ),
@@ -1406,18 +1365,32 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
           final guestsByDate = <String, int>{};
 
+          final pendingDates = <String>{};
+
           for (final document in allBookings) {
             final booking = document.data();
+
             final status = booking['status'] as String? ?? 'pending';
+
             final dateKey = booking['dateKey'] as String? ?? '';
 
             if (dateKey.isEmpty || !_countsForCapacity(status)) {
               continue;
             }
 
-            guestsByDate.update(dateKey, (currentGuests) {
-              return currentGuests + _readInteger(booking['guests']);
-            }, ifAbsent: () => _readInteger(booking['guests']));
+            if (status == 'pending') {
+              pendingDates.add(dateKey);
+            }
+
+            guestsByDate.update(
+              dateKey,
+              (currentGuests) {
+                return currentGuests + _readInteger(booking['guests']);
+              },
+              ifAbsent: () {
+                return _readInteger(booking['guests']);
+              },
+            );
           }
 
           final selectedDateKey = _dateKey(_selectedDate);
@@ -1449,20 +1422,25 @@ class _BookingsScreenState extends State<BookingsScreen> {
           final visibleBookings = sectionBookings.where((document) {
             final booking = document.data();
 
-            final correctService =
+            final serviceMatches =
                 _selectedService == 'all' ||
                 booking['service'] == _selectedService;
 
-            return correctService && _matchesQuickFilter(booking);
+            return serviceMatches && _matchesQuickFilter(booking);
           }).toList();
 
           final allGuests = _guestTotal(activeForDate, 'all');
+
           final lunchGuests = _guestTotal(activeForDate, 'lunch');
+
           final dinnerGuests = _guestTotal(activeForDate, 'dinner');
 
           return Column(
             children: [
-              _dateNavigator(guestsByDate),
+              _weeklyCalendar(
+                guestsByDate: guestsByDate,
+                pendingDates: pendingDates,
+              ),
               _serviceSelector(
                 allGuests: allGuests,
                 lunchGuests: lunchGuests,
@@ -1477,27 +1455,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _CalendarWeekday extends StatelessWidget {
-  final String label;
-
-  const _CalendarWeekday(this.label);
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Center(
-        child: Text(
-          label,
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Color(0xFFC8A45D),
-          ),
-        ),
       ),
     );
   }
