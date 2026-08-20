@@ -2200,6 +2200,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
           color: Colors.redAccent,
           onTap: _confirmLogout,
         ),
+        const Padding(
+          padding: EdgeInsets.only(top: 18, bottom: 12),
+          child: Center(
+            child: Text(
+              'Versione 0.1.1',
+              style: TextStyle(fontSize: 12, color: Colors.white54),
+            ),
+          ),
+        ),
       ],
     );
   }
