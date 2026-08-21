@@ -42,6 +42,7 @@ class FirestoreBookingRepository {
     required String service,
     required String occasion,
     required String notes,
+    bool bookingWhatsappConsent = false,
     bool marketingEmailConsent = false,
     bool marketingWhatsappConsent = false,
   }) async {
@@ -242,6 +243,7 @@ class FirestoreBookingRepository {
         // Verranno gestiti successivamente
         // nella sezione Contatti e Marketing.
         // =============================================
+        'bookingWhatsappConsent': bookingWhatsappConsent,
         'marketingEmailConsent': marketingEmailConsent,
 
         'marketingWhatsappConsent': marketingWhatsappConsent,

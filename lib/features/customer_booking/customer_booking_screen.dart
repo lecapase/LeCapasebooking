@@ -36,6 +36,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   bool _loadingAvailability = false;
   bool _saving = false;
   bool _showMoreGuests = false;
+  bool bookingWhatsappConsent = false;
 
   List<String> lunchTimes = [];
   List<String> dinnerTimes = [];
@@ -228,6 +229,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         service: selectedService!,
         occasion: selectedOccasione,
         notes: noteController.text.trim(),
+        bookingWhatsappConsent: bookingWhatsappConsent,
       );
 
       if (!mounted) {
@@ -782,6 +784,20 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             decoration: const InputDecoration(
               labelText: 'Telefono *',
               prefixIcon: Icon(Icons.phone_outlined),
+            ),
+          ),
+          const SizedBox(height: 8),
+          CheckboxListTile(
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: bookingWhatsappConsent,
+            onChanged: (value) {
+              setState(() {
+                bookingWhatsappConsent = value ?? false;
+              });
+            },
+            title: const Text(
+              'Desidero ricevere aggiornamenti sulla mia prenotazione tramite WhatsApp.',
             ),
           ),
           const SizedBox(height: 14),
