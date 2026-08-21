@@ -1,8 +1,9 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class PushNotificationService {
   PushNotificationService._();
@@ -38,6 +39,8 @@ class PushNotificationService {
   static bool _initialized = false;
 
   static bool _listenersConfigured = false;
+
+  static const String _enabledPreferenceKey = 'notifications_enabled';
 
   // =========================================================
   // INIZIALIZZAZIONE GENERALE
@@ -98,6 +101,8 @@ class PushNotificationService {
       }
 
       await _saveToken(token);
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_enabledPreferenceKey, true);
 
       return true;
     } catch (error) {
@@ -229,6 +234,98 @@ class PushNotificationService {
   }
 
   // =========================================================
+  // =========================================================
+  // STATO NOTIFICHE SU QUESTO DISPOSITIVO
+  // =========================================================
+
+  static Future<bool> isCurrentDeviceEnabled() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        return false;
+      }
+
+      final preferences = await SharedPreferences.getInstance();
+
+      if (preferences.getBool(_enabledPreferenceKey) == false) {
+        return false;
+      }
+
+      final permission = await getPermissionStatus();
+      final authorized =
+          permission == AuthorizationStatus.authorized ||
+          permission == AuthorizationStatus.provisional;
+
+      if (!authorized) {
+        return false;
+      }
+
+      final token = kIsWeb
+          ? await _messaging.getToken(vapidKey: _webVapidKey)
+          : await _messaging.getToken();
+
+      if (token == null || token.trim().isEmpty) {
+        return false;
+      }
+
+      final document = await _firestore
+          .collection('notification_devices')
+          .doc(user.uid)
+          .get();
+
+      final data = document.data();
+      final rawTokens = data?['fcmTokens'];
+      final tokens = rawTokens is List ? rawTokens : const [];
+
+      final enabled = tokens.any((value) => value is String && value == token);
+
+      if (enabled) {
+        await preferences.setBool(_enabledPreferenceKey, true);
+      }
+
+      return enabled;
+    } catch (_) {
+      debugPrint('ERRORE LETTURA STATO NOTIFICHE');
+      return false;
+    }
+  }
+
+  // =========================================================
+  // DISATTIVA NOTIFICHE SOLO SU QUESTO DISPOSITIVO
+  // =========================================================
+
+  static Future<bool> disableCurrentDeviceNotifications() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+
+      if (user == null) {
+        return false;
+      }
+
+      final token = kIsWeb
+          ? await _messaging.getToken(vapidKey: _webVapidKey)
+          : await _messaging.getToken();
+
+      if (token != null && token.trim().isNotEmpty) {
+        await _firestore.collection('notification_devices').doc(user.uid).set({
+          'fcmTokens': FieldValue.arrayRemove([token]),
+          'lastTokenUpdate': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+
+        await _messaging.deleteToken();
+      }
+
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_enabledPreferenceKey, false);
+
+      return true;
+    } catch (_) {
+      debugPrint('ERRORE DISATTIVAZIONE NOTIFICHE');
+      return false;
+    }
+  }
+
   // TOKEN FCM
   // =========================================================
 
@@ -259,4 +356,3 @@ class PushNotificationService {
     }, SetOptions(merge: true));
   }
 }
-

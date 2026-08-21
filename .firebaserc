@@ -7,6 +7,9 @@
       "hosting": {
         "gestionale": [
           "lecapase-gestionale"
+        ],
+        "booking": [
+          "lecapase-booking-3af33"
         ]
       }
     }

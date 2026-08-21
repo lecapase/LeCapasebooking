@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/push_notification_service.dart';
@@ -1814,16 +1814,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _pendingRequests(
+  Widget _notificationsPage(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
   ) {
-    final pending = bookings.where((document) {
-      final status = document.data()['status'] as String? ?? '';
+    final notifications =
+        List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(bookings);
 
-      return status == 'pending';
-    }).toList();
-
-    pending.sort((first, second) {
+    notifications.sort((first, second) {
       final firstData = first.data();
       final secondData = second.data();
 
@@ -1835,10 +1832,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
           '${secondData['dateKey'] ?? ''} '
           '${secondData['time'] ?? ''}';
 
-      return firstValue.compareTo(secondValue);
+      return secondValue.compareTo(firstValue);
     });
 
-    if (pending.isEmpty) {
+    if (notifications.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(28),
@@ -1848,7 +1845,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               Icon(Icons.notifications_none, size: 44, color: Colors.grey),
               SizedBox(height: 12),
               Text(
-                'Nessuna richiesta da confermare',
+                'Nessuna notifica',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15),
               ),
@@ -1860,9 +1857,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
-      itemCount: pending.length,
+      itemCount: notifications.length,
       itemBuilder: (context, index) {
-        final document = pending[index];
+        final document = notifications[index];
         final booking = document.data();
 
         final firstName = booking['nome'] as String? ?? '';
@@ -1880,6 +1877,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         final notes = booking['notes'] as String? ?? '';
 
         final service = booking['service'] as String? ?? '';
+
+        final status = booking['status'] as String? ?? 'pending';
 
         return Card(
           margin: const EdgeInsets.only(bottom: 8),
@@ -1914,6 +1913,25 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   '${_serviceLabel(service)}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _statusColor(status).withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    status == 'confirmed' ? 'Confermata' : _statusLabel(status),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: _statusColor(status),
+                    ),
+                  ),
+                ),
                 if (notes.trim().isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
@@ -1923,34 +1941,36 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     style: const TextStyle(fontSize: 12),
                   ),
                 ],
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () {
-                          _changeStatus(document, 'rejected');
-                        },
-                        child: const Text(
-                          'Rifiuta',
-                          style: TextStyle(fontSize: 12),
+                if (status == 'pending' && _isSupervisor) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () {
+                            _changeStatus(document, 'rejected');
+                          },
+                          child: const Text(
+                            'Rifiuta',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton(
-                        onPressed: () {
-                          _changeStatus(document, 'confirmed');
-                        },
-                        child: const Text(
-                          'Conferma',
-                          style: TextStyle(fontSize: 12),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            _changeStatus(document, 'confirmed');
+                          },
+                          child: const Text(
+                            'Conferma',
+                            style: TextStyle(fontSize: 12),
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
+                    ],
+                  ),
+                ],
                 Align(
                   alignment: Alignment.centerRight,
                   child: TextButton(
@@ -1991,19 +2011,29 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Future<void> _enableNotifications() async {
-    final enabled = await PushNotificationService.enableWebNotifications();
+  Future<void> _setNotificationsEnabled(bool value) async {
+    final success = value
+        ? await PushNotificationService.enableWebNotifications()
+        : await PushNotificationService.disableCurrentDeviceNotifications();
 
     if (!mounted) {
       return;
     }
 
+    if (success) {
+      setState(() {});
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
-          enabled
-              ? 'Notifiche attivate su questo dispositivo.'
-              : 'Permesso notifiche non concesso. Controlla le impostazioni del dispositivo.',
+          success
+              ? value
+                    ? 'Notifiche attivate su questo dispositivo.'
+                    : 'Notifiche disattivate su questo dispositivo.'
+              : value
+              ? 'Impossibile attivare le notifiche. Controlla i permessi del dispositivo.'
+              : 'Impossibile disattivare le notifiche.',
         ),
       ),
     );
@@ -2188,11 +2218,39 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ).push(MaterialPageRoute(builder: (_) => const SettingsScreen()));
             },
           ),
-        item(
-          icon: Icons.notifications_active_outlined,
-          title: 'Notifiche',
-          subtitle: 'Attiva gli avvisi delle nuove prenotazioni',
-          onTap: _enableNotifications,
+        FutureBuilder<bool>(
+          future: PushNotificationService.isCurrentDeviceEnabled(),
+          builder: (context, snapshot) {
+            final enabled = snapshot.data ?? false;
+            final loading = snapshot.connectionState == ConnectionState.waiting;
+
+            return ListTile(
+              dense: true,
+              leading: const Icon(
+                Icons.notifications_active_outlined,
+                size: 21,
+                color: Color(0xFFC8A45D),
+              ),
+              title: const Text(
+                'Notifiche',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              subtitle: Text(
+                enabled
+                    ? 'Avvisi nuove prenotazioni attivi'
+                    : 'Avvisi nuove prenotazioni disattivati',
+                style: const TextStyle(fontSize: 11),
+              ),
+              trailing: Switch.adaptive(
+                value: enabled,
+                onChanged: loading
+                    ? null
+                    : (value) {
+                        _setNotificationsEnabled(value);
+                      },
+              ),
+            );
+          },
         ),
         const Divider(),
         const Padding(
@@ -2505,7 +2563,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               label: Text('$pendingCount'),
               child: const Icon(Icons.notifications, color: Colors.black),
             ),
-            label: 'Richieste',
+            label: 'Notifiche',
           ),
           const NavigationDestination(
             icon: Icon(Icons.more_horiz, color: Color(0xFFE9E1D2)),
@@ -2523,7 +2581,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       'Servizio',
       'Calendario',
       'Nuova prenotazione',
-      'Richieste',
+      'Notifiche',
       'Altro',
     ];
 
@@ -2602,7 +2660,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         } else if (_bottomIndex == 2) {
           body = _manualBookingForm();
         } else if (_bottomIndex == 3) {
-          body = _pendingRequests(allBookings);
+          body = _notificationsPage(allBookings);
         } else if (_bottomIndex == 4) {
           body = _morePage();
         } else {
