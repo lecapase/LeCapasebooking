@@ -1251,6 +1251,109 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return sorted;
   }
 
+  Widget _reconfirmationBadge(
+    Map<String, dynamic> booking,
+  ) {
+    final status =
+        booking['status'] as String? ?? '';
+
+    final reconfirmationStatus =
+        booking['reconfirmationStatus'] as String? ?? '';
+
+    final reminderSent =
+        booking['reconfirmationReminderTriggered'] == true ||
+        booking['reconfirmationWhatsappSent'] == true;
+
+    if (status == 'cancelled' &&
+        booking['cancellationSource'] == 'whatsapp_reconfirmation') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.person_off_outlined,
+              size: 14,
+              color: Colors.red,
+            ),
+            SizedBox(width: 5),
+            Text(
+              'Annullata dal cliente',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (reconfirmationStatus == 'confirmed') {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.green.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.verified_outlined,
+              size: 14,
+              color: Colors.green,
+            ),
+            SizedBox(width: 5),
+            Text(
+              'Riconfermata WhatsApp',
+              style: TextStyle(
+                color: Colors.green,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (reconfirmationStatus == 'pending' || reminderSent) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.orange.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.hourglass_top_outlined,
+              size: 14,
+              color: Colors.orange,
+            ),
+            SizedBox(width: 5),
+            Text(
+              'Riconferma inviata',
+              style: TextStyle(
+                color: Colors.orange,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
   Widget _statusBadge(String status) {
     final color = _statusColor(status);
 
@@ -1479,6 +1582,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     ],
                   ),
                   _statusBadge(status),
+                  const SizedBox(width: 6),
+                  _reconfirmationBadge(booking),
                   if (noShowCount > 0)
                     const Icon(
                       Icons.warning_amber_rounded,
@@ -1561,6 +1666,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             runSpacing: 8,
             children: [
               _statusBadge(status),
+              _reconfirmationBadge(booking),
               if (source == 'customer') _onlineBadge(),
             ],
           ),

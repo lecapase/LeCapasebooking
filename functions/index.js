@@ -1,4 +1,4 @@
-﻿const crypto = require("crypto");
+const crypto = require("crypto");
 
 const {
   setGlobalOptions,
@@ -8,6 +8,14 @@ const {
   onDocumentCreated,
   onDocumentUpdated,
 } = require("firebase-functions/v2/firestore");
+
+const {
+  onSchedule,
+} = require("firebase-functions/v2/scheduler");
+
+const {
+  onRequest,
+} = require("firebase-functions/v2/https");
 
 const {
   defineSecret,
@@ -57,6 +65,9 @@ const CUSTOMER_PROFILES_COLLECTION =
 const EMAIL_EVENTS_COLLECTION =
   "_system_email_events";
 
+const WHATSAPP_EVENTS_COLLECTION =
+  "_system_whatsapp_events";
+
 const ANDROID_CHANNEL_ID =
   "le_capase_bookings_high";
 
@@ -65,6 +76,9 @@ const gmailUser =
 
 const gmailAppPassword =
   defineSecret("GMAIL_APP_PASSWORD");
+
+const dialog360ApiKey =
+  defineSecret("DIALOG360_API_KEY");
 
 // ============================================================
 // UTILITÀ GENERALI
@@ -1002,6 +1016,26 @@ const EMAIL_TYPES = {
   },
 };
 
+EMAIL_TYPES.reminder = {
+  subject:
+    "Promemoria prenotazione - Le Capase",
+
+  title:
+    "Promemoria prenotazione",
+
+  opening:
+    "mancano circa 90 minuti alla tua prenotazione presso Le Capase.",
+
+  notice:
+    "Ti abbiamo inviato anche un messaggio WhatsApp per riconfermare la tua presenza.",
+
+  warning:
+    "Per confermare oppure annullare, utilizza i pulsanti presenti nel messaggio WhatsApp.",
+
+  closing:
+    "Ti aspettiamo!",
+};
+
 // ============================================================
 // BLOCCO CONTRO EMAIL DUPLICATE
 //
@@ -1316,6 +1350,341 @@ function buildEmail(
   };
 }
 
+
+// ============================================================
+// WHATSAPP 360DIALOG - PARTE 1
+// ============================================================
+
+const WHATSAPP_TEMPLATES = Object.freeze({
+  received:
+    "le_capase_richiesta_ricevuta",
+
+  confirmed:
+    "le_capase_prenotazione_confermata",
+
+  restored:
+    "le_capase_prenotazione_confermata",
+
+  rejected:
+    "le_capase_richiesta_non_accettata",
+
+  cancelled:
+    "le_capase_prenotazione_annullata",
+});
+
+function whatsappTextParameter(value) {
+  return {
+    type: "text",
+    text: String(value ?? ""),
+  };
+}
+
+function whatsappBookingParameters(data) {
+  const details =
+    bookingDetails(data);
+
+  return [
+    details.name,
+    details.date,
+    details.time,
+    String(details.guests),
+  ];
+}
+
+async function claimWhatsappEvent({
+  eventId,
+  bookingId,
+  type,
+  phone,
+}) {
+  const ref =
+    db
+        .collection(
+            WHATSAPP_EVENTS_COLLECTION,
+        )
+        .doc(
+            safeEventId(eventId),
+        );
+
+  const claimed =
+    await db.runTransaction(
+        async (transaction) => {
+          const existing =
+            await transaction.get(ref);
+
+          if (existing.exists) {
+            return false;
+          }
+
+          transaction.set(
+              ref,
+              {
+                eventId:
+                  String(eventId),
+
+                bookingId,
+
+                type,
+
+                phone,
+
+                status:
+                  "sending",
+
+                createdAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+          );
+
+          return true;
+        },
+    );
+
+  return {
+    claimed,
+    ref,
+  };
+}
+
+async function send360DialogTemplate({
+  phone,
+  templateName,
+  bodyParameters,
+}) {
+  const response =
+    await fetch(
+        "https://waba-v2.360dialog.io/messages",
+        {
+          method:
+            "POST",
+
+          headers: {
+            "Content-Type":
+              "application/json",
+
+            "D360-API-KEY":
+              dialog360ApiKey.value(),
+          },
+
+          body:
+            JSON.stringify({
+              messaging_product:
+                "whatsapp",
+
+              recipient_type:
+                "individual",
+
+              to:
+                phone,
+
+              type:
+                "template",
+
+              template: {
+                name:
+                  templateName,
+
+                language: {
+                  code:
+                    "it",
+                },
+
+                components: [
+                  {
+                    type:
+                      "body",
+
+                    parameters:
+                      bodyParameters.map(
+                          whatsappTextParameter,
+                      ),
+                  },
+                ],
+              },
+            }),
+        },
+    );
+
+  const rawBody =
+    await response.text();
+
+  let parsedBody =
+    null;
+
+  if (rawBody.length > 0) {
+    try {
+      parsedBody =
+        JSON.parse(rawBody);
+    } catch (_) {
+      parsedBody =
+        null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+        `360dialog HTTP ${response.status}: ` +
+        rawBody.substring(0, 500),
+    );
+  }
+
+  return {
+    messageId:
+      parsedBody?.messages?.[0]?.id ||
+      null,
+  };
+}
+
+async function sendBookingWhatsapp({
+  snapshot,
+  bookingId,
+  type,
+  eventId,
+}) {
+  const data =
+    snapshot.data();
+
+  const templateName =
+    WHATSAPP_TEMPLATES[type];
+
+  if (
+    !data ||
+    data.source !== "customer" ||
+    data.bookingWhatsappConsent !== true ||
+    !templateName
+  ) {
+    return false;
+  }
+
+  const phone =
+    normalizePhone(
+        data.normalizedPhone ||
+        data.telefono,
+    );
+
+  if (phone.length === 0) {
+    return false;
+  }
+
+  const claim =
+    await claimWhatsappEvent({
+      eventId,
+      bookingId,
+      type,
+      phone,
+    });
+
+  if (!claim.claimed) {
+    return false;
+  }
+
+  try {
+    const result =
+      await send360DialogTemplate({
+        phone,
+
+        templateName,
+
+        bodyParameters:
+          whatsappBookingParameters(
+              data,
+          ),
+      });
+
+    await claim.ref.set(
+        {
+          status:
+            "sent",
+
+          messageId:
+            result.messageId,
+
+          sentAt:
+            FieldValue.serverTimestamp(),
+
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        {
+          merge:
+            true,
+        },
+    );
+
+    const updateData = {
+      lastCustomerWhatsappType:
+        type,
+
+      lastCustomerWhatsappSentAt:
+        FieldValue.serverTimestamp(),
+
+      lastCustomerWhatsappMessageId:
+        result.messageId,
+
+      updatedAt:
+        FieldValue.serverTimestamp(),
+    };
+
+    if (type === "received") {
+      updateData.requestReceivedWhatsappSent =
+        true;
+    }
+
+    if (
+      type === "confirmed" ||
+      type === "restored"
+    ) {
+      updateData.confirmationWhatsappSent =
+        true;
+    }
+
+    if (type === "cancelled") {
+      updateData.cancellationWhatsappSent =
+        true;
+    }
+
+    if (type === "rejected") {
+      updateData.rejectionWhatsappSent =
+        true;
+    }
+
+    await snapshot.ref.set(
+        updateData,
+        {
+          merge:
+            true,
+        },
+    );
+
+    logger.info(
+        "WhatsApp prenotazione inviato.",
+        {
+          bookingId,
+          type,
+        },
+    );
+
+    return true;
+  } catch (error) {
+    await claim.ref
+        .delete()
+        .catch(() => {});
+
+    logger.error(
+        "Invio WhatsApp prenotazione fallito.",
+        {
+          bookingId,
+          type,
+          error,
+        },
+    );
+
+    return false;
+  }
+}
 // ============================================================
 // INVIO EMAIL
 // ============================================================
@@ -1339,6 +1708,13 @@ async function sendBookingEmail({
   ) {
     return;
   }
+
+  await sendBookingWhatsapp({
+    snapshot,
+    bookingId,
+    type,
+    eventId: `${eventId}:whatsapp`,
+  });
 
   const email =
     typeof data.email === "string" ?
@@ -1503,6 +1879,7 @@ exports.onCustomerBookingCreated =
         secrets: [
           gmailUser,
           gmailAppPassword,
+          dialog360ApiKey,
         ],
       },
       async (event) => {
@@ -1568,6 +1945,7 @@ exports.onCustomerBookingStatusChanged =
         secrets: [
           gmailUser,
           gmailAppPassword,
+          dialog360ApiKey,
         ],
       },
       async (event) => {
@@ -1712,3 +2090,842 @@ exports.onStaffUserInviteCreated =
 exports.onStaffUserUpdated =
   staffUserFunctions.onStaffUserUpdated;
 
+
+// ============================================================
+// RICONFERMA 90 MINUTI - PARTE 2
+// ============================================================
+
+const RECONFIRMATION_TEMPLATE =
+  "le_capase_richiesta_riconferma";
+
+function romeMinuteKey(date) {
+  const parts =
+    new Intl.DateTimeFormat(
+        "en-GB",
+        {
+          timeZone:
+            "Europe/Rome",
+
+          year:
+            "numeric",
+
+          month:
+            "2-digit",
+
+          day:
+            "2-digit",
+
+          hour:
+            "2-digit",
+
+          minute:
+            "2-digit",
+
+          hourCycle:
+            "h23",
+        },
+    ).formatToParts(date);
+
+  const values = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      values[part.type] =
+        part.value;
+    }
+  }
+
+  return {
+    dateKey:
+      `${values.year}-${values.month}-${values.day}`,
+
+    time:
+      `${values.hour}:${values.minute}`,
+  };
+}
+
+function reminderMinuteKeys(now) {
+  const keys =
+    new Set();
+
+  // Finestra di tolleranza:
+  // 89, 90 e 91 minuti.
+  //
+  // Il blocco anti-duplicati impedisce
+  // invii multipli.
+  for (const minutes of [89, 90, 91]) {
+    const target =
+      new Date(
+          now.getTime() +
+          minutes * 60 * 1000,
+      );
+
+    const parts =
+      romeMinuteKey(target);
+
+    keys.add(
+        `${parts.dateKey}|${parts.time}`,
+    );
+  }
+
+  return keys;
+}
+
+async function sendReconfirmationWhatsapp({
+  snapshot,
+  bookingId,
+  eventId,
+}) {
+  const data =
+    snapshot.data();
+
+  if (
+    !data ||
+    data.source !== "customer" ||
+    data.bookingWhatsappConsent !== true
+  ) {
+    return false;
+  }
+
+  const phone =
+    normalizePhone(
+        data.normalizedPhone ||
+        data.telefono,
+    );
+
+  if (phone.length === 0) {
+    return false;
+  }
+
+  const details =
+    bookingDetails(data);
+
+  const claim =
+    await claimWhatsappEvent({
+      eventId,
+      bookingId,
+      type:
+        "reconfirmation_reminder",
+      phone,
+    });
+
+  if (!claim.claimed) {
+    return false;
+  }
+
+  try {
+    const body = {
+      messaging_product:
+        "whatsapp",
+
+      recipient_type:
+        "individual",
+
+      to:
+        phone,
+
+      type:
+        "template",
+
+      template: {
+        name:
+          RECONFIRMATION_TEMPLATE,
+
+        language: {
+          code:
+            "it",
+        },
+
+        components: [
+          {
+            type:
+              "body",
+
+            parameters: [
+              whatsappTextParameter(
+                  details.name,
+              ),
+
+              whatsappTextParameter(
+                  details.time,
+              ),
+
+              whatsappTextParameter(
+                  String(details.guests),
+              ),
+            ],
+          },
+
+          {
+            type:
+              "button",
+
+            sub_type:
+              "quick_reply",
+
+            index:
+              "0",
+
+            parameters: [
+              {
+                type:
+                  "payload",
+
+                payload:
+                  `confirm:${bookingId}`,
+              },
+            ],
+          },
+
+          {
+            type:
+              "button",
+
+            sub_type:
+              "quick_reply",
+
+            index:
+              "1",
+
+            parameters: [
+              {
+                type:
+                  "payload",
+
+                payload:
+                  `cancel:${bookingId}`,
+              },
+            ],
+          },
+        ],
+      },
+    };
+
+    const response =
+      await fetch(
+          "https://waba-v2.360dialog.io/messages",
+          {
+            method:
+              "POST",
+
+            headers: {
+              "Content-Type":
+                "application/json",
+
+              "D360-API-KEY":
+                dialog360ApiKey.value(),
+            },
+
+            body:
+              JSON.stringify(body),
+          },
+      );
+
+    const raw =
+      await response.text();
+
+    let parsed =
+      null;
+
+    if (raw.length > 0) {
+      try {
+        parsed =
+          JSON.parse(raw);
+      } catch (_) {
+        parsed =
+          null;
+      }
+    }
+
+    if (!response.ok) {
+      throw new Error(
+          `360dialog HTTP ${response.status}: ` +
+          raw.substring(0, 500),
+      );
+    }
+
+    const messageId =
+      parsed?.messages?.[0]?.id ||
+      null;
+
+    await claim.ref.set(
+        {
+          status:
+            "sent",
+
+          messageId,
+
+          sentAt:
+            FieldValue.serverTimestamp(),
+
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        {
+          merge:
+            true,
+        },
+    );
+
+    await snapshot.ref.set(
+        {
+          reconfirmationWhatsappSent:
+            true,
+
+          reconfirmationWhatsappSentAt:
+            FieldValue.serverTimestamp(),
+
+          reconfirmationStatus:
+            "pending",
+
+          reconfirmationMessageId:
+            messageId,
+
+          updatedAt:
+            FieldValue.serverTimestamp(),
+        },
+        {
+          merge:
+            true,
+        },
+    );
+
+    logger.info(
+        "Richiesta riconferma WhatsApp inviata.",
+        {
+          bookingId,
+        },
+    );
+
+    return true;
+  } catch (error) {
+    await claim.ref
+        .delete()
+        .catch(() => {});
+
+    logger.error(
+        "Invio richiesta riconferma WhatsApp fallito.",
+        {
+          bookingId,
+          error,
+        },
+    );
+
+    return false;
+  }
+}
+
+async function processReconfirmationBooking(
+    snapshot,
+) {
+  const data =
+    snapshot.data();
+
+  const bookingId =
+    snapshot.id;
+
+  if (
+    !data ||
+    data.source !== "customer"
+  ) {
+    return;
+  }
+
+  if (
+    data.status !== "booked" &&
+    data.status !== "confirmed"
+  ) {
+    return;
+  }
+
+  const stableEventId =
+    `reconfirmation:${bookingId}:` +
+    `${data.dateKey || ""}:` +
+    `${data.time || ""}`;
+
+  // EMAIL
+  await sendBookingEmail({
+    snapshot,
+    bookingId,
+    type:
+      "reminder",
+
+    eventId:
+      `${stableEventId}:email`,
+  });
+
+  // WHATSAPP INTERATTIVO
+  await sendReconfirmationWhatsapp({
+    snapshot,
+    bookingId,
+
+    eventId:
+      `${stableEventId}:whatsapp`,
+  });
+
+  await snapshot.ref.set(
+      {
+        reconfirmationReminderTriggered:
+          true,
+
+        reconfirmationReminderTriggeredAt:
+          FieldValue.serverTimestamp(),
+
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      },
+      {
+        merge:
+          true,
+      },
+  );
+}
+
+exports.sendReconfirmationReminders =
+  onSchedule(
+      {
+        schedule:
+          "* * * * *",
+
+        timeZone:
+          "Europe/Rome",
+
+        secrets: [
+          gmailUser,
+          gmailAppPassword,
+          dialog360ApiKey,
+        ],
+
+        timeoutSeconds:
+          120,
+      },
+      async () => {
+        const now =
+          new Date();
+
+        const wantedKeys =
+          reminderMinuteKeys(now);
+
+        const wantedDates =
+          new Set();
+
+        for (const key of wantedKeys) {
+          wantedDates.add(
+              key.substring(0, 10),
+          );
+        }
+
+        let checked =
+          0;
+
+        let matched =
+          0;
+
+        for (const dateKey of wantedDates) {
+          const query =
+            await db
+                .collection(
+                    BOOKINGS_COLLECTION,
+                )
+                .where(
+                    "dateKey",
+                    "==",
+                    dateKey,
+                )
+                .get();
+
+          for (const snapshot of query.docs) {
+            checked++;
+
+            const data =
+              snapshot.data();
+
+            const minuteKey =
+              `${data.dateKey || ""}|` +
+              `${data.time || ""}`;
+
+            if (!wantedKeys.has(minuteKey)) {
+              continue;
+            }
+
+            if (
+              data.status !== "booked" &&
+              data.status !== "confirmed"
+            ) {
+              continue;
+            }
+
+            matched++;
+
+            await processReconfirmationBooking(
+                snapshot,
+            );
+          }
+        }
+
+        logger.info(
+            "Controllo riconferme completato.",
+            {
+              checked,
+              matched,
+            },
+        );
+      },
+  );
+
+// ============================================================
+// WEBHOOK 360DIALOG
+// ============================================================
+
+function extractWhatsappMessages(body) {
+  const messages =
+    [];
+
+  const entries =
+    Array.isArray(body?.entry) ?
+      body.entry :
+      [];
+
+  for (const entry of entries) {
+    const changes =
+      Array.isArray(entry?.changes) ?
+        entry.changes :
+        [];
+
+    for (const change of changes) {
+      const value =
+        change?.value;
+
+      const incoming =
+        Array.isArray(value?.messages) ?
+          value.messages :
+          [];
+
+      for (const message of incoming) {
+        messages.push(message);
+      }
+    }
+  }
+
+  return messages;
+}
+
+function quickReplyPayload(message) {
+  const buttonPayload =
+    typeof message?.button?.payload === "string" ?
+      message.button.payload :
+      "";
+
+  if (buttonPayload.length > 0) {
+    return buttonPayload;
+  }
+
+  const interactiveId =
+    typeof message
+        ?.interactive
+        ?.button_reply
+        ?.id === "string" ?
+      message.interactive.button_reply.id :
+      "";
+
+  return interactiveId;
+}
+
+async function processReconfirmationReply(
+    message,
+) {
+  const payload =
+    quickReplyPayload(message);
+
+  if (
+    !payload.startsWith("confirm:") &&
+    !payload.startsWith("cancel:")
+  ) {
+    return;
+  }
+
+  const separator =
+    payload.indexOf(":");
+
+  const action =
+    payload.substring(
+        0,
+        separator,
+    );
+
+  const bookingId =
+    payload.substring(
+        separator + 1,
+    );
+
+  if (bookingId.length === 0) {
+    return;
+  }
+
+  const fromPhone =
+    normalizePhone(
+        String(message?.from || ""),
+    );
+
+  const ref =
+    db
+        .collection(
+            BOOKINGS_COLLECTION,
+        )
+        .doc(
+            bookingId,
+        );
+
+  await db.runTransaction(
+      async (transaction) => {
+        const snapshot =
+          await transaction.get(ref);
+
+        if (!snapshot.exists) {
+          return;
+        }
+
+        const data =
+          snapshot.data();
+
+        const bookingPhone =
+          normalizePhone(
+              data.normalizedPhone ||
+              data.telefono,
+          );
+
+        // La risposta deve arrivare
+        // dallo stesso numero della prenotazione.
+        if (
+          fromPhone.length === 0 ||
+          bookingPhone.length === 0 ||
+          fromPhone !== bookingPhone
+        ) {
+          logger.warn(
+              "Risposta WhatsApp ignorata: numero non corrispondente.",
+              {
+                bookingId,
+              },
+          );
+
+          return;
+        }
+
+        if (
+          data.status !== "booked" &&
+          data.status !== "confirmed"
+        ) {
+          return;
+        }
+
+        if (action === "confirm") {
+          transaction.set(
+              ref,
+              {
+                reconfirmationStatus:
+                  "confirmed",
+
+                reconfirmed:
+                  true,
+
+                reconfirmedAt:
+                  FieldValue.serverTimestamp(),
+
+                reconfirmedVia:
+                  "whatsapp",
+
+                lastWhatsappReply:
+                  "confirm",
+
+                lastWhatsappReplyAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              {
+                merge:
+                  true,
+              },
+          );
+
+          return;
+        }
+
+        if (action === "cancel") {
+          const guests =
+            Number.isInteger(data.guests) ?
+              data.guests :
+              Number(data.guests || 0);
+
+          const dateKey =
+            typeof data.dateKey === "string" ?
+              data.dateKey :
+              "";
+
+          const service =
+            typeof data.service === "string" ?
+              data.service :
+              "";
+
+          if (
+            dateKey.length > 0 &&
+            service.length > 0 &&
+            guests > 0
+          ) {
+            const counterRef =
+              db
+                  .collection(
+                      "availability_counters",
+                  )
+                  .doc(
+                      `${dateKey}_${service}`,
+                  );
+
+            const counterSnapshot =
+              await transaction.get(
+                  counterRef,
+              );
+
+            const currentGuests =
+              counterSnapshot.exists ?
+                Number(
+                    counterSnapshot
+                        .data()
+                        ?.bookedGuests || 0,
+                ) :
+                0;
+
+            const updatedGuests =
+              Math.max(
+                  0,
+                  currentGuests - guests,
+              );
+
+            transaction.set(
+                counterRef,
+                {
+                  dateKey,
+
+                  service,
+
+                  bookedGuests:
+                    updatedGuests,
+
+                  lastBookingId:
+                    bookingId,
+
+                  updatedAt:
+                    FieldValue.serverTimestamp(),
+                },
+                {
+                  merge:
+                    true,
+                },
+            );
+          }
+
+          transaction.set(
+              ref,
+              {
+                status:
+                  "cancelled",
+
+                reconfirmationStatus:
+                  "cancelled",
+
+                reconfirmed:
+                  false,
+
+                cancelledByCustomer:
+                  true,
+
+                cancelledAt:
+                  FieldValue.serverTimestamp(),
+
+                cancelledBy:
+                  "customer_whatsapp",
+
+                cancellationSource:
+                  "whatsapp_reconfirmation",
+
+                lastWhatsappReply:
+                  "cancel",
+
+                lastWhatsappReplyAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              },
+              {
+                merge:
+                  true,
+              },
+          );
+        }
+      },
+  );
+
+  logger.info(
+      "Risposta riconferma WhatsApp elaborata.",
+      {
+        bookingId,
+        action,
+      },
+  );
+}
+
+exports.dialog360Webhook =
+  onRequest(
+      {
+        cors:
+          false,
+
+        timeoutSeconds:
+          60,
+      },
+      async (request, response) => {
+        if (request.method !== "POST") {
+          response
+              .status(200)
+              .send("Le Capase 360dialog webhook");
+
+          return;
+        }
+
+        try {
+          const messages =
+            extractWhatsappMessages(
+                request.body,
+            );
+
+          for (const message of messages) {
+            await processReconfirmationReply(
+                message,
+            );
+          }
+
+          response
+              .status(200)
+              .send("OK");
+        } catch (error) {
+          logger.error(
+              "Errore webhook 360dialog.",
+              {
+                error,
+              },
+          );
+
+          // Restituiamo errore per consentire
+          // al provider di ritentare.
+          response
+              .status(500)
+              .send("ERROR");
+        }
+      },
+  );
+
+// ============================================================
+// FINE RICONFERMA 90 MINUTI - PARTE 2
+// ============================================================
