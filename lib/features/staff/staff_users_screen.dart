@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -14,11 +14,6 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
-    region: 'europe-west1',
-  );
-
   static const Map<String, String> _roleLabels = {
     'staff': 'Staff',
     'supervisor': 'Supervisor',
@@ -39,7 +34,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
   }
 
   String _functionError(Object error, String fallback) {
-    if (error is FirebaseFunctionsException) {
+    if (error is CallableHttpException) {
       return error.message ?? fallback;
     }
 
@@ -111,7 +106,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
               });
 
               try {
-                await _functions.httpsCallable('createStaffUser').call({
+                await CallableHttpService.call('createStaffUser', {
                   'displayName': displayName,
                   'email': email,
                   'role': selectedRole,
@@ -305,7 +300,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
               });
 
               try {
-                await _functions.httpsCallable('resetStaffPassword').call({
+                await CallableHttpService.call('resetStaffPassword', {
                   'uid': uid,
                   'password': password,
                 });
@@ -430,7 +425,9 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
     }
 
     try {
-      await _functions.httpsCallable('deleteStaffUser').call({'uid': uid});
+      await CallableHttpService.call('deleteStaffUser', <String, dynamic>{
+        'uid': uid,
+      });
 
       _message(displayName + ' eliminato correttamente.');
     } catch (error) {

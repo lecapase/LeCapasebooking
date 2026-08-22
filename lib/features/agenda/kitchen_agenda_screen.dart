@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/callable_http_service.dart';
 import 'package:flutter/material.dart';
 
 class KitchenAgendaScreen extends StatefulWidget {
@@ -9,10 +9,6 @@ class KitchenAgendaScreen extends StatefulWidget {
 }
 
 class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
-    region: 'europe-west1',
-  );
-
   DateTime _selectedDate = DateTime.now();
 
   static const List<String> _weekdays = [
@@ -51,11 +47,10 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
   }
 
   Future<List<Map<String, dynamic>>> _loadAgenda(String dateKey) async {
-    final result = await _functions.httpsCallable('getKitchenAgenda').call(
+    final data = await CallableHttpService.call(
+      'getKitchenAgenda',
       <String, dynamic>{'dateKey': dateKey},
     );
-
-    final data = result.data;
 
     if (data is! Map) {
       throw StateError('Risposta Agenda non valida.');

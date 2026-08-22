@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -13,10 +13,6 @@ class FirstLoginPrompt extends StatefulWidget {
 }
 
 class _FirstLoginPromptState extends State<FirstLoginPrompt> {
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
-    region: 'europe-west1',
-  );
-
   bool _checked = false;
   bool _dialogOpened = false;
 
@@ -71,7 +67,7 @@ class _FirstLoginPromptState extends State<FirstLoginPrompt> {
       data['password'] = password;
     }
 
-    await _functions.httpsCallable('completeFirstStaffLogin').call(data);
+    await CallableHttpService.call('completeFirstStaffLogin', data);
   }
 
   Future<void> _showInitialChoice(String displayName) async {
@@ -164,7 +160,7 @@ class _FirstLoginPromptState extends State<FirstLoginPrompt> {
                 Navigator.of(dialogContext).pop();
 
                 _showMessage('Password aggiornata.');
-              } on FirebaseFunctionsException catch (error) {
+              } on CallableHttpException catch (error) {
                 setDialogState(() {
                   saving = false;
                   errorText = error.message ?? 'Aggiornamento non riuscito.';

@@ -1,4 +1,4 @@
-import 'package:cloud_functions/cloud_functions.dart';
+import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -12,10 +12,6 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
-  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
-    region: 'europe-west1',
-  );
-
   List<Map<String, String>> _profiles = [];
   bool _loading = true;
   String? _error;
@@ -33,11 +29,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     });
 
     try {
-      final result = await _functions
-          .httpsCallable('listActiveStaffProfiles')
-          .call();
-
-      final rawData = result.data;
+      final rawData = await CallableHttpService.call('listActiveStaffProfiles');
 
       if (rawData is! Map) {
         throw StateError('Risposta utenti non valida.');
@@ -74,7 +66,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         _profiles = profiles;
         _loading = false;
       });
-    } on FirebaseFunctionsException catch (error) {
+    } on CallableHttpException catch (error) {
       if (!mounted) {
         return;
       }
@@ -83,7 +75,10 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
         _loading = false;
         _error = error.message ?? 'Impossibile caricare gli utenti.';
       });
-    } catch (_) {
+    } catch (error, stackTrace) {
+      debugPrint('Errore caricamento profili: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
       if (!mounted) {
         return;
       }
