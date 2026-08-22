@@ -7,6 +7,7 @@ import '../../core/app_version.dart';
 import '../../services/biometric_service.dart';
 import '../../services/push_notification_service.dart';
 import '../../theme/app_colors.dart';
+import '../auth/change_password_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -316,6 +317,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                   const SizedBox(height: 30),
                   const _SectionTitle(title: 'Sicurezza'),
+                  const SizedBox(height: 10),
+                  Card(
+                    color: Colors.white,
+                    child: ListTile(
+                      leading: const Icon(
+                        Icons.password_rounded,
+                        color: AppColors.goldDark,
+                      ),
+                      title: const Text(
+                        'Cambia password',
+                        style: TextStyle(
+                          color: AppColors.textDark,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Aggiorna la password del tuo account',
+                        style: TextStyle(color: AppColors.textMuted),
+                      ),
+                      trailing: const Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.textMuted,
+                      ),
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChangePasswordScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   Card(
                     color: Colors.white,
