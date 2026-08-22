@@ -2952,3 +2952,18 @@ exports.dialog360Webhook =
 // ============================================================
 // FINE RICONFERMA 90 MINUTI - PARTE 2
 // ============================================================
+
+exports.listActiveStaffProfiles =
+  staffUserFunctions.listActiveStaffProfiles;
+
+exports.createStaffUser =
+  staffUserFunctions.createStaffUser;
+
+exports.resetStaffPassword =
+  staffUserFunctions.resetStaffPassword;
+
+exports.completeFirstStaffLogin =
+  staffUserFunctions.completeFirstStaffLogin;
+
+exports.deleteStaffUser =
+  staffUserFunctions.deleteStaffUser;

@@ -7,6 +7,11 @@ const {
   defineSecret,
 } = require("firebase-functions/params");
 
+const {
+  onCall,
+  HttpsError,
+} = require("firebase-functions/v2/https");
+
 const logger =
   require("firebase-functions/logger");
 
@@ -781,5 +786,645 @@ exports.onStaffUserUpdated =
               },
           );
         }
+      },
+  );
+
+// ============================================================
+// FUNZIONI UTENTI VERSIONE 2.0
+// ============================================================
+
+async function requireAdministrator(request) {
+  const uid =
+    request.auth &&
+    request.auth.uid;
+
+  if (!uid) {
+    throw new HttpsError(
+        "unauthenticated",
+        "Devi effettuare l'accesso.",
+    );
+  }
+
+  if (!await userIsAdmin(uid)) {
+    throw new HttpsError(
+        "permission-denied",
+        "Solo un amministratore puo eseguire questa operazione.",
+    );
+  }
+
+  return uid;
+}
+
+function validatedPassword(value) {
+  const password =
+    typeof value === "string" ?
+      value :
+      "";
+
+  if (password.length < 8) {
+    throw new HttpsError(
+        "invalid-argument",
+        "La password deve contenere almeno 8 caratteri.",
+    );
+  }
+
+  if (password.length > 128) {
+    throw new HttpsError(
+        "invalid-argument",
+        "La password e troppo lunga.",
+    );
+  }
+
+  return password;
+}
+
+exports.listActiveStaffProfiles =
+  onCall(
+      {
+        region:
+          "europe-west1",
+      },
+      async () => {
+        const [
+          staffSnapshot,
+          adminSnapshot,
+        ] = await Promise.all([
+          db
+              .collection("staff_users")
+              .where("active", "==", true)
+              .get(),
+
+          db
+              .collection("admins")
+              .get(),
+        ]);
+
+        const profilesByUid =
+          new Map();
+
+        for (
+          const document of
+          staffSnapshot.docs
+        ) {
+          const data =
+            document.data();
+
+          const displayName =
+            cleanText(
+                data.displayName,
+            );
+
+          const loginEmail =
+            normalizeEmail(
+                data.email,
+            );
+
+          if (
+            displayName.length >= 2 &&
+            loginEmail.includes("@")
+          ) {
+            profilesByUid.set(
+                document.id,
+                {
+                  uid:
+                    document.id,
+
+                  displayName,
+
+                  loginEmail,
+                },
+            );
+          }
+        }
+
+        for (
+          const document of
+          adminSnapshot.docs
+        ) {
+          if (
+            profilesByUid.has(
+                document.id,
+            )
+          ) {
+            continue;
+          }
+
+          const data =
+            document.data();
+
+          if (data.active === false) {
+            continue;
+          }
+
+          const displayName =
+            cleanText(
+                data.displayName,
+            );
+
+          const loginEmail =
+            normalizeEmail(
+                data.email,
+            );
+
+          if (
+            displayName.length >= 2 &&
+            loginEmail.includes("@")
+          ) {
+            profilesByUid.set(
+                document.id,
+                {
+                  uid:
+                    document.id,
+
+                  displayName,
+
+                  loginEmail,
+                },
+            );
+          }
+        }
+
+        const profiles =
+          [...profilesByUid.values()]
+              .sort(
+                  (
+                      first,
+                      second,
+                  ) =>
+                    first.displayName
+                        .localeCompare(
+                            second.displayName,
+                            "it",
+                            {
+                              sensitivity:
+                                "base",
+                            },
+                        ),
+              );
+
+        return {
+          profiles,
+        };
+      },
+  );
+
+exports.createStaffUser =
+  onCall(
+      {
+        region:
+          "europe-west1",
+      },
+      async (request) => {
+        const administratorUid =
+          await requireAdministrator(
+              request,
+          );
+
+        const data =
+          request.data || {};
+
+        const displayName =
+          cleanText(
+              data.displayName,
+          );
+
+        const email =
+          normalizeEmail(
+              data.email,
+          );
+
+        const role =
+          cleanText(
+              data.role,
+          );
+
+        const password =
+          validatedPassword(
+              data.password,
+          );
+
+        if (displayName.length < 2) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Inserisci un nome valido.",
+          );
+        }
+
+        if (
+          !email.includes("@") ||
+          email.length < 5
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Inserisci una email valida.",
+          );
+        }
+
+        if (!validRole(role)) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Il ruolo selezionato non e valido.",
+          );
+        }
+
+        try {
+          await getAuth()
+              .getUserByEmail(email);
+
+          throw new HttpsError(
+              "already-exists",
+              "Esiste gia un utente con questa email.",
+          );
+        } catch (error) {
+          if (error instanceof HttpsError) {
+            throw error;
+          }
+
+          if (
+            !error ||
+            error.code !==
+              "auth/user-not-found"
+          ) {
+            throw new HttpsError(
+                "internal",
+                "Impossibile verificare l'account.",
+            );
+          }
+        }
+
+        let authUser;
+
+        try {
+          authUser =
+            await getAuth()
+                .createUser({
+                  email,
+                  password,
+                  displayName,
+                  emailVerified:
+                    false,
+                  disabled:
+                    false,
+                });
+
+          await updateAuthPermissions({
+            uid:
+              authUser.uid,
+
+            role,
+
+            active:
+              true,
+          });
+
+          await db
+              .collection("staff_users")
+              .doc(authUser.uid)
+              .set({
+                uid:
+                  authUser.uid,
+
+                displayName,
+
+                email,
+
+                role,
+
+                active:
+                  true,
+
+                passwordSetup:
+                  "temporary",
+
+                offerPasswordChange:
+                  true,
+
+                createdBy:
+                  administratorUid,
+
+                createdAt:
+                  FieldValue.serverTimestamp(),
+
+                updatedAt:
+                  FieldValue.serverTimestamp(),
+              });
+
+          await synchronizeAdminDocument({
+            uid:
+              authUser.uid,
+
+            email,
+
+            displayName,
+
+            role,
+
+            active:
+              true,
+          });
+
+          return {
+            uid:
+              authUser.uid,
+
+            displayName,
+          };
+        } catch (error) {
+          if (
+            authUser &&
+            authUser.uid
+          ) {
+            try {
+              await getAuth()
+                  .deleteUser(
+                      authUser.uid,
+                  );
+            } catch (_) {
+              // Ripristino non riuscito.
+            }
+          }
+
+          logger.error(
+              "Creazione utente 2.0 fallita",
+              {
+                email,
+
+                error:
+                  error instanceof Error ?
+                    error.message :
+                    String(error),
+              },
+          );
+
+          throw new HttpsError(
+              "internal",
+              "Impossibile creare l'utente.",
+          );
+        }
+      },
+  );
+
+exports.resetStaffPassword =
+  onCall(
+      {
+        region:
+          "europe-west1",
+      },
+      async (request) => {
+        const administratorUid =
+          await requireAdministrator(
+              request,
+          );
+
+        const data =
+          request.data || {};
+
+        const targetUid =
+          cleanText(
+              data.uid,
+          );
+
+        const password =
+          validatedPassword(
+              data.password,
+          );
+
+        if (!targetUid) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Utente non valido.",
+          );
+        }
+
+        if (
+          targetUid ===
+          administratorUid
+        ) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Modifica la tua password dalle impostazioni personali.",
+          );
+        }
+
+        const reference =
+          db
+              .collection("staff_users")
+              .doc(targetUid);
+
+        if (!(await reference.get()).exists) {
+          throw new HttpsError(
+              "not-found",
+              "Utente non trovato.",
+          );
+        }
+
+        await getAuth()
+            .updateUser(
+                targetUid,
+                {
+                  password,
+                  disabled:
+                    false,
+                },
+            );
+
+        await reference.set(
+            {
+              active:
+                true,
+
+              passwordSetup:
+                "temporary",
+
+              offerPasswordChange:
+                true,
+
+              passwordResetBy:
+                administratorUid,
+
+              passwordResetAt:
+                FieldValue.serverTimestamp(),
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            {
+              merge:
+                true,
+            },
+        );
+
+        return {
+          success:
+            true,
+        };
+      },
+  );
+
+exports.completeFirstStaffLogin =
+  onCall(
+      {
+        region:
+          "europe-west1",
+      },
+      async (request) => {
+        const uid =
+          request.auth &&
+          request.auth.uid;
+
+        if (!uid) {
+          throw new HttpsError(
+              "unauthenticated",
+              "Devi effettuare l'accesso.",
+          );
+        }
+
+        const reference =
+          db
+              .collection("staff_users")
+              .doc(uid);
+
+        const snapshot =
+          await reference.get();
+
+        if (!snapshot.exists) {
+          throw new HttpsError(
+              "not-found",
+              "Profilo utente non trovato.",
+          );
+        }
+
+        const requestedPassword =
+          request.data &&
+          request.data.password;
+
+        const changingPassword =
+          typeof requestedPassword ===
+            "string" &&
+          requestedPassword.length > 0;
+
+        if (changingPassword) {
+          const newPassword =
+            validatedPassword(
+                requestedPassword,
+            );
+
+          await getAuth()
+              .updateUser(
+                  uid,
+                  {
+                    password:
+                      newPassword,
+                  },
+              );
+        }
+
+        await reference.set(
+            {
+              offerPasswordChange:
+                false,
+
+              passwordSetup:
+                changingPassword ?
+                  "personal" :
+                  "temporary-kept",
+
+              firstLoginCompletedAt:
+                FieldValue.serverTimestamp(),
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            {
+              merge:
+                true,
+            },
+        );
+
+        return {
+          success:
+            true,
+
+          passwordChanged:
+            changingPassword,
+        };
+      },
+  );
+
+exports.deleteStaffUser =
+  onCall(
+      {
+        region:
+          "europe-west1",
+      },
+      async (request) => {
+        const administratorUid =
+          await requireAdministrator(
+              request,
+          );
+
+        const targetUid =
+          cleanText(
+              request.data &&
+              request.data.uid,
+          );
+
+        if (!targetUid) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Utente non valido.",
+          );
+        }
+
+        if (
+          targetUid ===
+          administratorUid
+        ) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Non puoi eliminare il tuo account.",
+          );
+        }
+
+        const reference =
+          db
+              .collection("staff_users")
+              .doc(targetUid);
+
+        if (!(await reference.get()).exists) {
+          throw new HttpsError(
+              "not-found",
+              "Utente non trovato.",
+          );
+        }
+
+        try {
+          await getAuth()
+              .deleteUser(
+                  targetUid,
+              );
+        } catch (error) {
+          if (
+            !error ||
+            error.code !==
+              "auth/user-not-found"
+          ) {
+            throw error;
+          }
+        }
+
+        await Promise.all([
+          reference.delete(),
+
+          db
+              .collection("admins")
+              .doc(targetUid)
+              .delete(),
+        ]);
+
+        return {
+          success:
+            true,
+        };
       },
   );
