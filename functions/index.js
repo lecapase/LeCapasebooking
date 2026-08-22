@@ -2967,3 +2967,6 @@ exports.completeFirstStaffLogin =
 
 exports.deleteStaffUser =
   staffUserFunctions.deleteStaffUser;
+
+exports.getKitchenAgenda =
+  staffUserFunctions.getKitchenAgenda;

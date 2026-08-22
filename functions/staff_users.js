@@ -1428,3 +1428,164 @@ exports.deleteStaffUser =
         };
       },
   );
+
+// AGENDA PUBBLICA 2.0
+exports.getKitchenAgenda =
+  onCall(
+      {
+        region: "europe-west1",
+        timeoutSeconds: 30,
+        memory: "256MiB",
+      },
+      async (request) => {
+        const dateKey =
+          typeof request.data?.dateKey === "string" ?
+            request.data.dateKey.trim() :
+            "";
+
+        if (
+          !/^\d{4}-\d{2}-\d{2}$/.test(dateKey)
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Data agenda non valida.",
+          );
+        }
+
+        const requestedDate =
+          new Date(dateKey + "T00:00:00Z");
+
+        if (
+          Number.isNaN(requestedDate.getTime()) ||
+          requestedDate
+              .toISOString()
+              .slice(0, 10) !== dateKey
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Data agenda non valida.",
+          );
+        }
+
+        const today =
+          new Date();
+
+        const todayUtc =
+          new Date(
+              Date.UTC(
+                  today.getUTCFullYear(),
+                  today.getUTCMonth(),
+                  today.getUTCDate(),
+              ),
+          );
+
+        const maximumDate =
+          new Date(todayUtc);
+
+        maximumDate.setUTCDate(
+            maximumDate.getUTCDate() + 366,
+        );
+
+        if (
+          requestedDate < todayUtc ||
+          requestedDate > maximumDate
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "La data deve essere compresa nei prossimi 366 giorni.",
+          );
+        }
+
+        const snapshot =
+          await db
+              .collection("bookings")
+              .where(
+                  "dateKey",
+                  "==",
+                  dateKey,
+              )
+              .get();
+
+        const hiddenStatuses =
+          new Set([
+            "cancelled",
+            "rejected",
+            "no_show",
+          ]);
+
+        const bookings =
+          snapshot.docs
+              .map((document) => document.data())
+              .filter((booking) => {
+                const status =
+                  String(
+                      booking.status ||
+                      "pending",
+                  );
+
+                return !hiddenStatuses.has(status);
+              })
+              .map((booking) => ({
+                nome:
+                  String(booking.nome || ""),
+
+                cognome:
+                  String(booking.cognome || ""),
+
+                guests:
+                  Number.isFinite(
+                      Number(
+                          booking.guests ??
+                          booking.persone,
+                      ),
+                  ) ?
+                    Number(
+                        booking.guests ??
+                        booking.persone,
+                    ) :
+                    0,
+
+                time:
+                  String(
+                      booking.time ||
+                      booking.orario ||
+                      "",
+                  ),
+
+                service:
+                  booking.service === "lunch" ?
+                    "lunch" :
+                    "dinner",
+
+                status:
+                  String(
+                      booking.status ||
+                      "pending",
+                  ),
+
+                occasion:
+                  String(
+                      booking.occasion ||
+                      booking.occasione ||
+                      "",
+                  ),
+
+                notes:
+                  String(
+                      booking.notes ||
+                      booking.note ||
+                      "",
+                  ),
+              }))
+              .sort((first, second) =>
+                first.time.localeCompare(
+                    second.time,
+                ),
+              );
+
+        return {
+          dateKey,
+          bookings,
+        };
+      },
+  );

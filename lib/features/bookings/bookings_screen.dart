@@ -7,6 +7,7 @@ import '../availability/availability_screen.dart';
 import '../settings/settings_screen.dart';
 import '../staff/staff_users_screen.dart';
 
+
 class BookingsScreen extends StatefulWidget {
   const BookingsScreen({
     super.key,
@@ -2810,7 +2811,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           padding: EdgeInsets.only(top: 18, bottom: 12),
           child: Center(
             child: Text(
-              'Versione 0.1.1',
+              'Versione 2.0 - sviluppo',
               style: TextStyle(fontSize: 12, color: Colors.white54),
             ),
           ),
