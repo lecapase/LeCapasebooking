@@ -1,4 +1,4 @@
-{
+﻿{
     "flutter":  {
                     "platforms":  {
                                       "android":  {
@@ -26,7 +26,7 @@
     "hosting":  [
                     {
                         "target":  "gestionale",
-                        "public":  "build/web",
+                        "public":  "build/web_gestionale",
                         "ignore":  [
                                        "firebase.json",
                                        "**/.*",
@@ -115,7 +115,7 @@
                     },
                     {
                         "target":  "booking",
-                        "public":  "build/web",
+                        "public":  "build/web_booking",
                         "ignore":  [
                                        "firebase.json",
                                        "**/.*",
