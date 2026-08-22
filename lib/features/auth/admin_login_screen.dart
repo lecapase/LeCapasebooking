@@ -1,470 +1,346 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 class AdminLoginScreen extends StatefulWidget {
-  const AdminLoginScreen({
-    super.key,
-  });
+  const AdminLoginScreen({super.key});
 
   @override
-  State<AdminLoginScreen> createState() =>
-      _AdminLoginScreenState();
+  State<AdminLoginScreen> createState() => _AdminLoginScreenState();
 }
 
-class _AdminLoginScreenState
-    extends State<AdminLoginScreen> {
-  final _formKey =
-      GlobalKey<FormState>();
+class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'europe-west1',
+  );
 
-  final _emailController =
-      TextEditingController();
-
-  final _passwordController =
-      TextEditingController();
-
-  bool _isLoading = false;
-  bool _obscurePassword = true;
-  bool _rememberMe = true;
+  List<Map<String, String>> _profiles = [];
+  bool _loading = true;
+  String? _error;
 
   @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-
-    super.dispose();
+  void initState() {
+    super.initState();
+    _loadProfiles();
   }
 
-  // =========================================================
-  // LOGIN
-  // =========================================================
-
-  Future<void> _login() async {
-    if (_isLoading) {
-      return;
-    }
-
-    final form =
-        _formKey.currentState;
-
-    if (form == null ||
-        !form.validate()) {
-      return;
-    }
-
+  Future<void> _loadProfiles() async {
     setState(() {
-      _isLoading = true;
+      _loading = true;
+      _error = null;
     });
 
     try {
-      final auth =
-          FirebaseAuth.instance;
+      final result = await _functions
+          .httpsCallable('listActiveStaffProfiles')
+          .call();
 
-      // Sul Web scegliamo quanto deve durare
-      // la sessione.
-      if (kIsWeb) {
-        await auth.setPersistence(
-          _rememberMe
-              ? Persistence.LOCAL
-              : Persistence.SESSION,
-        );
-      }
+      final data = Map<String, dynamic>.from(result.data as Map);
 
-      await auth.signInWithEmailAndPassword(
-        email:
-            _emailController.text.trim(),
-        password:
-            _passwordController.text,
-      );
+      final rawProfiles = data['profiles'] as List? ?? const [];
 
-      // NON facciamo Navigator.push.
-      //
-      // AdminAuthGate ascolta authStateChanges()
-      // e aprirà automaticamente la Home.
-    } on FirebaseAuthException catch (error) {
+      final profiles = rawProfiles
+          .map((item) => Map<String, dynamic>.from(item as Map))
+          .map(
+            (item) => {
+              'uid': (item['uid'] ?? '').toString(),
+              'displayName': (item['displayName'] ?? '').toString(),
+              'loginEmail': (item['loginEmail'] ?? '').toString(),
+            },
+          )
+          .where(
+            (item) =>
+                item['displayName']!.isNotEmpty &&
+                item['loginEmail']!.isNotEmpty,
+          )
+          .toList();
+
       if (!mounted) {
         return;
       }
 
-      String message =
-          'Accesso non riuscito.';
-
-      switch (error.code) {
-        case 'invalid-credential':
-          message =
-              'Email o password non corretti.';
-          break;
-
-        case 'user-not-found':
-          message =
-              'Utente non trovato.';
-          break;
-
-        case 'wrong-password':
-          message =
-              'Password non corretta.';
-          break;
-
-        case 'invalid-email':
-          message =
-              'Indirizzo email non valido.';
-          break;
-
-        case 'too-many-requests':
-          message =
-              'Troppi tentativi di accesso. '
-              'Riprova tra qualche minuto.';
-          break;
-
-        case 'network-request-failed':
-          message =
-              'Problema di connessione. '
-              'Controlla Internet e riprova.';
-          break;
+      setState(() {
+        _profiles = profiles;
+        _loading = false;
+      });
+    } on FirebaseFunctionsException catch (error) {
+      if (!mounted) {
+        return;
       }
 
-      _showMessage(
-        message,
-      );
+      setState(() {
+        _loading = false;
+        _error = error.message ?? 'Impossibile caricare gli utenti.';
+      });
     } catch (_) {
       if (!mounted) {
         return;
       }
 
-      _showMessage(
-        'Si è verificato un errore. Riprova.',
-      );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
+      setState(() {
+        _loading = false;
+        _error = 'Impossibile caricare gli utenti.';
+      });
     }
   }
 
-  // =========================================================
-  // MESSAGGIO
-  // =========================================================
+  Future<void> _openPasswordDialog(Map<String, String> profile) async {
+    final passwordController = TextEditingController();
 
-  void _showMessage(
-    String message,
-  ) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            message,
-          ),
-          behavior:
-              SnackBarBehavior.floating,
-        ),
-      );
+    bool obscurePassword = true;
+    bool signingIn = false;
+    String? dialogError;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: !signingIn,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> login() async {
+              if (signingIn) {
+                return;
+              }
+
+              final password = passwordController.text;
+
+              if (password.isEmpty) {
+                setDialogState(() {
+                  dialogError = 'Inserisci la password.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                signingIn = true;
+                dialogError = null;
+              });
+
+              try {
+                if (kIsWeb) {
+                  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+                }
+
+                await FirebaseAuth.instance.signInWithEmailAndPassword(
+                  email: profile['loginEmail']!,
+                  password: password,
+                );
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop();
+              } on FirebaseAuthException catch (error) {
+                String message = 'Password non corretta.';
+
+                if (error.code == 'too-many-requests') {
+                  message = 'Troppi tentativi. Riprova tra qualche minuto.';
+                } else if (error.code == 'network-request-failed') {
+                  message = 'Problema di connessione.';
+                } else if (error.code == 'user-disabled' ||
+                    error.code == 'user-not-found') {
+                  message = 'Questo account non \u00e8 disponibile.';
+                }
+
+                setDialogState(() {
+                  signingIn = false;
+                  dialogError = message;
+                });
+              } catch (_) {
+                setDialogState(() {
+                  signingIn = false;
+                  dialogError = 'Accesso non riuscito.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text(profile['displayName']!, textAlign: TextAlign.center),
+              content: SizedBox(
+                width: 360,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Inserisci la tua password',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: passwordController,
+                      autofocus: true,
+                      enabled: !signingIn,
+                      obscureText: obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => login(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        suffixIcon: IconButton(
+                          onPressed: signingIn
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    obscurePassword = !obscurePassword;
+                                  });
+                                },
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                        errorText: dialogError,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: signingIn
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: signingIn ? null : login,
+                  child: signingIn
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('ACCEDI'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    passwordController.dispose();
   }
 
-  // =========================================================
-  // BUILD
-  // =========================================================
-
-  @override
-  Widget build(
-    BuildContext context,
-  ) {
-    return Scaffold(
-      appBar: AppBar(
-        automaticallyImplyLeading:
-            false,
-        leading: IconButton(
-          tooltip: 'Indietro',
-          onPressed:
-              _isLoading
-                  ? null
-                  : () {
-                      Navigator.of(context)
-                          .maybePop();
-                    },
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
+  Widget _profileButton(Map<String, String> profile) {
+    return SizedBox(
+      height: 54,
+      child: OutlinedButton(
+        onPressed: () => _openPasswordDialog(profile),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          backgroundColor: const Color(0xFF171717),
+          side: const BorderSide(color: Color(0xFFC8A45D), width: 0.8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
           ),
         ),
-        title: const Text(
-          'Accesso gestionale',
+        child: Text(
+          profile['displayName']!,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
         ),
       ),
+    );
+  }
+
+  Widget _content() {
+    if (_loading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 46, color: Colors.grey),
+            const SizedBox(height: 16),
+            Text(_error!, textAlign: TextAlign.center),
+            const SizedBox(height: 20),
+            OutlinedButton.icon(
+              onPressed: _loadProfiles,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Riprova'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (_profiles.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Nessun utente disponibile.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 18),
+            OutlinedButton.icon(
+              onPressed: _loadProfiles,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Aggiorna'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadProfiles,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        itemCount: _profiles.length,
+        separatorBuilder: (_, _) => const SizedBox(height: 12),
+        itemBuilder: (context, index) => _profileButton(_profiles[index]),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding:
-                const EdgeInsets.all(
-              24,
-            ),
-            child: ConstrainedBox(
-              constraints:
-                  const BoxConstraints(
-                maxWidth: 420,
-              ),
-              child: Card(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.all(
-                    24,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 42, 24, 24),
+              child: Column(
+                children: [
+                  const Icon(
+                    Icons.calendar_month_outlined,
+                    size: 38,
+                    color: Color(0xFFC8A45D),
                   ),
-                  child: Form(
-                    key:
-                        _formKey,
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .stretch,
-                      children: [
-                        const Icon(
-                          Icons.lock_outline,
-                          size: 48,
-                        ),
-
-                        const SizedBox(
-                          height: 20,
-                        ),
-
-                        const Text(
-                          'Le Capase Booking',
-                          textAlign:
-                              TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight:
-                                FontWeight.bold,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 8,
-                        ),
-
-                        const Text(
-                          'Accesso amministratore',
-                          textAlign:
-                              TextAlign.center,
-                          style: TextStyle(
-                            color:
-                                Colors.grey,
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 28,
-                        ),
-
-                        TextFormField(
-                          controller:
-                              _emailController,
-                          enabled:
-                              !_isLoading,
-                          keyboardType:
-                              TextInputType
-                                  .emailAddress,
-                          textInputAction:
-                              TextInputAction
-                                  .next,
-                          autofillHints:
-                              const [
-                            AutofillHints.email,
-                          ],
-                          decoration:
-                              const InputDecoration(
-                            labelText:
-                                'Email',
-                            prefixIcon:
-                                Icon(
-                              Icons
-                                  .email_outlined,
-                            ),
-                            border:
-                                OutlineInputBorder(),
-                          ),
-                          validator:
-                              (value) {
-                            final email =
-                                value?.trim() ??
-                                    '';
-
-                            if (email.isEmpty) {
-                              return 'Inserisci la tua email';
-                            }
-
-                            if (!email.contains(
-                              '@',
-                            )) {
-                              return 'Inserisci una email valida';
-                            }
-
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(
-                          height: 16,
-                        ),
-
-                        TextFormField(
-                          controller:
-                              _passwordController,
-                          enabled:
-                              !_isLoading,
-                          obscureText:
-                              _obscurePassword,
-                          textInputAction:
-                              TextInputAction.done,
-                          autofillHints:
-                              const [
-                            AutofillHints.password,
-                          ],
-                          onFieldSubmitted:
-                              (_) {
-                            if (!_isLoading) {
-                              _login();
-                            }
-                          },
-                          decoration:
-                              InputDecoration(
-                            labelText:
-                                'Password',
-                            prefixIcon:
-                                const Icon(
-                              Icons
-                                  .lock_outline,
-                            ),
-                            border:
-                                const OutlineInputBorder(),
-                            suffixIcon:
-                                IconButton(
-                              onPressed:
-                                  _isLoading
-                                      ? null
-                                      : () {
-                                          setState(
-                                            () {
-                                              _obscurePassword =
-                                                  !_obscurePassword;
-                                            },
-                                          );
-                                        },
-                              icon: Icon(
-                                _obscurePassword
-                                    ? Icons
-                                        .visibility_outlined
-                                    : Icons
-                                        .visibility_off_outlined,
-                              ),
-                            ),
-                          ),
-                          validator:
-                              (value) {
-                            if (value ==
-                                    null ||
-                                value.isEmpty) {
-                              return 'Inserisci la password';
-                            }
-
-                            return null;
-                          },
-                        ),
-
-                        const SizedBox(
-                          height: 12,
-                        ),
-
-                        CheckboxListTile(
-                          value:
-                              _rememberMe,
-                          contentPadding:
-                              EdgeInsets.zero,
-                          controlAffinity:
-                              ListTileControlAffinity
-                                  .leading,
-                          title:
-                              const Text(
-                            'Ricordami',
-                            style: TextStyle(
-                              fontWeight:
-                                  FontWeight.w600,
-                            ),
-                          ),
-                          subtitle:
-                              const Text(
-                            'Mantieni l’accesso su questo dispositivo',
-                          ),
-                          onChanged:
-                              _isLoading
-                                  ? null
-                                  : (value) {
-                                      setState(
-                                        () {
-                                          _rememberMe =
-                                              value ??
-                                                  true;
-                                        },
-                                      );
-                                    },
-                        ),
-
-                        const SizedBox(
-                          height: 20,
-                        ),
-
-                        FilledButton(
-                          onPressed:
-                              _isLoading
-                                  ? null
-                                  : _login,
-                          child: Padding(
-                            padding:
-                                const EdgeInsets
-                                    .symmetric(
-                              vertical: 14,
-                            ),
-                            child:
-                                _isLoading
-                                    ? const SizedBox(
-                                        width: 22,
-                                        height: 22,
-                                        child:
-                                            CircularProgressIndicator(
-                                          strokeWidth:
-                                              2,
-                                        ),
-                                      )
-                                    : const Text(
-                                        'ACCEDI',
-                                        style:
-                                            TextStyle(
-                                          fontWeight:
-                                              FontWeight.bold,
-                                        ),
-                                      ),
-                          ),
-                        ),
-
-                        const SizedBox(
-                          height: 12,
-                        ),
-
-                        const Text(
-                          'Face ID / accesso biometrico '
-                          'verrà aggiunto nelle Impostazioni.',
-                          textAlign:
-                              TextAlign.center,
-                          style: TextStyle(
-                            color:
-                                Colors.grey,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
+                  const SizedBox(height: 18),
+                  const Text(
+                    'Le Capase Booking 2.0',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
                   ),
-                ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Seleziona il tuo profilo',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 15),
+                  ),
+                  const SizedBox(height: 34),
+                  Expanded(child: _content()),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Seleziona il tuo nome e inserisci la password',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                  ),
+                ],
               ),
             ),
           ),

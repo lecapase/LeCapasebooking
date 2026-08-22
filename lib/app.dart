@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'features/auth/admin_login_screen.dart';
+import 'features/auth/first_login_prompt.dart';
 import 'features/bookings/bookings_screen.dart';
 import 'services/biometric_service.dart';
 import 'services/push_notification_service.dart';
@@ -469,12 +470,14 @@ class _BiometricGateState extends State<BiometricGate> {
         _initializePushIfNeeded();
       });
 
-      return BookingsScreen(
-        onLock: _lockApp,
-        onLogout: _signOut,
-        displayName: widget.displayName,
-        email: widget.email,
-        userRole: widget.role,
+      return FirstLoginPrompt(
+        child: BookingsScreen(
+          onLock: _lockApp,
+          onLogout: _signOut,
+          displayName: widget.displayName,
+          email: widget.email,
+          userRole: widget.role,
+        ),
       );
     }
 
