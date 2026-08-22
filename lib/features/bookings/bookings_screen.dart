@@ -1920,25 +1920,314 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  DateTime? _bookingDateTime(
+    Map<String, dynamic> booking,
+  ) {
+    final dateKey =
+        booking['dateKey'] as String? ?? '';
+
+    final time =
+        booking['time'] as String? ?? '';
+
+    final dateParts =
+        dateKey.split('-');
+
+    final timeParts =
+        time.split(':');
+
+    if (dateParts.length != 3 ||
+        timeParts.length < 2) {
+      return null;
+    }
+
+    final year =
+        int.tryParse(dateParts[0]);
+
+    final month =
+        int.tryParse(dateParts[1]);
+
+    final day =
+        int.tryParse(dateParts[2]);
+
+    final hour =
+        int.tryParse(timeParts[0]);
+
+    final minute =
+        int.tryParse(timeParts[1]);
+
+    if (year == null ||
+        month == null ||
+        day == null ||
+        hour == null ||
+        minute == null) {
+      return null;
+    }
+
+    return DateTime(
+      year,
+      month,
+      day,
+      hour,
+      minute,
+    );
+  }
+
+  bool _reconfirmationWaiting(
+    Map<String, dynamic> booking,
+  ) {
+    final status =
+        booking['status'] as String? ?? '';
+
+    final reconfirmationStatus =
+        booking['reconfirmationStatus'] as String? ?? '';
+
+    return reconfirmationStatus == 'pending' &&
+        (status == 'booked' ||
+            status == 'confirmed');
+  }
+
+  bool _unreadReconfirmationResult(
+    Map<String, dynamic> booking,
+  ) {
+    final reconfirmationStatus =
+        booking['reconfirmationStatus'] as String? ?? '';
+
+    if (reconfirmationStatus != 'confirmed' &&
+        reconfirmationStatus != 'cancelled') {
+      return false;
+    }
+
+    return booking['reconfirmationResultRead'] == false;
+  }
+
+  bool _shouldShowNotification(
+    Map<String, dynamic> booking,
+  ) {
+    final source =
+        booking['source'] as String? ?? '';
+
+    if (source != 'customer') {
+      return false;
+    }
+
+    final status =
+        booking['status'] as String? ?? 'pending';
+
+    // Risposta ricevuta alla riconferma:
+    // resta finché viene aperta.
+    if (_unreadReconfirmationResult(booking)) {
+      return true;
+    }
+
+    // Richiesta di riconferma ancora senza risposta.
+    if (_reconfirmationWaiting(booking)) {
+      return true;
+    }
+
+    // Richiesta >4 persone:
+    // rimane finché viene gestita.
+    if (status == 'pending') {
+      return true;
+    }
+
+    // Se una richiesta manuale è stata gestita,
+    // non deve restare nelle notifiche.
+    if (booking['requiresManualConfirmation'] == true) {
+      return false;
+    }
+
+    // Stati già conclusi o cliente già arrivato.
+    if (_isPastStatus(status) ||
+        status == 'arrived') {
+      return false;
+    }
+
+    // Normale prenotazione online nuova:
+    // soltanto quelle create dopo questo aggiornamento.
+    return booking['adminNotificationRead'] == false;
+  }
+
+  String _notificationTitle(
+    Map<String, dynamic> booking,
+  ) {
+    final status =
+        booking['status'] as String? ?? 'pending';
+
+    final reconfirmationStatus =
+        booking['reconfirmationStatus'] as String? ?? '';
+
+    if (_unreadReconfirmationResult(booking)) {
+      if (reconfirmationStatus == 'confirmed') {
+        return 'Cliente ha riconfermato';
+      }
+
+      return 'Cliente ha annullato';
+    }
+
+    if (_reconfirmationWaiting(booking)) {
+      final reservationTime =
+          _bookingDateTime(booking);
+
+      if (reservationTime != null &&
+          DateTime.now().isAfter(reservationTime)) {
+        return 'Riconferma non ricevuta';
+      }
+
+      return 'Riconferma richiesta';
+    }
+
+    if (status == 'pending') {
+      return 'Richiesta da confermare';
+    }
+
+    return 'Nuova prenotazione';
+  }
+
+  IconData _notificationIcon(
+    Map<String, dynamic> booking,
+  ) {
+    final title =
+        _notificationTitle(booking);
+
+    switch (title) {
+      case 'Cliente ha riconfermato':
+        return Icons.verified_outlined;
+
+      case 'Cliente ha annullato':
+        return Icons.cancel_outlined;
+
+      case 'Riconferma non ricevuta':
+        return Icons.warning_amber_rounded;
+
+      case 'Riconferma richiesta':
+        return Icons.schedule_outlined;
+
+      case 'Richiesta da confermare':
+        return Icons.pending_actions_outlined;
+
+      default:
+        return Icons.notifications_active_outlined;
+    }
+  }
+
+  Color _notificationColor(
+    Map<String, dynamic> booking,
+  ) {
+    final title =
+        _notificationTitle(booking);
+
+    switch (title) {
+      case 'Cliente ha riconfermato':
+        return Colors.green;
+
+      case 'Cliente ha annullato':
+        return Colors.red;
+
+      case 'Riconferma non ricevuta':
+        return Colors.deepOrange;
+
+      case 'Riconferma richiesta':
+        return Colors.orange;
+
+      case 'Richiesta da confermare':
+        return const Color(0xFFC8A45D);
+
+      default:
+        return Colors.blue;
+    }
+  }
+
+  DateTime _notificationSortTime(
+    Map<String, dynamic> booking,
+  ) {
+    dynamic value;
+
+    if (_unreadReconfirmationResult(booking)) {
+      value =
+          booking['lastWhatsappReplyAt'];
+    } else if (_reconfirmationWaiting(booking)) {
+      value =
+          booking['reconfirmationReminderTriggeredAt'] ??
+          booking['reconfirmationWhatsappSentAt'];
+    } else {
+      value =
+          booking['adminNotificationCreatedAt'] ??
+          booking['createdAt'];
+    }
+
+    if (value is Timestamp) {
+      return value.toDate();
+    }
+
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
+  Future<void> _markNotificationRead(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final booking =
+        document.data();
+
+    final reconfirmationStatus =
+        booking['reconfirmationStatus'] as String? ?? '';
+
+    final updates = <String, dynamic>{
+      'adminNotificationRead': true,
+      'adminNotificationReadAt':
+          FieldValue.serverTimestamp(),
+      'updatedAt':
+          FieldValue.serverTimestamp(),
+    };
+
+    if (reconfirmationStatus == 'confirmed' ||
+        reconfirmationStatus == 'cancelled') {
+      updates['reconfirmationResultRead'] =
+          true;
+
+      updates['reconfirmationResultReadAt'] =
+          FieldValue.serverTimestamp();
+    }
+
+    try {
+      await document.reference.set(
+        updates,
+        SetOptions(merge: true),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossibile aggiornare la notifica: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _notificationsPage(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
   ) {
     final notifications =
-        List<QueryDocumentSnapshot<Map<String, dynamic>>>.from(bookings);
+        bookings.where((document) {
+      return _shouldShowNotification(
+        document.data(),
+      );
+    }).toList();
 
     notifications.sort((first, second) {
-      final firstData = first.data();
-      final secondData = second.data();
+      final firstTime =
+          _notificationSortTime(
+              first.data());
 
-      final firstValue =
-          '${firstData['dateKey'] ?? ''} '
-          '${firstData['time'] ?? ''}';
+      final secondTime =
+          _notificationSortTime(
+              second.data());
 
-      final secondValue =
-          '${secondData['dateKey'] ?? ''} '
-          '${secondData['time'] ?? ''}';
-
-      return secondValue.compareTo(firstValue);
+      return secondTime.compareTo(firstTime);
     });
 
     if (notifications.isEmpty) {
@@ -1946,12 +2235,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
         child: Padding(
           padding: EdgeInsets.all(28),
           child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisAlignment:
+                MainAxisAlignment.center,
             children: [
-              Icon(Icons.notifications_none, size: 44, color: Colors.grey),
+              Icon(
+                Icons.notifications_none,
+                size: 44,
+                color: Colors.grey,
+              ),
               SizedBox(height: 12),
               Text(
-                'Nessuna notifica',
+                'Nessuna notifica da gestire',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15),
               ),
@@ -1962,115 +2256,210 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
-      itemCount: notifications.length,
-      itemBuilder: (context, index) {
-        final document = notifications[index];
-        final booking = document.data();
+      padding:
+          const EdgeInsets.fromLTRB(
+              12, 10, 12, 24),
+      itemCount:
+          notifications.length,
+      itemBuilder:
+          (context, index) {
+        final document =
+            notifications[index];
 
-        final firstName = booking['nome'] as String? ?? '';
+        final booking =
+            document.data();
 
-        final lastName = booking['cognome'] as String? ?? '';
+        final firstName =
+            booking['nome'] as String? ?? '';
 
-        final fullName = '$firstName $lastName'.trim();
+        final lastName =
+            booking['cognome'] as String? ?? '';
 
-        final dateKey = booking['dateKey'] as String? ?? '';
+        final fullName =
+            '$firstName $lastName'.trim();
 
-        final time = booking['time'] as String? ?? '--:--';
+        final dateKey =
+            booking['dateKey'] as String? ?? '';
 
-        final guests = _readInteger(booking['guests']);
+        final time =
+            booking['time'] as String? ?? '--:--';
 
-        final notes = booking['notes'] as String? ?? '';
+        final guests =
+            _readInteger(
+                booking['guests']);
 
-        final service = booking['service'] as String? ?? '';
+        final notes =
+            booking['notes'] as String? ?? '';
 
-        final status = booking['status'] as String? ?? 'pending';
+        final service =
+            booking['service'] as String? ?? '';
+
+        final status =
+            booking['status'] as String? ??
+                'pending';
+
+        final notificationTitle =
+            _notificationTitle(booking);
+
+        final notificationColor =
+            _notificationColor(booking);
 
         return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+          margin:
+              const EdgeInsets.only(
+                  bottom: 8),
           child: Padding(
-            padding: const EdgeInsets.all(12),
+            padding:
+                const EdgeInsets.all(12),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  CrossAxisAlignment.start,
               children: [
+                Row(
+                  children: [
+                    Icon(
+                      _notificationIcon(
+                          booking),
+                      color:
+                          notificationColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        notificationTitle,
+                        style: TextStyle(
+                          color:
+                              notificationColor,
+                          fontSize: 13,
+                          fontWeight:
+                              FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     Expanded(
                       child: Text(
-                        fullName.isEmpty ? 'Cliente' : fullName,
-                        style: const TextStyle(
+                        fullName.isEmpty
+                            ? 'Cliente'
+                            : fullName,
+                        style:
+                            const TextStyle(
                           fontSize: 15,
-                          fontWeight: FontWeight.bold,
+                          fontWeight:
+                              FontWeight.bold,
                         ),
                       ),
                     ),
                     Text(
                       '${guests}p',
-                      style: const TextStyle(
+                      style:
+                          const TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                        fontWeight:
+                            FontWeight.bold,
                       ),
                     ),
                   ],
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${_italianDateFromKey(dateKey)} · $time · '
-                  '${_serviceLabel(service)}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  '${_italianDateFromKey(dateKey)} · '
+                  '$time · ${_serviceLabel(service)}',
+                  style:
+                      const TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(
+                  padding:
+                      const EdgeInsets.symmetric(
                     horizontal: 8,
                     vertical: 4,
                   ),
-                  decoration: BoxDecoration(
-                    color: _statusColor(status).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(20),
+                  decoration:
+                      BoxDecoration(
+                    color:
+                        _statusColor(status)
+                            .withValues(
+                                alpha: 0.12),
+                    borderRadius:
+                        BorderRadius.circular(
+                            20),
                   ),
                   child: Text(
-                    status == 'confirmed' ? 'Confermata' : _statusLabel(status),
+                    _statusLabel(status),
                     style: TextStyle(
                       fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: _statusColor(status),
+                      fontWeight:
+                          FontWeight.w700,
+                      color:
+                          _statusColor(status),
                     ),
                   ),
                 ),
-                if (notes.trim().isNotEmpty) ...[
+                if (notes
+                    .trim()
+                    .isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(
                     notes,
                     maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 12),
+                    overflow:
+                        TextOverflow.ellipsis,
+                    style:
+                        const TextStyle(
+                            fontSize: 12),
                   ),
                 ],
-                if (status == 'pending' && _isSupervisor) ...[
+                if (status == 'pending' &&
+                    _isSupervisor) ...[
                   const SizedBox(height: 10),
                   Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton(
+                        child:
+                            OutlinedButton(
                           onPressed: () {
-                            _changeStatus(document, 'rejected');
+                            _changeStatus(
+                              document,
+                              'rejected',
+                            );
                           },
-                          child: const Text(
+                          child:
+                              const Text(
                             'Rifiuta',
-                            style: TextStyle(fontSize: 12),
+                            style:
+                                TextStyle(
+                                    fontSize:
+                                        12),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(
+                          width: 8),
                       Expanded(
-                        child: FilledButton(
+                        child:
+                            FilledButton(
                           onPressed: () {
-                            _changeStatus(document, 'confirmed');
+                            _changeStatus(
+                              document,
+                              'confirmed',
+                            );
                           },
-                          child: const Text(
+                          child:
+                              const Text(
                             'Conferma',
-                            style: TextStyle(fontSize: 12),
+                            style:
+                                TextStyle(
+                                    fontSize:
+                                        12),
                           ),
                         ),
                       ),
@@ -2078,34 +2467,62 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   ),
                 ],
                 Align(
-                  alignment: Alignment.centerRight,
+                  alignment:
+                      Alignment.centerRight,
                   child: TextButton(
-                    onPressed: () {
-                      final parts = dateKey.split('-');
+                    onPressed: () async {
+                      final parts =
+                          dateKey.split('-');
 
                       if (parts.length != 3) {
                         return;
                       }
 
-                      final year = int.tryParse(parts[0]);
-                      final month = int.tryParse(parts[1]);
-                      final day = int.tryParse(parts[2]);
+                      final year =
+                          int.tryParse(
+                              parts[0]);
 
-                      if (year == null || month == null || day == null) {
+                      final month =
+                          int.tryParse(
+                              parts[1]);
+
+                      final day =
+                          int.tryParse(
+                              parts[2]);
+
+                      if (year == null ||
+                          month == null ||
+                          day == null) {
+                        return;
+                      }
+
+                      await _markNotificationRead(
+                          document);
+
+                      if (!mounted) {
                         return;
                       }
 
                       setState(() {
-                        _selectedDate = DateTime(year, month, day);
+                        _selectedDate =
+                            DateTime(
+                          year,
+                          month,
+                          day,
+                        );
 
                         _bottomIndex = 0;
                         _selectedSection = 0;
-                        _selectedFilter = 'all';
+                        _selectedFilter =
+                            'all';
                       });
                     },
-                    child: const Text(
+                    child:
+                        const Text(
                       'Apri nel servizio',
-                      style: TextStyle(fontSize: 12),
+                      style:
+                          TextStyle(
+                              fontSize: 12),
                     ),
                   ),
                 ),
@@ -2116,7 +2533,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
       },
     );
   }
-
   Future<void> _setNotificationsEnabled(bool value) async {
     final success = value
         ? await PushNotificationService.enableWebNotifications()
@@ -2737,9 +3153,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }
 
         final pendingCount = allBookings.where((document) {
-          final status = document.data()['status'] as String? ?? '';
-
-          return status == 'pending';
+          return _shouldShowNotification(
+            document.data(),
+          );
         }).length;
 
         Widget body;

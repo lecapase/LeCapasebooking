@@ -384,6 +384,23 @@ exports.onNewBooking =
           return;
         }
 
+        await snapshot.ref.set(
+            {
+              adminNotificationRead:
+                false,
+
+              adminNotificationCreatedAt:
+                FieldValue.serverTimestamp(),
+
+              updatedAt:
+                FieldValue.serverTimestamp(),
+            },
+            {
+              merge:
+                true,
+            },
+        );
+
         const tokens =
           await getNotificationTokens();
 
@@ -2734,6 +2751,9 @@ async function processReconfirmationReply(
                 reconfirmedVia:
                   "whatsapp",
 
+                reconfirmationResultRead:
+                  false,
+
                 lastWhatsappReply:
                   "confirm",
 
@@ -2848,6 +2868,9 @@ async function processReconfirmationReply(
 
                 cancellationSource:
                   "whatsapp_reconfirmation",
+
+                reconfirmationResultRead:
+                  false,
 
                 lastWhatsappReply:
                   "cancel",
