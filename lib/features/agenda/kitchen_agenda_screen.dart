@@ -464,7 +464,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Agenda cucina'),
+        title: const Text('Agenda'),
         actions: [
           IconButton(
             tooltip: 'Calendario',
