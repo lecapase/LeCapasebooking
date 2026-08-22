@@ -37,14 +37,23 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
           .httpsCallable('listActiveStaffProfiles')
           .call();
 
-      final data = Map<String, dynamic>.from(result.data as Map);
+      final rawData = result.data;
 
-      final rawProfiles = data['profiles'] as List? ?? const [];
+      if (rawData is! Map) {
+        throw StateError('Risposta utenti non valida.');
+      }
+
+      final rawProfiles = rawData['profiles'];
+
+      if (rawProfiles is! List) {
+        throw StateError('Elenco utenti non valido.');
+      }
 
       final profiles = rawProfiles
-          .map((item) => Map<String, dynamic>.from(item as Map))
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
           .map(
-            (item) => {
+            (item) => <String, String>{
               'uid': (item['uid'] ?? '').toString(),
               'displayName': (item['displayName'] ?? '').toString(),
               'loginEmail': (item['loginEmail'] ?? '').toString(),
