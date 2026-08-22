@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -11,7 +12,12 @@ class StaffUsersScreen extends StatefulWidget {
 
 class _StaffUsersScreenState extends State<StaffUsersScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   final FirebaseAuth _auth = FirebaseAuth.instance;
+
+  final FirebaseFunctions _functions = FirebaseFunctions.instanceFor(
+    region: 'europe-west1',
+  );
 
   static const Map<String, String> _roleLabels = {
     'staff': 'Staff',
@@ -20,12 +26,39 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
     'admin': 'Amministratore',
   };
 
+  void _message(String message) {
+    if (!mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), behavior: SnackBarBehavior.floating),
+      );
+  }
+
+  String _functionError(Object error, String fallback) {
+    if (error is FirebaseFunctionsException) {
+      return error.message ?? fallback;
+    }
+
+    return fallback;
+  }
+
   Future<void> _openNewUserDialog() async {
     final nameController = TextEditingController();
+
     final emailController = TextEditingController();
+
+    final passwordController = TextEditingController();
+
+    final confirmController = TextEditingController();
 
     String selectedRole = 'staff';
     bool saving = false;
+    bool obscure = true;
+    String? errorText;
 
     await showDialog<void>(
       context: context,
@@ -34,73 +67,72 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             Future<void> save() async {
+              if (saving) {
+                return;
+              }
+
               final displayName = nameController.text.trim();
+
               final email = emailController.text.trim().toLowerCase();
-              final currentUser = _auth.currentUser;
+
+              final password = passwordController.text;
 
               if (displayName.length < 2) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Inserisci il nome utente.')),
-                );
+                setDialogState(() {
+                  errorText = 'Inserisci il nome utente.';
+                });
                 return;
               }
 
-              if (!email.contains('@') || email.length < 5) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Inserisci una email valida.')),
-                );
+              if (!email.contains('@')) {
+                setDialogState(() {
+                  errorText = 'Inserisci una email valida.';
+                });
                 return;
               }
 
-              if (currentUser == null) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Sessione non valida. Effettua nuovamente il login.',
-                    ),
-                  ),
-                );
+              if (password.length < 8) {
+                setDialogState(() {
+                  errorText = 'La password deve avere almeno 8 caratteri.';
+                });
+                return;
+              }
+
+              if (password != confirmController.text) {
+                setDialogState(() {
+                  errorText = 'Le password non coincidono.';
+                });
                 return;
               }
 
               setDialogState(() {
                 saving = true;
+                errorText = null;
               });
 
               try {
-                await _firestore.collection('staff_user_invites').add({
+                await _functions.httpsCallable('createStaffUser').call({
                   'displayName': displayName,
                   'email': email,
                   'role': selectedRole,
-                  'createdBy': currentUser.uid,
-                  'status': 'pending',
-                  'createdAt': FieldValue.serverTimestamp(),
+                  'password': password,
                 });
 
-                if (!dialogContext.mounted) return;
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
                 Navigator.of(dialogContext).pop();
 
-                if (!mounted) return;
-
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'Invito creato. Il sistema sta preparando lâ€™account e inviando lâ€™email.',
-                    ),
-                  ),
-                );
+                _message('Utente creato correttamente.');
               } catch (error) {
                 setDialogState(() {
                   saving = false;
+                  errorText = _functionError(
+                    error,
+                    'Impossibile creare l\'utente.',
+                  );
                 });
-
-                if (!mounted) return;
-
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  SnackBar(
-                    content: Text('Errore durante la creazione: $error'),
-                  ),
-                );
               }
             }
 
@@ -108,51 +140,100 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
               title: const Text('Nuovo utente'),
               content: SizedBox(
                 width: 430,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: nameController,
-                      textCapitalization: TextCapitalization.words,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome e cognome',
-                        prefixIcon: Icon(Icons.person_outline),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextField(
+                        controller: nameController,
+                        enabled: !saving,
+                        textCapitalization: TextCapitalization.words,
+                        decoration: const InputDecoration(
+                          labelText: 'Nome e cognome',
+                          prefixIcon: Icon(Icons.person_outline),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    TextField(
-                      controller: emailController,
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.email_outlined),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: emailController,
+                        enabled: !saving,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(
+                          labelText: 'Email',
+                          prefixIcon: Icon(Icons.email_outlined),
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    DropdownButtonFormField<String>(
-                      initialValue: selectedRole,
-                      decoration: const InputDecoration(
-                        labelText: 'Ruolo',
-                        prefixIcon: Icon(Icons.badge_outlined),
+                      const SizedBox(height: 14),
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedRole,
+                        decoration: const InputDecoration(
+                          labelText: 'Ruolo',
+                          prefixIcon: Icon(Icons.badge_outlined),
+                        ),
+                        items: _roleLabels.entries
+                            .map(
+                              (entry) => DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(entry.value),
+                              ),
+                            )
+                            .toList(),
+                        onChanged: saving
+                            ? null
+                            : (value) {
+                                if (value == null) {
+                                  return;
+                                }
+
+                                setDialogState(() {
+                                  selectedRole = value;
+                                });
+                              },
                       ),
-                      items: _roleLabels.entries
-                          .map(
-                            (entry) => DropdownMenuItem<String>(
-                              value: entry.key,
-                              child: Text(entry.value),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: passwordController,
+                        enabled: !saving,
+                        obscureText: obscure,
+                        decoration: InputDecoration(
+                          labelText: 'Password iniziale',
+                          prefixIcon: const Icon(Icons.lock_outline),
+                          suffixIcon: IconButton(
+                            onPressed: saving
+                                ? null
+                                : () {
+                                    setDialogState(() {
+                                      obscure = !obscure;
+                                    });
+                                  },
+                            icon: Icon(
+                              obscure
+                                  ? Icons.visibility_outlined
+                                  : Icons.visibility_off_outlined,
                             ),
-                          )
-                          .toList(),
-                      onChanged: saving
-                          ? null
-                          : (value) {
-                              if (value == null) return;
-                              setDialogState(() {
-                                selectedRole = value;
-                              });
-                            },
-                    ),
-                  ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      TextField(
+                        controller: confirmController,
+                        enabled: !saving,
+                        obscureText: obscure,
+                        onSubmitted: (_) => save(),
+                        decoration: InputDecoration(
+                          labelText: 'Conferma password',
+                          prefixIcon: const Icon(Icons.lock_reset_outlined),
+                          errorText: errorText,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Al primo accesso l\'utente potra mantenerla oppure cambiarla.',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
                 ),
               ),
               actions: [
@@ -179,23 +260,252 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
         );
       },
     );
+
+    nameController.dispose();
+    emailController.dispose();
+    passwordController.dispose();
+    confirmController.dispose();
+  }
+
+  Future<void> _resetPassword(String uid, String displayName) async {
+    final passwordController = TextEditingController();
+
+    final confirmController = TextEditingController();
+
+    bool saving = false;
+    bool obscure = true;
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> save() async {
+              final password = passwordController.text;
+
+              if (password.length < 8) {
+                setDialogState(() {
+                  errorText = 'Usa almeno 8 caratteri.';
+                });
+                return;
+              }
+
+              if (password != confirmController.text) {
+                setDialogState(() {
+                  errorText = 'Le password non coincidono.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                saving = true;
+                errorText = null;
+              });
+
+              try {
+                await _functions.httpsCallable('resetStaffPassword').call({
+                  'uid': uid,
+                  'password': password,
+                });
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop();
+
+                _message(
+                  'Password temporanea assegnata a ' + displayName + '.',
+                );
+              } catch (error) {
+                setDialogState(() {
+                  saving = false;
+                  errorText = _functionError(
+                    error,
+                    'Reimpostazione non riuscita.',
+                  );
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: Text('Password di ' + displayName),
+              content: SizedBox(
+                width: 390,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: passwordController,
+                      autofocus: true,
+                      enabled: !saving,
+                      obscureText: obscure,
+                      decoration: InputDecoration(
+                        labelText: 'Nuova password temporanea',
+                        prefixIcon: const Icon(Icons.lock_reset),
+                        suffixIcon: IconButton(
+                          onPressed: saving
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    obscure = !obscure;
+                                  });
+                                },
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: confirmController,
+                      enabled: !saving,
+                      obscureText: obscure,
+                      onSubmitted: (_) => save(),
+                      decoration: InputDecoration(
+                        labelText: 'Conferma password',
+                        errorText: errorText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: saving
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: saving ? null : save,
+                  child: saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Reimposta'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    passwordController.dispose();
+    confirmController.dispose();
+  }
+
+  Future<void> _deleteUser(String uid, String displayName) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Elimina utente'),
+          content: Text('Vuoi eliminare definitivamente ' + displayName + '?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Elimina'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await _functions.httpsCallable('deleteStaffUser').call({'uid': uid});
+
+      _message(displayName + ' eliminato correttamente.');
+    } catch (error) {
+      _message(_functionError(error, 'Impossibile eliminare l\'utente.'));
+    }
+  }
+
+  Future<void> _editOwnProfile() async {
+    final user = _auth.currentUser;
+
+    if (user == null) {
+      return;
+    }
+
+    final nameController = TextEditingController(text: 'Antonio');
+
+    final selectedName = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Profilo amministratore'),
+          content: TextField(
+            controller: nameController,
+            autofocus: true,
+            textCapitalization: TextCapitalization.words,
+            decoration: const InputDecoration(
+              labelText: 'Nome da mostrare nella homepage',
+              prefixIcon: Icon(Icons.person_outline),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Annulla'),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(nameController.text.trim()),
+              child: const Text('Salva'),
+            ),
+          ],
+        );
+      },
+    );
+
+    nameController.dispose();
+
+    if (selectedName == null || selectedName.length < 2) {
+      return;
+    }
+
+    await _firestore.collection('admins').doc(user.uid).set({
+      'uid': user.uid,
+      'displayName': selectedName,
+      'email': user.email ?? '',
+      'role': 'admin',
+      'active': true,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+
+    _message('Profilo amministratore aggiornato.');
   }
 
   Future<void> _editUser(String uid, Map<String, dynamic> data) async {
     if (uid == _auth.currentUser?.uid) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Per sicurezza non puoi modificare il tuo account da questa schermata.',
-          ),
-        ),
-      );
+      _message('Non puoi modificare il tuo account da questa schermata.');
       return;
     }
 
     String selectedRole = (data['role'] ?? 'staff').toString();
+
     bool active = data['active'] == true;
     bool saving = false;
+
+    final displayName = (data['displayName'] ?? 'Utente').toString();
 
     await showDialog<void>(
       context: context,
@@ -211,33 +521,28 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
                 await _firestore.collection('staff_users').doc(uid).update({
                   'role': selectedRole,
                   'active': active,
+                  'updatedAt': FieldValue.serverTimestamp(),
                 });
 
-                if (!dialogContext.mounted) return;
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
                 Navigator.of(dialogContext).pop();
-
-                if (!mounted) return;
-
-                ScaffoldMessenger.of(this.context).showSnackBar(
-                  const SnackBar(content: Text('Utente aggiornato.')),
-                );
+                _message('Utente aggiornato.');
               } catch (error) {
                 setDialogState(() {
                   saving = false;
                 });
 
-                if (!mounted) return;
-
-                ScaffoldMessenger.of(
-                  this.context,
-                ).showSnackBar(SnackBar(content: Text('Errore: $error')));
+                _message('Aggiornamento non riuscito.');
               }
             }
 
             return AlertDialog(
-              title: Text((data['displayName'] ?? 'Utente').toString()),
+              title: Text(displayName),
               content: SizedBox(
-                width: 400,
+                width: 410,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -260,20 +565,23 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
                       onChanged: saving
                           ? null
                           : (value) {
-                              if (value == null) return;
+                              if (value == null) {
+                                return;
+                              }
+
                               setDialogState(() {
                                 selectedRole = value;
                               });
                             },
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Utente attivo'),
                       subtitle: Text(
                         active
-                            ? 'PuÃ² accedere al gestionale'
-                            : 'Accesso al gestionale disabilitato',
+                            ? 'Puo accedere al gestionale'
+                            : 'Accesso disabilitato',
                       ),
                       value: active,
                       onChanged: saving
@@ -283,6 +591,39 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
                                 active = value;
                               });
                             },
+                    ),
+                    const Divider(height: 28),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                Navigator.of(dialogContext).pop();
+
+                                await _resetPassword(uid, displayName);
+                              },
+                        icon: const Icon(Icons.lock_reset),
+                        label: const Text('Reimposta password'),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                        ),
+                        onPressed: saving
+                            ? null
+                            : () async {
+                                Navigator.of(dialogContext).pop();
+
+                                await _deleteUser(uid, displayName);
+                              },
+                        icon: const Icon(Icons.delete_outline),
+                        label: const Text('Elimina utente'),
+                      ),
                     ),
                   ],
                 ),
@@ -321,7 +662,16 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
     final currentUid = _auth.currentUser?.uid;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Utenti e permessi')),
+      appBar: AppBar(
+        title: const Text('Utenti e permessi'),
+        actions: [
+          IconButton(
+            tooltip: 'Profilo amministratore',
+            onPressed: _editOwnProfile,
+            icon: const Icon(Icons.manage_accounts_outlined),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _openNewUserDialog,
         icon: const Icon(Icons.person_add_alt_1),
@@ -331,14 +681,8 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
         stream: _firestore.collection('staff_users').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Text(
-                  'Impossibile caricare gli utenti.\n\n${snapshot.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+            return const Center(
+              child: Text('Impossibile caricare gli utenti.'),
             );
           }
 
@@ -348,51 +692,16 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
 
           final users = snapshot.data!.docs.toList()
             ..sort((a, b) {
-              final nameA = (a.data()['displayName'] ?? '')
+              final first = (a.data()['displayName'] ?? '')
                   .toString()
                   .toLowerCase();
-              final nameB = (b.data()['displayName'] ?? '')
-                  .toString()
-                  .toLowerCase();
-              return nameA.compareTo(nameB);
-            });
 
-          if (users.isEmpty) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.groups_outlined,
-                      size: 54,
-                      color: Color(0xFFC8A45D),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Nessun utente staff',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Crea il primo account per iniziare a gestire gli accessi.',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    FilledButton.icon(
-                      onPressed: _openNewUserDialog,
-                      icon: const Icon(Icons.person_add_alt_1),
-                      label: const Text('Nuovo utente'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
+              final second = (b.data()['displayName'] ?? '')
+                  .toString()
+                  .toLowerCase();
+
+              return first.compareTo(second);
+            });
 
           return ListView.separated(
             padding: const EdgeInsets.fromLTRB(12, 12, 12, 90),
@@ -400,12 +709,17 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
             separatorBuilder: (_, _) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final document = users[index];
+
               final data = document.data();
 
               final displayName = (data['displayName'] ?? 'Utente').toString();
+
               final email = (data['email'] ?? '').toString();
+
               final role = (data['role'] ?? 'staff').toString();
+
               final active = data['active'] == true;
+
               final isMe = document.id == currentUid;
 
               return ListTile(
@@ -477,9 +791,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
                     ],
                   ),
                 ),
-                trailing: isMe
-                    ? const Icon(Icons.verified_user_outlined)
-                    : const Icon(Icons.chevron_right),
+                trailing: const Icon(Icons.chevron_right),
                 onTap: () => _editUser(document.id, data),
               );
             },

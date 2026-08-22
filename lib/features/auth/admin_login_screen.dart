@@ -226,6 +226,168 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     passwordController.dispose();
   }
 
+  Future<void> _openAdministratorLogin() async {
+    final emailController = TextEditingController();
+
+    final passwordController = TextEditingController();
+
+    bool signingIn = false;
+    bool obscurePassword = true;
+    String? errorText;
+
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> login() async {
+              if (signingIn) {
+                return;
+              }
+
+              final email = emailController.text.trim().toLowerCase();
+
+              final password = passwordController.text;
+
+              if (!email.contains('@')) {
+                setDialogState(() {
+                  errorText = 'Inserisci una email valida.';
+                });
+                return;
+              }
+
+              if (password.isEmpty) {
+                setDialogState(() {
+                  errorText = 'Inserisci la password.';
+                });
+                return;
+              }
+
+              setDialogState(() {
+                signingIn = true;
+                errorText = null;
+              });
+
+              try {
+                if (kIsWeb) {
+                  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
+                }
+
+                await FirebaseAuth.instance.signInWithEmailAndPassword(
+                  email: email,
+                  password: password,
+                );
+
+                if (!dialogContext.mounted) {
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop();
+              } on FirebaseAuthException catch (error) {
+                String message = 'Email o password non corretti.';
+
+                if (error.code == 'too-many-requests') {
+                  message = 'Troppi tentativi. Riprova tra qualche minuto.';
+                } else if (error.code == 'network-request-failed') {
+                  message = 'Problema di connessione.';
+                } else if (error.code == 'user-disabled') {
+                  message = 'Questo account \u00e8 disattivato.';
+                }
+
+                setDialogState(() {
+                  signingIn = false;
+                  errorText = message;
+                });
+              } catch (_) {
+                setDialogState(() {
+                  signingIn = false;
+                  errorText = 'Accesso non riuscito.';
+                });
+              }
+            }
+
+            return AlertDialog(
+              title: const Text(
+                'Accesso amministratore',
+                textAlign: TextAlign.center,
+              ),
+              content: SizedBox(
+                width: 370,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: emailController,
+                      autofocus: true,
+                      enabled: !signingIn,
+                      keyboardType: TextInputType.emailAddress,
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(
+                        labelText: 'Email',
+                        prefixIcon: Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: passwordController,
+                      enabled: !signingIn,
+                      obscureText: obscurePassword,
+                      textInputAction: TextInputAction.done,
+                      onSubmitted: (_) => login(),
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        errorText: errorText,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: IconButton(
+                          onPressed: signingIn
+                              ? null
+                              : () {
+                                  setDialogState(() {
+                                    obscurePassword = !obscurePassword;
+                                  });
+                                },
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: signingIn
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Annulla'),
+                ),
+                FilledButton(
+                  onPressed: signingIn ? null : login,
+                  child: signingIn
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('ACCEDI'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    emailController.dispose();
+    passwordController.dispose();
+  }
+
   Widget _profileButton(Map<String, String> profile) {
     return SizedBox(
       height: 54,
@@ -334,6 +496,14 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   const SizedBox(height: 34),
                   Expanded(child: _content()),
+                  TextButton.icon(
+                    onPressed: _openAdministratorLogin,
+                    icon: const Icon(
+                      Icons.admin_panel_settings_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('Accesso amministratore'),
+                  ),
                   const SizedBox(height: 12),
                   const Text(
                     'Seleziona il tuo nome e inserisci la password',
