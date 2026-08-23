@@ -208,9 +208,14 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                     SegmentedButton<String>(
                       segments: const [
                         ButtonSegment<String>(
-                          value: 'whatsapp',
+                          value: 'whatsapp_text',
+                          icon: Icon(Icons.chat_bubble_outline),
+                          label: Text('WA testo'),
+                        ),
+                        ButtonSegment<String>(
+                          value: 'whatsapp_image',
                           icon: Icon(Icons.chat_outlined),
-                          label: Text('WhatsApp'),
+                          label: Text('WA + foto'),
                         ),
                         ButtonSegment<String>(
                           value: 'email',
@@ -300,33 +305,11 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                       width: double.infinity,
                       child: FilledButton.icon(
                         onPressed: () async {
-                          if (selectedContacts.length != 1) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Per il test seleziona un solo cliente.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
+                          final campaignName =
+                              campaignNameController.text.trim();
 
-                          if (channel != 'email') {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'WhatsApp marketing sarà attivato dopo '
-                                  'l’approvazione del template dedicato.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final campaignName = campaignNameController.text
-                              .trim();
-
-                          final message = messageController.text.trim();
+                          final message =
+                              messageController.text.trim();
 
                           if (campaignName.length < 2) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -350,17 +333,44 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                             return;
                           }
 
-                          final customerId = selectedContacts.first.id;
+                          final customerIds = selectedContacts
+                              .map((document) => document.id)
+                              .toList();
+
+                          if (customerIds.isEmpty) {
+                            return;
+                          }
+
+                          if (customerIds.length > 50) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Puoi selezionare al massimo 50 destinatari.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          final channelLabel =
+                              channel == 'email'
+                                  ? 'Email'
+                                  : channel == 'whatsapp_text'
+                                      ? 'WhatsApp - solo testo'
+                                      : channel == 'whatsapp_image'
+                                          ? 'WhatsApp - immagine Capa + testo'
+                                          : 'Email + WhatsApp con immagine Capa';
 
                           final confirmed = await showDialog<bool>(
                             context: context,
                             builder: (dialogContext) {
                               return AlertDialog(
-                                title: const Text('Conferma invio di test'),
-                                content: const Text(
-                                  'Stai per inviare realmente questa '
-                                  'email al cliente selezionato.\n\n'
-                                  'Vuoi procedere?',
+                                title: const Text('Conferma campagna'),
+                                content: Text(
+                                  'Stai per inviare realmente questa campagna a '
+                                  ' clienti.\n\n'
+                                  'Canale: $channelLabel\n\n'
+                                  'Il sistema verifichera il consenso di ogni cliente prima dell''invio.',
                                 ),
                                 actions: [
                                   TextButton(
@@ -371,7 +381,7 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                                   FilledButton(
                                     onPressed: () =>
                                         Navigator.of(dialogContext).pop(true),
-                                    child: const Text('INVIA EMAIL'),
+                                    child: const Text('INVIA'),
                                   ),
                                 ],
                               );
@@ -388,8 +398,8 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                               <String, dynamic>{
                                 'campaignName': campaignName,
                                 'message': message,
-                                'channel': 'email',
-                                'customerIds': <String>[customerId],
+                                'channel': channel,
+                                'customerIds': customerIds,
                               },
                             );
 
@@ -397,14 +407,24 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                               return;
                             }
 
+                            final emailSent = result['emailSent'] ?? 0;
+                            final emailSkipped = result['emailSkipped'] ?? 0;
+                            final emailFailed = result['emailFailed'] ?? 0;
+
+                            final whatsappSent = result['whatsappSent'] ?? 0;
+                            final whatsappSkipped =
+                                result['whatsappSkipped'] ?? 0;
+                            final whatsappFailed =
+                                result['whatsappFailed'] ?? 0;
+
                             Navigator.of(sheetContext).pop();
 
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  result['success'] == true
-                                      ? 'Campagna completata. Inviati:  - Saltati:  - Errori: '
-                                      : 'Invio non completato.',
+                                  'Campagna completata.\n'
+                                  'Email: $emailSent inviate, $emailSkipped saltate, $emailFailed errori.\n'
+                                  'WhatsApp: $whatsappSent inviati, $whatsappSkipped saltati, $whatsappFailed errori.',
                                 ),
                               ),
                             );
@@ -418,18 +438,20 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                             }
 
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Errore invio: $error')),
+                              SnackBar(
+                                content: Text('Errore invio: $error'),
+                              ),
                             );
                           }
                         },
                         icon: const Icon(Icons.send_outlined),
-                        label: const Text('INVIA CAMPAGNA EMAIL'),
+                        label: const Text('INVIA CAMPAGNA'),
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Center(
                       child: Text(
-                        'Massimo 50 destinatari per campagna. Invio disponibile solo tramite Email.',
+                        'Massimo 50 destinatari per campagna.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
