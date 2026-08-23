@@ -37,6 +37,10 @@ const {
   getMessaging,
 } = require("firebase-admin/messaging");
 
+const {
+  onCall,
+  HttpsError,
+} = require("firebase-functions/v2/https");
 const nodemailer =
   require("nodemailer");
 
@@ -2117,6 +2121,270 @@ exports.onCustomerBookingStatusChanged =
         }
       },
   );
+
+// ============================================================
+// CAMPAGNE MARKETING - SOLO AMMINISTRATORI
+// ============================================================
+
+async function marketingUserIsAdmin(uid) {
+  if (!uid) {
+    return false;
+  }
+
+  const adminSnapshot =
+    await db.collection("admins").doc(uid).get();
+
+  if (
+    adminSnapshot.exists &&
+    adminSnapshot.data()?.active !== false
+  ) {
+    return true;
+  }
+
+  const staffSnapshot =
+    await db.collection("staff_users").doc(uid).get();
+
+  if (!staffSnapshot.exists) {
+    return false;
+  }
+
+  const staffData = staffSnapshot.data();
+
+  return staffData &&
+    staffData.active === true &&
+    staffData.role === "admin";
+}
+
+exports.sendMarketingCampaign =
+  onCall(
+      {
+        region: "europe-west1",
+        timeoutSeconds: 60,
+        secrets: [
+          gmailUser,
+          gmailAppPassword,
+          dialog360ApiKey,
+        ],
+      },
+      async (request) => {
+        const uid =
+          request.auth &&
+          request.auth.uid;
+
+        if (!uid) {
+          throw new HttpsError(
+              "unauthenticated",
+              "Devi effettuare l'accesso.",
+          );
+        }
+
+        if (!await marketingUserIsAdmin(uid)) {
+          throw new HttpsError(
+              "permission-denied",
+              "Solo un amministratore può inviare campagne.",
+          );
+        }
+
+        const data =
+          request.data || {};
+
+        const campaignName =
+          typeof data.campaignName === "string" ?
+            data.campaignName.trim() :
+            "";
+
+        const message =
+          typeof data.message === "string" ?
+            data.message.trim() :
+            "";
+
+        const channel =
+          typeof data.channel === "string" ?
+            data.channel.trim() :
+            "";
+
+        const customerIds =
+          Array.isArray(data.customerIds) ?
+            data.customerIds
+                .filter((value) =>
+                  typeof value === "string" &&
+                  value.trim().length > 0,
+                )
+                .map((value) => value.trim()) :
+            [];
+
+        if (campaignName.length < 2) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Inserisci il nome della campagna.",
+          );
+        }
+
+        if (message.length < 2) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Inserisci il messaggio della campagna.",
+          );
+        }
+
+        if (
+          channel !== "email" &&
+          channel !== "whatsapp" &&
+          channel !== "both"
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Canale campagna non valido.",
+          );
+        }
+
+        // SICUREZZA TEST:
+        // per ora massimo UN destinatario.
+        if (customerIds.length !== 1) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Durante il test è consentito un solo destinatario.",
+          );
+        }
+
+        if (
+          channel === "whatsapp" ||
+          channel === "both"
+        ) {
+          throw new HttpsError(
+              "failed-precondition",
+              "WhatsApp marketing non è ancora attivo: " +
+              "serve un template marketing approvato.",
+          );
+        }
+
+        const customerId =
+          customerIds[0];
+
+        const profileSnapshot =
+          await db
+              .collection("customer_profiles")
+              .doc(customerId)
+              .get();
+
+        if (!profileSnapshot.exists) {
+          throw new HttpsError(
+              "not-found",
+              "Contatto non trovato.",
+          );
+        }
+
+        const profile =
+          profileSnapshot.data() || {};
+
+        if (profile.marketingEmailConsent !== true) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Il cliente non ha il consenso marketing email.",
+          );
+        }
+
+        const email =
+          typeof profile.email === "string" ?
+            profile.email.trim() :
+            "";
+
+        if (!email || !email.includes("@")) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Il cliente non ha un indirizzo email valido.",
+          );
+        }
+
+        const sender =
+          gmailUser.value();
+
+        const transporter =
+          nodemailer.createTransport({
+            service: "gmail",
+            auth: {
+              user: sender,
+              pass: gmailAppPassword.value(),
+            },
+          });
+
+        const name =
+          customerName(profile);
+
+        const subject =
+          campaignName;
+
+        const text =
+          `Ciao ${name},\n\n` +
+          `${message}\n\n` +
+          "Le Capase";
+
+        const safeMessage =
+          message
+              .replace(/&/g, "&amp;")
+              .replace(/</g, "&lt;")
+              .replace(/>/g, "&gt;")
+              .replace(/\n/g, "<br>");
+
+        const html =
+          `<p>Ciao ${name},</p>` +
+          `<p>${safeMessage}</p>` +
+          "<p><strong>Le Capase</strong></p>";
+
+        const result =
+          await transporter.sendMail({
+            from:
+              `"Le Capase" <${sender}>`,
+            replyTo:
+              sender,
+            to:
+              email,
+            subject,
+            text,
+            html,
+          });
+
+        const campaignReference =
+          db.collection("marketing_campaigns").doc();
+
+        await campaignReference.set({
+          campaignName,
+          message,
+          channel: "email",
+          createdBy: uid,
+          createdAt:
+            FieldValue.serverTimestamp(),
+
+          requestedRecipients: 1,
+          sentRecipients: 1,
+          skippedRecipients: 0,
+          failedRecipients: 0,
+
+          recipients: [
+            {
+              customerId,
+              email,
+              name,
+              channel: "email",
+              status: "sent",
+              messageId:
+                result.messageId || null,
+            },
+          ],
+        });
+
+        return {
+          success: true,
+          campaignId:
+            campaignReference.id,
+          sent: 1,
+          skipped: 0,
+          failed: 0,
+          channel: "email",
+        };
+      },
+  );
+
 const staffUserFunctions =
   require("./staff_users");
 
