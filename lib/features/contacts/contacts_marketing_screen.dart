@@ -403,8 +403,7 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                               SnackBar(
                                 content: Text(
                                   result['success'] == true
-                                      ? 'Email marketing inviata '
-                                            'correttamente.'
+                                      ? 'Campagna completata. Inviati:  - Saltati:  - Errori: '
                                       : 'Invio non completato.',
                                 ),
                               ),
@@ -424,13 +423,13 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                           }
                         },
                         icon: const Icon(Icons.send_outlined),
-                        label: const Text('INVIA EMAIL DI TEST'),
+                        label: const Text('INVIA CAMPAGNA EMAIL'),
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Center(
                       child: Text(
-                        'Per ora è consentito un solo destinatario e solo tramite Email.',
+                        'Massimo 50 destinatari per campagna. Invio disponibile solo tramite Email.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 11, color: Colors.grey),
                       ),
