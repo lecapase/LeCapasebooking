@@ -2155,11 +2155,159 @@ async function marketingUserIsAdmin(uid) {
     staffData.role === "admin";
 }
 
+const MARKETING_WHATSAPP_TEXT_TEMPLATE =
+  "le_capase_novita_marketing";
+
+const MARKETING_WHATSAPP_IMAGE_TEMPLATE =
+  "le_capase_novita_marketing_image";
+
+const MARKETING_WHATSAPP_IMAGE_URL =
+  "https://lecapase-booking-3af33.web.app/" +
+  "images/capa-marketing-template.png";
+
+function marketingFirstName(data) {
+  const value =
+    (typeof data.nome === "string" && data.nome.trim()) ||
+    (typeof data.firstName === "string" && data.firstName.trim()) ||
+    (typeof data.name === "string" && data.name.trim()) ||
+    "";
+
+  return value.length > 0 ? value : "Cliente";
+}
+
+function marketingEmail(data) {
+  const value =
+    (typeof data.email === "string" && data.email.trim()) ||
+    (typeof data.normalizedEmail === "string" &&
+      data.normalizedEmail.trim()) ||
+    "";
+
+  return value;
+}
+
+function marketingPhone(data) {
+  return normalizePhone(
+      data.normalizedPhone ||
+      data.telefono ||
+      data.phone ||
+      "",
+  );
+}
+
+function marketingHtmlEscape(value) {
+  return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+}
+
+async function sendMarketingCampaignWhatsapp({
+  phone,
+  templateName,
+  firstName,
+  message,
+  imageUrl,
+}) {
+  const components = [];
+
+  if (
+    typeof imageUrl === "string" &&
+    imageUrl.trim().length > 0
+  ) {
+    components.push({
+      type: "header",
+      parameters: [
+        {
+          type: "image",
+          image: {
+            link: imageUrl.trim(),
+          },
+        },
+      ],
+    });
+  }
+
+  components.push({
+    type: "body",
+    parameters: [
+      whatsappTextParameter(firstName),
+      whatsappTextParameter(message),
+    ],
+  });
+
+  const response =
+    await fetch(
+        "https://waba-v2.360dialog.io/messages",
+        {
+          method: "POST",
+
+          headers: {
+            "Content-Type": "application/json",
+
+            "D360-API-KEY":
+              dialog360ApiKey.value(),
+          },
+
+          body:
+            JSON.stringify({
+              messaging_product: "whatsapp",
+              recipient_type: "individual",
+              to: phone,
+              type: "template",
+
+              template: {
+                name: templateName,
+
+                language: {
+                  code: "it",
+                },
+
+                components,
+              },
+            }),
+        },
+    );
+
+  const rawBody =
+    await response.text();
+
+  let parsedBody =
+    null;
+
+  if (rawBody.length > 0) {
+    try {
+      parsedBody =
+        JSON.parse(rawBody);
+    } catch (_) {
+      parsedBody =
+        null;
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(
+        `360dialog HTTP ${response.status}: ` +
+        rawBody.substring(0, 500),
+    );
+  }
+
+  return {
+    messageId:
+      parsedBody?.messages?.[0]?.id ||
+      null,
+
+    response:
+      parsedBody,
+  };
+}
+
 exports.sendMarketingCampaign =
   onCall(
       {
         region: "europe-west1",
-        timeoutSeconds: 60,
+        timeoutSeconds: 300,
+
         secrets: [
           gmailUser,
           gmailAppPassword,
@@ -2198,19 +2346,28 @@ exports.sendMarketingCampaign =
             data.message.trim() :
             "";
 
-        const channel =
+        let channel =
           typeof data.channel === "string" ?
             data.channel.trim() :
             "";
 
+        // Compatibilità con la vecchia UI.
+        if (channel === "whatsapp") {
+          channel = "whatsapp_image";
+        }
+
         const customerIds =
           Array.isArray(data.customerIds) ?
-            data.customerIds
-                .filter((value) =>
-                  typeof value === "string" &&
-                  value.trim().length > 0,
-                )
-                .map((value) => value.trim()) :
+            [
+              ...new Set(
+                  data.customerIds
+                      .filter((value) =>
+                        typeof value === "string" &&
+                        value.trim().length > 0,
+                      )
+                      .map((value) => value.trim()),
+              ),
+            ] :
             [];
 
         if (campaignName.length < 2) {
@@ -2227,164 +2384,374 @@ exports.sendMarketingCampaign =
           );
         }
 
-        if (
-          channel !== "email" &&
-          channel !== "whatsapp" &&
-          channel !== "both"
-        ) {
+        const allowedChannels =
+          new Set([
+            "email",
+            "whatsapp_text",
+            "whatsapp_image",
+            "both",
+          ]);
+
+        if (!allowedChannels.has(channel)) {
           throw new HttpsError(
               "invalid-argument",
               "Canale campagna non valido.",
           );
         }
 
-        // SICUREZZA TEST:
-        // per ora massimo UN destinatario.
-        if (customerIds.length !== 1) {
+        if (customerIds.length < 1) {
           throw new HttpsError(
-              "failed-precondition",
-              "Durante il test è consentito un solo destinatario.",
+              "invalid-argument",
+              "Seleziona almeno un destinatario.",
           );
         }
 
-        if (
-          channel === "whatsapp" ||
-          channel === "both"
-        ) {
+        if (customerIds.length > 50) {
           throw new HttpsError(
-              "failed-precondition",
-              "WhatsApp marketing non è ancora attivo: " +
-              "serve un template marketing approvato.",
+              "invalid-argument",
+              "Sono consentiti al massimo 50 destinatari.",
           );
         }
 
-        const customerId =
-          customerIds[0];
+        const wantsEmail =
+          channel === "email" ||
+          channel === "both";
 
-        const profileSnapshot =
-          await db
-              .collection("customer_profiles")
-              .doc(customerId)
-              .get();
+        const wantsWhatsapp =
+          channel === "whatsapp_text" ||
+          channel === "whatsapp_image" ||
+          channel === "both";
 
-        if (!profileSnapshot.exists) {
-          throw new HttpsError(
-              "not-found",
-              "Contatto non trovato.",
-          );
+        const whatsappImage =
+          channel === "whatsapp_image" ||
+          channel === "both";
+
+        let transporter =
+          null;
+
+        let sender =
+          "";
+
+        if (wantsEmail) {
+          sender =
+            gmailUser.value();
+
+          transporter =
+            nodemailer.createTransport({
+              service: "gmail",
+
+              auth: {
+                user: sender,
+                pass: gmailAppPassword.value(),
+              },
+            });
         }
 
-        const profile =
-          profileSnapshot.data() || {};
+        let emailSent = 0;
+        let emailSkipped = 0;
+        let emailFailed = 0;
 
-        if (profile.marketingEmailConsent !== true) {
-          throw new HttpsError(
-              "failed-precondition",
-              "Il cliente non ha il consenso marketing email.",
-          );
+        let whatsappSent = 0;
+        let whatsappSkipped = 0;
+        let whatsappFailed = 0;
+
+        const recipients = [];
+
+        for (const customerId of customerIds) {
+          const recipient = {
+            customerId,
+          };
+
+          const profileSnapshot =
+            await db
+                .collection("customer_profiles")
+                .doc(customerId)
+                .get();
+
+          if (!profileSnapshot.exists) {
+            recipient.status =
+              "not_found";
+
+            if (wantsEmail) {
+              emailSkipped += 1;
+              recipient.emailStatus =
+                "skipped";
+            }
+
+            if (wantsWhatsapp) {
+              whatsappSkipped += 1;
+              recipient.whatsappStatus =
+                "skipped";
+            }
+
+            recipients.push(recipient);
+            continue;
+          }
+
+          const customer =
+            profileSnapshot.data() || {};
+
+          const firstName =
+            marketingFirstName(customer);
+
+          const email =
+            marketingEmail(customer);
+
+          const phone =
+            marketingPhone(customer);
+
+          recipient.name =
+            firstName;
+
+          recipient.email =
+            email || null;
+
+          recipient.phone =
+            phone || null;
+
+          // --------------------------------
+          // EMAIL
+          // --------------------------------
+
+          if (wantsEmail) {
+            if (
+              customer.marketingEmailConsent !== true ||
+              !email ||
+              !email.includes("@")
+            ) {
+              emailSkipped += 1;
+
+              recipient.emailStatus =
+                "skipped";
+            } else {
+              try {
+                const textBody =
+                  `Ciao ${firstName},\n\n` +
+                  `${message}\n\n` +
+                  "Le Capase";
+
+                const safeName =
+                  marketingHtmlEscape(firstName);
+
+                const safeMessage =
+                  marketingHtmlEscape(message)
+                      .replace(/\n/g, "<br>");
+
+                const htmlBody =
+                  `<p>Ciao ${safeName},</p>` +
+                  `<p>${safeMessage}</p>` +
+                  "<p><strong>Le Capase</strong></p>";
+
+                const result =
+                  await transporter.sendMail({
+                    from:
+                      `"Le Capase" <${sender}>`,
+
+                    replyTo:
+                      sender,
+
+                    to:
+                      email,
+
+                    subject:
+                      campaignName,
+
+                    text:
+                      textBody,
+
+                    html:
+                      htmlBody,
+                  });
+
+                emailSent += 1;
+
+                recipient.emailStatus =
+                  "sent";
+
+                recipient.emailMessageId =
+                  result.messageId ||
+                  null;
+              } catch (error) {
+                emailFailed += 1;
+
+                recipient.emailStatus =
+                  "failed";
+
+                recipient.emailError =
+                  String(
+                      error?.message ||
+                      error,
+                  ).substring(0, 500);
+              }
+            }
+          }
+
+          // --------------------------------
+          // WHATSAPP
+          // --------------------------------
+
+          if (wantsWhatsapp) {
+            if (
+              customer.marketingWhatsappConsent !== true ||
+              phone.length === 0
+            ) {
+              whatsappSkipped += 1;
+
+              recipient.whatsappStatus =
+                "skipped";
+            } else {
+              try {
+                const templateName =
+                  whatsappImage ?
+                    MARKETING_WHATSAPP_IMAGE_TEMPLATE :
+                    MARKETING_WHATSAPP_TEXT_TEMPLATE;
+
+                const result =
+                  await sendMarketingCampaignWhatsapp({
+                    phone,
+                    templateName,
+                    firstName,
+                    message,
+
+                    imageUrl:
+                      whatsappImage ?
+                        MARKETING_WHATSAPP_IMAGE_URL :
+                        null,
+                  });
+
+                whatsappSent += 1;
+
+                recipient.whatsappStatus =
+                  "sent";
+
+                recipient.whatsappMessageId =
+                  result.messageId;
+              } catch (error) {
+                whatsappFailed += 1;
+
+                recipient.whatsappStatus =
+                  "failed";
+
+                recipient.whatsappError =
+                  String(
+                      error?.message ||
+                      error,
+                  ).substring(0, 500);
+              }
+            }
+          }
+
+          recipients.push(recipient);
         }
-
-        const email =
-          typeof profile.email === "string" ?
-            profile.email.trim() :
-            "";
-
-        if (!email || !email.includes("@")) {
-          throw new HttpsError(
-              "failed-precondition",
-              "Il cliente non ha un indirizzo email valido.",
-          );
-        }
-
-        const sender =
-          gmailUser.value();
-
-        const transporter =
-          nodemailer.createTransport({
-            service: "gmail",
-            auth: {
-              user: sender,
-              pass: gmailAppPassword.value(),
-            },
-          });
-
-        const name =
-          customerName(profile);
-
-        const subject =
-          campaignName;
-
-        const text =
-          `Ciao ${name},\n\n` +
-          `${message}\n\n` +
-          "Le Capase";
-
-        const safeMessage =
-          message
-              .replace(/&/g, "&amp;")
-              .replace(/</g, "&lt;")
-              .replace(/>/g, "&gt;")
-              .replace(/\n/g, "<br>");
-
-        const html =
-          `<p>Ciao ${name},</p>` +
-          `<p>${safeMessage}</p>` +
-          "<p><strong>Le Capase</strong></p>";
-
-        const result =
-          await transporter.sendMail({
-            from:
-              `"Le Capase" <${sender}>`,
-            replyTo:
-              sender,
-            to:
-              email,
-            subject,
-            text,
-            html,
-          });
 
         const campaignReference =
           db.collection("marketing_campaigns").doc();
 
+        const sent =
+          emailSent +
+          whatsappSent;
+
+        const skipped =
+          emailSkipped +
+          whatsappSkipped;
+
+        const failed =
+          emailFailed +
+          whatsappFailed;
+
         await campaignReference.set({
           campaignName,
           message,
-          channel: "email",
-          createdBy: uid,
+          channel,
+
+          createdBy:
+            uid,
+
           createdAt:
             FieldValue.serverTimestamp(),
 
-          requestedRecipients: 1,
-          sentRecipients: 1,
-          skippedRecipients: 0,
-          failedRecipients: 0,
+          requestedRecipients:
+            customerIds.length,
 
-          recipients: [
-            {
-              customerId,
-              email,
-              name,
-              channel: "email",
-              status: "sent",
-              messageId:
-                result.messageId || null,
-            },
-          ],
+          sentRecipients:
+            sent,
+
+          skippedRecipients:
+            skipped,
+
+          failedRecipients:
+            failed,
+
+          emailSent,
+          emailSkipped,
+          emailFailed,
+
+          whatsappSent,
+          whatsappSkipped,
+          whatsappFailed,
+
+          whatsappTemplate:
+            wantsWhatsapp ?
+              (
+                whatsappImage ?
+                  MARKETING_WHATSAPP_IMAGE_TEMPLATE :
+                  MARKETING_WHATSAPP_TEXT_TEMPLATE
+              ) :
+              null,
+
+          whatsappImageUrl:
+            whatsappImage ?
+              MARKETING_WHATSAPP_IMAGE_URL :
+              null,
+
+          recipients,
         });
+
+        logger.info(
+            "Campagna marketing elaborata.",
+            {
+              campaignId:
+                campaignReference.id,
+
+              channel,
+              requested:
+                customerIds.length,
+
+              emailSent,
+              emailSkipped,
+              emailFailed,
+
+              whatsappSent,
+              whatsappSkipped,
+              whatsappFailed,
+            },
+        );
 
         return {
           success: true,
+
           campaignId:
             campaignReference.id,
-          sent: 1,
-          skipped: 0,
-          failed: 0,
-          channel: "email",
+
+          requested:
+            customerIds.length,
+
+          sent,
+          skipped,
+          failed,
+
+          emailSent,
+          emailSkipped,
+          emailFailed,
+
+          whatsappSent,
+          whatsappSkipped,
+          whatsappFailed,
+
+          channel,
         };
       },
   );
-
 const staffUserFunctions =
   require("./staff_users");
 
