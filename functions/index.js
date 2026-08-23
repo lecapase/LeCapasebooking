@@ -657,6 +657,25 @@ async function syncCustomerProfile(
             data.marketingConsentVersion ||
             "1.0";
         }
+        if (
+          data.marketingEmailConsent === true ||
+          data.marketingWhatsappConsent === true
+        ) {
+          profileData.marketingLastConsentAt =
+            FieldValue.serverTimestamp();
+
+          profileData.marketingConsentSource =
+            data.marketingConsentSource ||
+            "customer_booking";
+
+          if (
+            !profile ||
+            !profile.marketingFirstConsentAt
+          ) {
+            profileData.marketingFirstConsentAt =
+              FieldValue.serverTimestamp();
+          }
+        }
 
         transaction.set(
             profileReference,

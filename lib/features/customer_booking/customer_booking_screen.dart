@@ -175,12 +175,14 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       final loadedLunchTimes = availability.lunch.isOpen
           ? CustomerAvailabilityService.generateAvailableTimes(
               availability.lunch,
+              date: normalizedDate,
             )
           : <String>[];
 
       final loadedDinnerTimes = availability.dinner.isOpen
           ? CustomerAvailabilityService.generateAvailableTimes(
               availability.dinner,
+              date: normalizedDate,
             )
           : <String>[];
 

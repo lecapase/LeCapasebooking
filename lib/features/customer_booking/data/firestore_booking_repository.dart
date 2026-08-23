@@ -123,6 +123,7 @@ class FirestoreBookingRepository {
 
     final availableTimes = CustomerAvailabilityService.generateAvailableTimes(
       selectedService,
+      date: normalizedDate,
     );
 
     if (!availableTimes.contains(time)) {

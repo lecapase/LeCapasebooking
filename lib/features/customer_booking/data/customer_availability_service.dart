@@ -150,13 +150,15 @@ class CustomerAvailabilityService {
   // GENERA GLI ORARI PRENOTABILI
   // =========================================================
 
-  static List<String> generateAvailableTimes(ServiceAvailability service) {
+  static List<String> generateAvailableTimes(
+    ServiceAvailability service, {
+    required DateTime date,
+  }) {
     if (!service.isOpen) {
       return [];
     }
 
     final startMinutes = _toMinutes(service.startTime);
-
     final endMinutes = _toMinutes(service.endTime);
 
     final interval = service.slotIntervalMinutes > 0
@@ -169,12 +171,25 @@ class CustomerAvailabilityService {
 
     final times = <String>[];
 
+    final now = DateTime.now();
+
+    final selectedDate = DateTime(date.year, date.month, date.day);
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    final isToday = selectedDate == today;
+    final currentMinutes = now.hour * 60 + now.minute;
+
     for (
       int minutes = startMinutes;
       minutes <= endMinutes;
       minutes += interval
     ) {
       final time = _fromMinutes(minutes);
+
+      if (isToday && minutes <= currentMinutes) {
+        continue;
+      }
 
       if (!isTimeBlocked(service: service, time: time)) {
         times.add(time);

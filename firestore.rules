@@ -400,7 +400,7 @@ service cloud.firestore {
     }
 
     match /customer_profiles/{customerId} {
-      allow read, write: if isManager();
+      allow read, write: if isAdmin();
     }
 
     // =====================================================
