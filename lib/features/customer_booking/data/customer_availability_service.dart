@@ -6,7 +6,7 @@ class CustomerAvailabilityService {
   CustomerAvailabilityService._();
 
   // =========================================================
-  // DISPONIBILITÀ EFFETTIVA PER UNA DATA
+  // DISPONIBILITÃ€ EFFETTIVA PER UNA DATA
   // =========================================================
 
   static Future<DayAvailability?> getAvailabilityForDate(DateTime date) async {
@@ -25,7 +25,7 @@ class CustomerAvailabilityService {
   }
 
   // =========================================================
-  // CONVERSIONE NUOVI SERVIZI -> DISPONIBILITÀ CLIENTE
+  // CONVERSIONE NUOVI SERVIZI -> DISPONIBILITÃ€ CLIENTE
   // =========================================================
 
   static DayAvailability _availabilityFromManagedServices(DateTime date) {
@@ -150,7 +150,10 @@ class CustomerAvailabilityService {
   // GENERA GLI ORARI PRENOTABILI
   // =========================================================
 
-  static List<String> generateAvailableTimes(ServiceAvailability service) {
+  static List<String> generateAvailableTimes(
+    ServiceAvailability service, {
+    required DateTime date,
+  }) {
     if (!service.isOpen) {
       return [];
     }
@@ -169,12 +172,25 @@ class CustomerAvailabilityService {
 
     final times = <String>[];
 
+    final now = DateTime.now();
+
+    final selectedDate = DateTime(date.year, date.month, date.day);
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    final isToday = selectedDate == today;
+    final currentMinutes = now.hour * 60 + now.minute;
+
     for (
       int minutes = startMinutes;
       minutes <= endMinutes;
       minutes += interval
     ) {
       final time = _fromMinutes(minutes);
+
+      if (isToday && minutes <= currentMinutes) {
+        continue;
+      }
 
       if (!isTimeBlocked(service: service, time: time)) {
         times.add(time);
@@ -263,19 +279,19 @@ class CustomerAvailabilityService {
   static String _dayName(int weekday) {
     switch (weekday) {
       case DateTime.monday:
-        return 'Lunedì';
+        return 'LunedÃ¬';
 
       case DateTime.tuesday:
-        return 'Martedì';
+        return 'MartedÃ¬';
 
       case DateTime.wednesday:
-        return 'Mercoledì';
+        return 'MercoledÃ¬';
 
       case DateTime.thursday:
-        return 'Giovedì';
+        return 'GiovedÃ¬';
 
       case DateTime.friday:
-        return 'Venerdì';
+        return 'VenerdÃ¬';
 
       case DateTime.saturday:
         return 'Sabato';

@@ -68,7 +68,7 @@ class FirestoreBookingRepository {
 
     if (guests < 1) {
       throw const BookingCapacityException(
-        'Il numero di persone non è valido.',
+        'Il numero di persone non Ã¨ valido.',
       );
     }
 
@@ -113,7 +113,7 @@ class FirestoreBookingRepository {
 
     if (selectedService == null || !selectedService.isOpen) {
       throw const BookingCapacityException(
-        'Questo servizio non è disponibile.',
+        'Questo servizio non Ã¨ disponibile.',
       );
     }
 
@@ -123,11 +123,12 @@ class FirestoreBookingRepository {
 
     final availableTimes = CustomerAvailabilityService.generateAvailableTimes(
       selectedService,
+      date: normalizedDate,
     );
 
     if (!availableTimes.contains(time)) {
       throw const BookingCapacityException(
-        'L’orario selezionato non è più disponibile.',
+        'Lâ€™orario selezionato non Ã¨ piÃ¹ disponibile.',
       );
     }
 
@@ -136,7 +137,7 @@ class FirestoreBookingRepository {
       time: time,
     )) {
       throw const BookingCapacityException(
-        'L’orario selezionato è stato bloccato.',
+        'Lâ€™orario selezionato Ã¨ stato bloccato.',
       );
     }
 
@@ -399,7 +400,7 @@ class FirestoreBookingRepository {
   }
 
   // =========================================================
-  // COPERTI GIÀ OCCUPATI
+  // COPERTI GIÃ€ OCCUPATI
   // =========================================================
 
   static Future<int> getBookedGuests({
