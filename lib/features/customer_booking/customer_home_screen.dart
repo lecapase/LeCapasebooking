@@ -113,7 +113,7 @@ class CustomerHomeScreen extends StatelessWidget {
                         child: Column(
                           children: [
                             Text(
-                              'Benvenuti a Le Capase',
+                              'Benvenuti a\nLe Capase',
                               textAlign: TextAlign.center,
                               style: GoogleFonts
                                   .libreBaskerville(
