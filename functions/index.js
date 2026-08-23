@@ -3186,6 +3186,79 @@ async function processReconfirmationReply(
   );
 }
 
+async function processMarketingWhatsappOptOut(message) {
+  const rawText =
+    message?.text?.body ||
+    message?.text ||
+    message?.button?.text ||
+    message?.interactive?.button_reply?.title ||
+    message?.interactive?.list_reply?.title ||
+    "";
+
+  const text = String(rawText).trim().toUpperCase();
+
+  const isOptOut =
+    /^(STOP|ANNULLA|DISISCRIVIMI|BASTA)$/.test(text);
+
+  if (!isOptOut) return false;
+
+  const phone = normalizePhone(
+      message?.from ||
+      message?.wa_id ||
+      message?.waId ||
+      "",
+  );
+
+  if (phone.length === 0) {
+    logger.warn(
+        "Richiesta STOP marketing senza numero WhatsApp.",
+    );
+    return true;
+  }
+
+  const profiles = await db
+      .collection(CUSTOMER_PROFILES_COLLECTION)
+      .where("normalizedPhone", "==", phone)
+      .limit(20)
+      .get();
+
+  if (profiles.empty) {
+    logger.warn(
+        "Richiesta STOP marketing senza profilo cliente.",
+        {phone},
+    );
+    return true;
+  }
+
+  const batch = db.batch();
+
+  for (const document of profiles.docs) {
+    batch.set(
+        document.ref,
+        {
+          marketingEmailConsent: false,
+          marketingWhatsappConsent: false,
+          marketingOptOutAt: FieldValue.serverTimestamp(),
+          marketingOptOutSource: "whatsapp_stop",
+          updatedAt: FieldValue.serverTimestamp(),
+        },
+        {merge: true},
+    );
+  }
+
+  await batch.commit();
+
+  logger.info(
+      "Consensi marketing revocati tramite WhatsApp.",
+      {
+        phone,
+        profiles: profiles.size,
+      },
+  );
+
+  return true;
+}
+
 exports.dialog360Webhook =
   onRequest(
       {
@@ -3211,10 +3284,17 @@ exports.dialog360Webhook =
             );
 
           for (const message of messages) {
-            await processReconfirmationReply(
-                message,
-            );
-          }
+              const marketingOptOut =
+                await processMarketingWhatsappOptOut(
+                    message,
+                );
+
+              if (!marketingOptOut) {
+                await processReconfirmationReply(
+                    message,
+                );
+              }
+            }
 
           response
               .status(200)
