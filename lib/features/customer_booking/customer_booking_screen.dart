@@ -36,7 +36,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   bool _loadingAvailability = false;
   bool _saving = false;
   bool _showMoreGuests = false;
-  bool bookingWhatsappConsent = false;
+  bool offersEventsConsent = false;
 
   List<String> lunchTimes = [];
   List<String> dinnerTimes = [];
@@ -58,6 +58,83 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     noteController.dispose();
 
     super.dispose();
+  }
+
+  DateTime _restaurantNow() {
+    final utcNow = DateTime.now().toUtc();
+
+    final dstStart = _lastSundayOfMonthUtc(utcNow.year, DateTime.march);
+    final dstEnd = _lastSundayOfMonthUtc(utcNow.year, DateTime.october);
+
+    final isDst = !utcNow.isBefore(dstStart) && utcNow.isBefore(dstEnd);
+
+    final shifted = utcNow.add(Duration(hours: isDst ? 2 : 1));
+
+    // Ora civile di Cisternino/Roma, indipendente dal fuso del cliente.
+    return DateTime(
+      shifted.year,
+      shifted.month,
+      shifted.day,
+      shifted.hour,
+      shifted.minute,
+      shifted.second,
+    );
+  }
+
+  DateTime _lastSundayOfMonthUtc(int year, int month) {
+    final lastDayAtTransitionHour = DateTime.utc(year, month + 1, 0, 1);
+
+    return lastDayAtTransitionHour.subtract(
+      Duration(days: lastDayAtTransitionHour.weekday % 7),
+    );
+  }
+
+  bool _isBookableTime(DateTime date, String time) {
+    final now = _restaurantNow();
+
+    final selectedDay = DateTime(date.year, date.month, date.day);
+
+    final today = DateTime(now.year, now.month, now.day);
+
+    if (selectedDay.isBefore(today)) {
+      return false;
+    }
+
+    if (selectedDay.isAfter(today)) {
+      return true;
+    }
+
+    final parts = time.split(':');
+
+    if (parts.length != 2) {
+      return false;
+    }
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+
+    if (hour == null ||
+        minute == null ||
+        hour < 0 ||
+        hour > 23 ||
+        minute < 0 ||
+        minute > 59) {
+      return false;
+    }
+
+    var slotMinutes = (hour * 60) + minute;
+    final nowMinutes = (now.hour * 60) + now.minute;
+
+    // Eventuali fasce dopo mezzanotte appartengono alla cena del giorno scelto.
+    if (hour < 6 && now.hour >= 6) {
+      slotMinutes += 24 * 60;
+    }
+
+    return slotMinutes > nowMinutes;
+  }
+
+  List<String> _filterBookableTimes(DateTime date, List<String> times) {
+    return times.where((time) => _isBookableTime(date, time)).toList();
   }
 
   Future<void> _selectDate(DateTime date) async {
@@ -108,8 +185,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           : <String>[];
 
       setState(() {
-        lunchTimes = loadedLunchTimes;
-        dinnerTimes = loadedDinnerTimes;
+        lunchTimes = _filterBookableTimes(normalizedDate, loadedLunchTimes);
+        dinnerTimes = _filterBookableTimes(normalizedDate, loadedDinnerTimes);
 
         if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
           currentStep = 1;
@@ -120,7 +197,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return;
       }
 
-      _message('Errore disponibilità: $error');
+      _message('Errore disponibilità : $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -140,6 +217,20 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   }
 
   void _selectTime({required String time, required String service}) {
+    if (selectedDate == null || !_isBookableTime(selectedDate!, time)) {
+      setState(() {
+        if (selectedDate != null) {
+          lunchTimes = _filterBookableTimes(selectedDate!, lunchTimes);
+          dinnerTimes = _filterBookableTimes(selectedDate!, dinnerTimes);
+        }
+      });
+
+      _message(
+        'Questo orario non è più prenotabile. Scegli un orario successivo.',
+      );
+      return;
+    }
+
     setState(() {
       selectedTime = time;
       selectedService = service;
@@ -213,6 +304,19 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       return;
     }
 
+    if (!_isBookableTime(selectedDate!, selectedTime!)) {
+      setState(() {
+        lunchTimes = _filterBookableTimes(selectedDate!, lunchTimes);
+        dinnerTimes = _filterBookableTimes(selectedDate!, dinnerTimes);
+        selectedTime = null;
+        selectedService = null;
+        currentStep = 2;
+      });
+
+      _message('Questo orario non è più disponibile. Scegli un nuovo orario.');
+      return;
+    }
+
     setState(() {
       _saving = true;
     });
@@ -229,7 +333,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         service: selectedService!,
         occasion: selectedOccasione,
         notes: noteController.text.trim(),
-        bookingWhatsappConsent: bookingWhatsappConsent,
+        bookingWhatsappConsent: true,
+        marketingEmailConsent: offersEventsConsent,
+        marketingWhatsappConsent: offersEventsConsent,
       );
 
       if (!mounted) {
@@ -496,7 +602,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             const CircularProgressIndicator(color: gold),
             const SizedBox(height: 10),
             const Text(
-              'Controllo disponibilità…',
+              'Controllo disponibilità …',
               style: TextStyle(color: muted),
             ),
           ],
@@ -787,17 +893,52 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            controlAffinity: ListTileControlAffinity.leading,
-            value: bookingWhatsappConsent,
-            onChanged: (value) {
-              setState(() {
-                bookingWhatsappConsent = value ?? false;
-              });
-            },
-            title: const Text(
-              'Desidero ricevere aggiornamenti sulla mia prenotazione tramite WhatsApp.',
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF3E9D2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFD7C18B)),
+            ),
+            child: const Text(
+              'Completando la prenotazione, confermi di ricevere i dettagli '
+              'su WhatsApp/Email.',
+              style: TextStyle(
+                fontSize: 14,
+                color: Color(0xFF514A3E),
+                height: 1.4,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F1E3),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFD7C18B)),
+            ),
+            child: CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: const Color(0xFF8B6508),
+              value: offersEventsConsent,
+              onChanged: (value) {
+                setState(() {
+                  offersEventsConsent = value ?? false;
+                });
+              },
+              title: const Text(
+                'Desidero ricevere su WhatsApp e/o mail offerte, eventi, '
+                'promozioni, menu speciali e altre novità di Le Capase.',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Color(0xFF514A3E),
+                  height: 1.4,
+                ),
+              ),
             ),
           ),
           const SizedBox(height: 14),

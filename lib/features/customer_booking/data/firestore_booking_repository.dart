@@ -244,6 +244,9 @@ class FirestoreBookingRepository {
         // nella sezione Contatti e Marketing.
         // =============================================
         'bookingWhatsappConsent': bookingWhatsappConsent,
+        'bookingWhatsappConsentVersion': '1.0',
+        'bookingWhatsappConsentSource': 'customer_booking_submit',
+        'bookingWhatsappConsentRecordedAt': FieldValue.serverTimestamp(),
         'marketingEmailConsent': marketingEmailConsent,
 
         'marketingWhatsappConsent': marketingWhatsappConsent,
