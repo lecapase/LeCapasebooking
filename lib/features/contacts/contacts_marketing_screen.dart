@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/callable_http_service.dart';
@@ -132,6 +136,9 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
     final messageController = TextEditingController();
 
     String channel = 'both';
+    PlatformFile? selectedImage;
+    Uint8List? selectedImageBytes;
+    bool uploadingImage = false;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -300,7 +307,126 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: uploadingImage
+                            ? null
+                            : () async {
+                                final file =
+                                    await FilePicker.pickFile(
+                                  type: FileType.custom,
+                                  allowedExtensions: const <String>[
+                                    'jpg',
+                                    'jpeg',
+                                    'png',
+                                  ],
+                                );
+
+                                if (file == null) {
+                                  return;
+                                }
+
+                                final bytes =
+                                    await file.readAsBytes();
+
+                                if (bytes.lengthInBytes >
+                                    5 * 1024 * 1024) {
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+
+                                  ScaffoldMessenger.of(context)
+                                      .showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'La foto deve essere inferiore a 5 MB.',
+                                      ),
+                                    ),
+                                  );
+
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  selectedImage = file;
+                                  selectedImageBytes = bytes;
+                                });
+                              },
+                        icon: const Icon(
+                          Icons.add_photo_alternate_outlined,
+                        ),
+                        label: Text(
+                          selectedImage == null
+                              ? 'SCEGLI FOTO'
+                              : 'CAMBIA FOTO',
+                        ),
+                      ),
+                    ),
+                    if (selectedImage != null &&
+                        selectedImageBytes != null) ...[
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          selectedImageBytes!,
+                          width: double.infinity,
+                          height: 180,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedImage!.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: uploadingImage
+                                ? null
+                                : () {
+                                    setSheetState(() {
+                                      selectedImage = null;
+                                      selectedImageBytes = null;
+                                    });
+                                  },
+                            icon: const Icon(
+                              Icons.delete_outline,
+                            ),
+                            label: const Text('RIMUOVI'),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    const Text(
+                      'La foto viene usata in Email, WA + foto ed Entrambi. '
+                      'WA testo la ignora.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    if (uploadingImage) ...[
+                      const SizedBox(height: 10),
+                      const LinearProgressIndicator(),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Caricamento foto in corso...',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],                    const SizedBox(height: 18),
                     SizedBox(
                       width: double.infinity,
                       child: FilledButton.icon(
@@ -393,6 +519,57 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                           }
 
                           try {
+                            String imageUrl = '';
+
+                            if (selectedImage != null &&
+                                selectedImageBytes != null &&
+                                channel != 'whatsapp_text') {
+                              setSheetState(() {
+                                uploadingImage = true;
+                              });
+
+                              final bytes =
+                                  selectedImageBytes!;
+
+                              final lowerFileName =
+                                  selectedImage!.name.toLowerCase();
+
+                              final contentType =
+                                  lowerFileName.endsWith('.png')
+                                      ? 'image/png'
+                                      : 'image/jpeg';
+
+                              final safeFileName =
+                                  selectedImage!.name.replaceAll(
+                                RegExp(r'[^A-Za-z0-9._-]'),
+                                '_',
+                              );
+
+                              final storageReference =
+                                  FirebaseStorage.instance
+                                      .ref()
+                                      .child(
+                                'marketing_campaigns/'
+                                '${DateTime.now().millisecondsSinceEpoch}_'
+                                '$safeFileName',
+                              );
+
+                              await storageReference.putData(
+                                bytes,
+                                SettableMetadata(
+                                  contentType: contentType,
+                                  cacheControl: 'public,max-age=3600',
+                                ),
+                              );
+
+                              imageUrl =
+                                  await storageReference.getDownloadURL();
+
+                              setSheetState(() {
+                                uploadingImage = false;
+                              });
+                            }
+
                             final result = await CallableHttpService.call(
                               'sendMarketingCampaign',
                               <String, dynamic>{
@@ -400,6 +577,7 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                                 'message': message,
                                 'channel': channel,
                                 'customerIds': customerIds,
+                                'imageUrl': imageUrl,
                               },
                             );
 
@@ -433,6 +611,12 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                               _selectedIds.clear();
                             });
                           } catch (error) {
+                            if (sheetContext.mounted) {
+                              setSheetState(() {
+                                uploadingImage = false;
+                              });
+                            }
+
                             if (!context.mounted) {
                               return;
                             }
