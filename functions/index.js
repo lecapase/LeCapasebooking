@@ -2209,6 +2209,16 @@ async function sendMarketingCampaignWhatsapp({
   message,
   imageUrl,
 }) {
+  const safeFirstName =
+    String(firstName ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+  const safeMessage =
+    String(message ?? "")
+        .replace(/\s+/g, " ")
+        .trim();
+
   const components = [];
 
   if (
@@ -2231,8 +2241,8 @@ async function sendMarketingCampaignWhatsapp({
   components.push({
     type: "body",
     parameters: [
-      whatsappTextParameter(firstName),
-      whatsappTextParameter(message),
+      whatsappTextParameter(safeFirstName),
+      whatsappTextParameter(safeMessage),
     ],
   });
 
