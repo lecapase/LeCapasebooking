@@ -2366,6 +2366,20 @@ exports.sendMarketingCampaign =
           channel = "whatsapp_image";
         }
 
+        const campaignImageUrl =
+          typeof data.imageUrl === "string" ?
+            data.imageUrl.trim() :
+            "";
+
+        if (
+          campaignImageUrl.length > 0 &&
+          !campaignImageUrl.startsWith("https://")
+        ) {
+          throw new HttpsError(
+              "invalid-argument",
+              "URL immagine campagna non valido.",
+          );
+        }
         const customerIds =
           Array.isArray(data.customerIds) ?
             [
@@ -2435,6 +2449,15 @@ exports.sendMarketingCampaign =
         const whatsappImage =
           channel === "whatsapp_image" ||
           channel === "both";
+
+        const effectiveWhatsappImageUrl =
+          whatsappImage ?
+            (
+              campaignImageUrl.length > 0 ?
+                campaignImageUrl :
+                MARKETING_WHATSAPP_IMAGE_URL
+            ) :
+            null;
 
         let transporter =
           null;
@@ -2547,8 +2570,20 @@ exports.sendMarketingCampaign =
                   marketingHtmlEscape(message)
                       .replace(/\n/g, "<br>");
 
+                const safeImageUrl =
+                  marketingHtmlEscape(campaignImageUrl);
+
+                const imageHtml =
+                  campaignImageUrl.length > 0 ?
+                    `<p><img src="${safeImageUrl}" ` +
+                    `alt="${marketingHtmlEscape(campaignName)}" ` +
+                    `style="max-width:100%;height:auto;border-radius:12px;">` +
+                    `</p>` :
+                    "";
+
                 const htmlBody =
                   `<p>Ciao ${safeName},</p>` +
+                  imageHtml +
                   `<p>${safeMessage}</p>` +
                   "<p><strong>Le Capase</strong></p>";
 
@@ -2624,9 +2659,7 @@ exports.sendMarketingCampaign =
                     message,
 
                     imageUrl:
-                      whatsappImage ?
-                        MARKETING_WHATSAPP_IMAGE_URL :
-                        null,
+                      effectiveWhatsappImageUrl,
                   });
 
                 whatsappSent += 1;
@@ -2710,8 +2743,11 @@ exports.sendMarketingCampaign =
               null,
 
           whatsappImageUrl:
-            whatsappImage ?
-              MARKETING_WHATSAPP_IMAGE_URL :
+            effectiveWhatsappImageUrl,
+
+          campaignImageUrl:
+            campaignImageUrl.length > 0 ?
+              campaignImageUrl :
               null,
 
           recipients,
