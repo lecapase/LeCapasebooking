@@ -3291,7 +3291,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
       ),
       child: NavigationBar(
-        height: 50,
+        height: 56,
         backgroundColor: const Color(0xFF201D18),
         indicatorColor: const Color(0xFFC8A45D),
         selectedIndex: _bottomIndex,
