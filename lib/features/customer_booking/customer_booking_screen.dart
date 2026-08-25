@@ -978,15 +978,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               label: const Text('RIVEDI PRENOTAZIONE'),
             ),
           ),
-          const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              'I dati personali saranno trattati nel rispetto della normativa vigente sulla privacy e utilizzati esclusivamente per la gestione della prenotazione e, previo consenso, per comunicazioni promozionali di Le Capase.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey),
-            ),
-          ),
         ],
       ),
     );
@@ -1099,6 +1090,15 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                     ? 'CONFERMA PRENOTAZIONE'
                     : 'INVIA RICHIESTA',
               ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8),
+            child: Text(
+              'I dati personali saranno trattati nel rispetto della normativa vigente sulla privacy e utilizzati esclusivamente per la gestione della prenotazione e, previo consenso, per comunicazioni promozionali di Le Capase.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey),
             ),
           ),
         ],
