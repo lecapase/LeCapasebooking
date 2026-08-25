@@ -88,6 +88,8 @@ const gmailAppPassword =
 
 const dialog360ApiKey =
   defineSecret("DIALOG360_API_KEY");
+const dialog360WebhookToken =
+  defineSecret("DIALOG360_WEBHOOK_TOKEN");
 
 // ============================================================
 // UTILITÀ GENERALI
@@ -3780,6 +3782,41 @@ async function processMarketingWhatsappOptOut(message) {
   return true;
 }
 
+function validDialog360WebhookToken(request) {
+  const expectedToken =
+    dialog360WebhookToken
+        .value()
+        .trim();
+
+  const receivedToken =
+    typeof request.get(
+        "x-lecapase-webhook-token",
+    ) === "string" ?
+      request
+          .get("x-lecapase-webhook-token")
+          .trim() :
+      "";
+
+  const expectedBuffer =
+    Buffer.from(expectedToken);
+
+  const receivedBuffer =
+    Buffer.from(receivedToken);
+
+  if (
+    expectedBuffer.length === 0 ||
+    expectedBuffer.length !==
+      receivedBuffer.length
+  ) {
+    return false;
+  }
+
+  return require("crypto")
+      .timingSafeEqual(
+          expectedBuffer,
+          receivedBuffer,
+      );
+}
 exports.dialog360Webhook =
   onRequest(
       {
@@ -3788,6 +3825,9 @@ exports.dialog360Webhook =
 
         timeoutSeconds:
           60,
+        secrets: [
+          dialog360WebhookToken,
+        ],
       },
       async (request, response) => {
         if (request.method !== "POST") {
@@ -3798,6 +3838,17 @@ exports.dialog360Webhook =
           return;
         }
 
+        if (!validDialog360WebhookToken(request)) {
+          logger.warn(
+              "Token webhook 360dialog non valido.",
+          );
+
+          response
+              .status(401)
+              .send("UNAUTHORIZED");
+
+          return;
+        }
         try {
           const messages =
             extractWhatsappMessages(
