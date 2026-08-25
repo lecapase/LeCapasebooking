@@ -1,4 +1,4 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/push_notification_service.dart';
@@ -3082,7 +3082,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           padding: EdgeInsets.only(top: 18, bottom: 12),
           child: Center(
             child: Text(
-              'Versione 2.0 - sviluppo',
+              'Versione 2.0.1',
               style: TextStyle(fontSize: 12, color: Colors.white54),
             ),
           ),
