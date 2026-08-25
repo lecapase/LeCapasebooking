@@ -1385,6 +1385,223 @@ exports.completeFirstStaffLogin =
       },
   );
 
+exports.notifyStaffLogin =
+  onCall(
+      {
+        region:
+          "europe-west1",
+
+        secrets: [
+          gmailUser,
+          gmailAppPassword,
+        ],
+      },
+      async (request) => {
+        const uid =
+          request.auth &&
+          request.auth.uid;
+
+        if (!uid) {
+          throw new HttpsError(
+              "unauthenticated",
+              "Devi effettuare l'accesso.",
+          );
+        }
+
+        const [
+          staffSnapshot,
+          adminSnapshot,
+          authUser,
+        ] = await Promise.all([
+          db
+              .collection("staff_users")
+              .doc(uid)
+              .get(),
+
+          db
+              .collection("admins")
+              .doc(uid)
+              .get(),
+
+          getAuth()
+              .getUser(uid),
+        ]);
+
+        let displayName =
+          cleanText(authUser.displayName) ||
+          "Utente gestionale";
+
+        let role =
+          "admin";
+
+        let loginEmail =
+          normalizeEmail(authUser.email);
+
+        if (staffSnapshot.exists) {
+          const staffData =
+            staffSnapshot.data() || {};
+
+          if (
+            staffData.active !== true ||
+            !validRole(staffData.role)
+          ) {
+            throw new HttpsError(
+                "permission-denied",
+                "Account staff non autorizzato.",
+            );
+          }
+
+          displayName =
+            cleanText(staffData.displayName) ||
+            displayName;
+
+          role =
+            staffData.role;
+
+          loginEmail =
+            normalizeEmail(staffData.loginEmail) ||
+            loginEmail;
+        } else if (!adminSnapshot.exists) {
+          throw new HttpsError(
+              "permission-denied",
+              "Account non autorizzato.",
+          );
+        }
+
+        const rawRequest =
+          request.rawRequest;
+
+        const forwardedFor =
+          cleanText(
+              rawRequest &&
+              rawRequest.headers &&
+              rawRequest.headers["x-forwarded-for"],
+          );
+
+        const ipAddress =
+          forwardedFor ?
+            forwardedFor.split(",")[0].trim() :
+            cleanText(
+                rawRequest &&
+                rawRequest.ip,
+            ) || "Non disponibile";
+
+        const userAgent =
+          cleanText(
+              rawRequest &&
+              rawRequest.headers &&
+              rawRequest.headers["user-agent"],
+          ).slice(0, 500) ||
+          "Non disponibile";
+
+        const accessTime =
+          new Intl.DateTimeFormat(
+              "it-IT",
+              {
+                dateStyle:
+                  "full",
+
+                timeStyle:
+                  "medium",
+
+                timeZone:
+                  "Europe/Rome",
+              },
+          ).format(new Date());
+
+        const sender =
+          gmailUser.value();
+
+        const transporter =
+          nodemailer.createTransport({
+            service:
+              "gmail",
+
+            auth: {
+              user:
+                sender,
+
+              pass:
+                gmailAppPassword.value(),
+            },
+          });
+
+        const safeDisplayName =
+          displayName.replace(
+              /[\r\n]+/g,
+              " ",
+          );
+
+        const roleLabel =
+          ROLE_LABELS[role] || role;
+
+        const message = [
+          "È stato effettuato un accesso",
+          "al gestionale Le Capase Booking.",
+          "",
+          "Utente: " + safeDisplayName,
+          "Ruolo: " + roleLabel,
+          "Account: " +
+            (loginEmail || "Non disponibile"),
+          "Data e ora: " + accessTime,
+          "Indirizzo IP: " + ipAddress,
+          "Dispositivo/browser: " + userAgent,
+          "",
+          "Se non riconosci questo accesso,",
+          "cambia immediatamente la password",
+          "e disattiva l'account interessato.",
+        ].join("\n");
+
+        try {
+          await transporter.sendMail({
+            from:
+              '"Sicurezza Le Capase" <' +
+              sender +
+              ">",
+
+            to:
+              sender,
+
+            replyTo:
+              sender,
+
+            subject:
+              "Accesso gestionale: " +
+              safeDisplayName,
+
+            text:
+              message,
+          });
+        } catch (error) {
+          logger.error(
+              "Invio avviso accesso staff fallito.",
+              {
+                uid,
+                role,
+                error,
+              },
+          );
+
+          throw new HttpsError(
+              "internal",
+              "Avviso di sicurezza non inviato.",
+          );
+        }
+
+        logger.info(
+            "Avviso accesso staff inviato.",
+            {
+              uid,
+              role,
+            },
+        );
+
+        return {
+          success:
+            true,
+        };
+      },
+  );
 exports.deleteStaffUser =
   onCall(
       {

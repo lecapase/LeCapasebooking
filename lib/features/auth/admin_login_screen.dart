@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -11,6 +13,14 @@ class AdminLoginScreen extends StatefulWidget {
 }
 
 class _AdminLoginScreenState extends State<AdminLoginScreen> {
+  Future<void> _notifySuccessfulLogin() async {
+    try {
+      await CallableHttpService.call('notifyStaffLogin');
+    } catch (_) {
+      // L'avviso non deve impedire l'accesso al gestionale.
+    }
+  }
+
   List<Map<String, String>> _profiles = [];
   bool _loading = true;
   String? _error;
@@ -130,6 +140,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   email: profile['loginEmail']!,
                   password: password,
                 );
+
+                unawaited(_notifySuccessfulLogin());
 
                 if (!dialogContext.mounted) {
                   return;
@@ -282,6 +294,8 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   email: email,
                   password: password,
                 );
+
+                unawaited(_notifySuccessfulLogin());
 
                 if (!dialogContext.mounted) {
                   return;

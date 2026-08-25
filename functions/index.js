@@ -3904,6 +3904,8 @@ exports.resetStaffPassword =
 exports.completeFirstStaffLogin =
   staffUserFunctions.completeFirstStaffLogin;
 
+exports.notifyStaffLogin =
+  staffUserFunctions.notifyStaffLogin;
 exports.deleteStaffUser =
   staffUserFunctions.deleteStaffUser;
 

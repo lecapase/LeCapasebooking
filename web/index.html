@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
   <base href="$FLUTTER_BASE_HREF">
@@ -21,9 +21,9 @@
 <body>
 
 <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', async function () {
-      try {
+  (async function startLeCapaseBooking() {
+    try {
+      if ('serviceWorker' in navigator) {
         const registrations =
           await navigator.serviceWorker.getRegistrations();
 
@@ -40,34 +40,51 @@
             await registration.unregister();
           }
         }
+      }
 
-        if ('caches' in window) {
-          const cacheKeys = await caches.keys();
+      if ('caches' in window) {
+        const cacheKeys = await caches.keys();
 
-          for (const key of cacheKeys) {
-            if (key.startsWith('flutter-')) {
-              await caches.delete(key);
-            }
+        for (const key of cacheKeys) {
+          if (
+            key.startsWith('flutter-') ||
+            key === 'flutter-app-cache' ||
+            key === 'flutter-temp-cache'
+          ) {
+            await caches.delete(key);
           }
         }
+      }
 
+      if ('serviceWorker' in navigator) {
         await navigator.serviceWorker.register(
           'firebase-messaging-sw.js',
           {
             scope: '/firebase-cloud-messaging-push-scope',
           }
         );
-      } catch (error) {
-        console.warn(
-          'Service worker cleanup/registration failed:',
-          error
-        );
       }
-    });
-  }
-</script>
+    } catch (error) {
+      console.warn(
+        'Aggiornamento automatico non completato:',
+        error
+      );
+    } finally {
+      const flutterBootstrap =
+        document.createElement('script');
 
-<script src="flutter_bootstrap.js" async></script>
+      flutterBootstrap.src =
+        'flutter_bootstrap.js';
+
+      flutterBootstrap.async =
+        true;
+
+      document.body.appendChild(
+        flutterBootstrap
+      );
+    }
+  })();
+</script>
 
 </body>
 </html>
