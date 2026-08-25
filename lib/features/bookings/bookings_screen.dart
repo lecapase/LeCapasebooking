@@ -1669,6 +1669,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
     final booking = document.data();
+    if (_isNotificationUnread(booking)) {
+      await _markNotificationRead(document);
+
+      if (!mounted) {
+        return;
+      }
+    }
 
     final firstName = booking['nome'] as String? ?? '';
     final lastName = booking['cognome'] as String? ?? '';
@@ -2604,6 +2611,97 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
   }
 
+  bool _isNotificationUnread(Map<String, dynamic> booking) {
+    if (!_shouldShowNotification(booking)) {
+      return false;
+    }
+
+    if (_unreadReconfirmationResult(booking)) {
+      return true;
+    }
+
+    return booking['adminNotificationRead'] != true;
+  }
+
+  Future<void> _markAllNotificationsRead(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
+  ) async {
+    final unreadDocuments = documents.where((document) {
+      return _isNotificationUnread(document.data());
+    }).toList();
+
+    if (unreadDocuments.isEmpty) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Tutte le notifiche sono già lette.')),
+      );
+      return;
+    }
+
+    try {
+      const batchLimit = 400;
+
+      for (var start = 0; start < unreadDocuments.length; start += batchLimit) {
+        final end = start + batchLimit < unreadDocuments.length
+            ? start + batchLimit
+            : unreadDocuments.length;
+
+        final batch = _firestore.batch();
+
+        for (final document in unreadDocuments.sublist(start, end)) {
+          final booking = document.data();
+
+          final reconfirmationStatus =
+              booking['reconfirmationStatus'] as String? ?? '';
+
+          final updates = <String, dynamic>{
+            'adminNotificationRead': true,
+            'adminNotificationReadAt': FieldValue.serverTimestamp(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          };
+
+          if (reconfirmationStatus == 'confirmed' ||
+              reconfirmationStatus == 'cancelled') {
+            updates['reconfirmationResultRead'] = true;
+            updates['reconfirmationResultReadAt'] =
+                FieldValue.serverTimestamp();
+          }
+
+          batch.set(document.reference, updates, SetOptions(merge: true));
+        }
+
+        await batch.commit();
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '${unreadDocuments.length} notifiche segnate come lette.',
+          ),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Impossibile segnare tutte le notifiche come lette: $error',
+          ),
+        ),
+      );
+    }
+  }
+
   Widget _notificationsPage(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> bookings,
   ) {
@@ -2641,9 +2739,38 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
-      itemCount: notifications.length,
+      itemCount: notifications.length + 1,
       itemBuilder: (context, index) {
-        final document = notifications[index];
+        if (index == 0) {
+          final unreadCount = notifications.where((document) {
+            return _isNotificationUnread(document.data());
+          }).length;
+
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton.icon(
+                onPressed: unreadCount == 0
+                    ? null
+                    : () {
+                        _markAllNotificationsRead(notifications);
+                      },
+                icon: const Icon(Icons.done_all, size: 18),
+                label: Text(
+                  unreadCount == 0
+                      ? 'Tutte lette'
+                      : 'Segna tutte come lette ($unreadCount)',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+        final document = notifications[index - 1];
 
         final booking = document.data();
 
@@ -3447,7 +3574,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }
 
         final pendingCount = allBookings.where((document) {
-          return _shouldShowNotification(document.data());
+          return _isNotificationUnread(document.data());
         }).length;
 
         Widget body;
