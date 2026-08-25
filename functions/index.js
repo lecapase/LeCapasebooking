@@ -38,6 +38,11 @@ const {
 } = require("firebase-admin/messaging");
 
 const {
+  getStorage,
+  getDownloadURL,
+} = require("firebase-admin/storage");
+
+const {
   onCall,
   HttpsError,
 } = require("firebase-functions/v2/https");
@@ -2366,9 +2371,24 @@ exports.sendMarketingCampaign =
           channel = "whatsapp_image";
         }
 
-        const campaignImageUrl =
+        let campaignImageUrl =
           typeof data.imageUrl === "string" ?
             data.imageUrl.trim() :
+            "";
+
+        const imageBase64 =
+          typeof data.imageBase64 === "string" ?
+            data.imageBase64.trim() :
+            "";
+
+        const imageFileName =
+          typeof data.imageFileName === "string" ?
+            data.imageFileName.trim() :
+            "";
+
+        const imageContentType =
+          typeof data.imageContentType === "string" ?
+            data.imageContentType.trim().toLowerCase() :
             "";
 
         if (
@@ -2379,6 +2399,94 @@ exports.sendMarketingCampaign =
               "invalid-argument",
               "URL immagine campagna non valido.",
           );
+        }
+
+        if (imageBase64.length > 0) {
+          const allowedImageTypes =
+            new Set([
+              "image/jpeg",
+              "image/png",
+              "image/webp",
+            ]);
+
+          if (!allowedImageTypes.has(imageContentType)) {
+            throw new HttpsError(
+                "invalid-argument",
+                "Formato immagine non supportato.",
+            );
+          }
+
+          if (imageBase64.length > 7 * 1024 * 1024) {
+            throw new HttpsError(
+                "invalid-argument",
+                "Immagine troppo grande.",
+            );
+          }
+
+          const imageBuffer =
+            Buffer.from(imageBase64, "base64");
+
+          if (
+            imageBuffer.length === 0 ||
+            imageBuffer.length > 5 * 1024 * 1024
+          ) {
+            throw new HttpsError(
+                "invalid-argument",
+                "Immagine non valida o superiore a 5 MB.",
+            );
+          }
+
+          const safeImageFileName =
+            imageFileName
+                .replace(/[^A-Za-z0-9._-]/g, "_")
+                .slice(-120) ||
+            "campaign.jpg";
+
+          const objectPath =
+            "marketing_campaigns/" +
+            Date.now() +
+            "_" +
+            crypto.randomUUID() +
+            "_" +
+            safeImageFileName;
+
+          try {
+            const bucket =
+              getStorage().bucket(
+                  "lecapase-booking-3af33.firebasestorage.app",
+              );
+
+            const file =
+              bucket.file(objectPath);
+
+            await file.save(
+                imageBuffer,
+                {
+                  resumable: false,
+                  metadata: {
+                    contentType:
+                      imageContentType,
+                    cacheControl:
+                      "public,max-age=3600",
+                  },
+                },
+            );
+
+            campaignImageUrl =
+              await getDownloadURL(file);
+          } catch (error) {
+            logger.error(
+                "Upload immagine campagna fallito.",
+                {
+                  error: String(error),
+                },
+            );
+
+            throw new HttpsError(
+                "internal",
+                "Caricamento foto campagna non riuscito.",
+            );
+          }
         }
         const customerIds =
           Array.isArray(data.customerIds) ?

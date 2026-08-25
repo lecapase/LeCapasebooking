@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../services/callable_http_service.dart';
 
@@ -132,6 +136,13 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
     final messageController = TextEditingController();
 
     String channel = 'both';
+    XFile? selectedImage;
+    Uint8List? selectedImageBytes;
+
+    bool isSendingCampaign = false;
+    bool campaignCompleted = false;
+    bool? campaignStatusSuccess;
+    String? campaignStatusMessage;
 
     await showModalBottomSheet<void>(
       context: context,
@@ -142,6 +153,12 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
           builder: (context, setSheetState) {
             int whatsappRecipients = 0;
             int emailRecipients = 0;
+
+            final campaignStatusColor = isSendingCampaign
+                ? Theme.of(context).colorScheme.primary
+                : campaignStatusSuccess == true
+                ? Colors.green.shade700
+                : Colors.red.shade700;
 
             for (final document in selectedContacts) {
               final data = document.data();
@@ -300,152 +317,407 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                         border: OutlineInputBorder(),
                       ),
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 14),
                     SizedBox(
                       width: double.infinity,
-                      child: FilledButton.icon(
+                      child: OutlinedButton.icon(
                         onPressed: () async {
-                          final campaignName =
-                              campaignNameController.text.trim();
-
-                          final message =
-                              messageController.text.trim();
-
-                          if (campaignName.length < 2) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Inserisci il nome della campagna.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          if (message.length < 2) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Inserisci il messaggio della campagna.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final customerIds = selectedContacts
-                              .map((document) => document.id)
-                              .toList();
-
-                          if (customerIds.isEmpty) {
-                            return;
-                          }
-
-                          if (customerIds.length > 50) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text(
-                                  'Puoi selezionare al massimo 50 destinatari.',
-                                ),
-                              ),
-                            );
-                            return;
-                          }
-
-                          final channelLabel =
-                              channel == 'email'
-                                  ? 'Email'
-                                  : channel == 'whatsapp_text'
-                                      ? 'WhatsApp - solo testo'
-                                      : channel == 'whatsapp_image'
-                                          ? 'WhatsApp - immagine Capa + testo'
-                                          : 'Email + WhatsApp con immagine Capa';
-
-                          final confirmed = await showDialog<bool>(
-                            context: context,
-                            builder: (dialogContext) {
-                              return AlertDialog(
-                                title: const Text('Conferma campagna'),
-                                content: Text(
-                                  'Stai per inviare realmente questa campagna a '
-                                  ' clienti.\n\n'
-                                  'Canale: $channelLabel\n\n'
-                                  'Il sistema verifichera il consenso di ogni cliente prima dell''invio.',
-                                ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () =>
-                                        Navigator.of(dialogContext).pop(false),
-                                    child: const Text('ANNULLA'),
-                                  ),
-                                  FilledButton(
-                                    onPressed: () =>
-                                        Navigator.of(dialogContext).pop(true),
-                                    child: const Text('INVIA'),
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-
-                          if (confirmed != true) {
-                            return;
-                          }
+                          XFile? image;
 
                           try {
-                            final result = await CallableHttpService.call(
-                              'sendMarketingCampaign',
-                              <String, dynamic>{
-                                'campaignName': campaignName,
-                                'message': message,
-                                'channel': channel,
-                                'customerIds': customerIds,
-                              },
+                            image = await ImagePicker().pickImage(
+                              source: ImageSource.gallery,
+                              imageQuality: 90,
                             );
-
-                            if (!context.mounted) {
-                              return;
-                            }
-
-                            final emailSent = result['emailSent'] ?? 0;
-                            final emailSkipped = result['emailSkipped'] ?? 0;
-                            final emailFailed = result['emailFailed'] ?? 0;
-
-                            final whatsappSent = result['whatsappSent'] ?? 0;
-                            final whatsappSkipped =
-                                result['whatsappSkipped'] ?? 0;
-                            final whatsappFailed =
-                                result['whatsappFailed'] ?? 0;
-
-                            Navigator.of(sheetContext).pop();
-
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Campagna completata.\n'
-                                  'Email: $emailSent inviate, $emailSkipped saltate, $emailFailed errori.\n'
-                                  'WhatsApp: $whatsappSent inviati, $whatsappSkipped saltati, $whatsappFailed errori.',
-                                ),
-                              ),
-                            );
-
-                            setState(() {
-                              _selectedIds.clear();
-                            });
                           } catch (error) {
                             if (!context.mounted) {
                               return;
                             }
 
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Errore invio: $error'),
+                              SnackBar(content: Text('ERRORE PICKER: $error')),
+                            );
+
+                            return;
+                          }
+
+                          if (image == null) {
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('PICKER CHIUSO SENZA FOTO'),
                               ),
                             );
+
+                            return;
                           }
+
+                          final bytes = await image.readAsBytes();
+
+                          if (bytes.lengthInBytes > 5 * 1024 * 1024) {
+                            if (!context.mounted) {
+                              return;
+                            }
+
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'La foto deve essere inferiore a 5 MB.',
+                                ),
+                              ),
+                            );
+
+                            return;
+                          }
+
+                          setSheetState(() {
+                            selectedImage = image;
+                            selectedImageBytes = bytes;
+                          });
                         },
-                        icon: const Icon(Icons.send_outlined),
-                        label: const Text('INVIA CAMPAGNA'),
+                        icon: const Icon(Icons.add_photo_alternate_outlined),
+                        label: Text(
+                          selectedImage == null ? 'SCEGLI FOTO' : 'CAMBIA FOTO',
+                        ),
+                      ),
+                    ),
+                    if (selectedImage != null &&
+                        selectedImageBytes != null) ...[
+                      const SizedBox(height: 12),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.memory(
+                          selectedImageBytes!,
+                          width: double.infinity,
+                          height: 180,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              selectedImage!.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () {
+                              setSheetState(() {
+                                selectedImage = null;
+                                selectedImageBytes = null;
+                              });
+                            },
+                            icon: const Icon(Icons.delete_outline),
+                            label: const Text('RIMUOVI'),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Foto opzionale. Viene usata in Email, '
+                      'WA + foto ed Entrambi.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 14),
+                    if (isSendingCampaign || campaignStatusMessage != null)
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: campaignStatusColor.withAlpha(24),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: campaignStatusColor),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (isSendingCampaign)
+                              SizedBox(
+                                width: 38,
+                                height: 38,
+                                child: Stack(
+                                  alignment: Alignment.center,
+                                  children: [
+                                    CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      color: campaignStatusColor,
+                                    ),
+                                    Icon(
+                                      Icons.settings,
+                                      size: 20,
+                                      color: campaignStatusColor,
+                                    ),
+                                  ],
+                                ),
+                              )
+                            else
+                              Icon(
+                                campaignStatusSuccess == true
+                                    ? Icons.check_circle_outline
+                                    : Icons.error_outline,
+                                size: 32,
+                                color: campaignStatusColor,
+                              ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isSendingCampaign
+                                        ? 'INVIO CAMPAGNA IN CORSO...'
+                                        : campaignCompleted
+                                        ? campaignStatusSuccess == true
+                                              ? 'CAMPAGNA COMPLETATA'
+                                              : 'COMPLETATA CON ERRORI'
+                                        : 'ERRORE NELL'
+                                              'INVIO',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      color: campaignStatusColor,
+                                    ),
+                                  ),
+                                  if (campaignStatusMessage != null) ...[
+                                    const SizedBox(height: 5),
+                                    Text(
+                                      campaignStatusMessage!,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        height: 1.35,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: isSendingCampaign || campaignCompleted
+                            ? null
+                            : () async {
+                                final campaignName = campaignNameController.text
+                                    .trim();
+
+                                final message = messageController.text.trim();
+
+                                if (campaignName.length < 2) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Inserisci il nome della campagna.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                if (message.length < 2) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Inserisci il messaggio della campagna.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final customerIds = selectedContacts
+                                    .map((document) => document.id)
+                                    .toList();
+
+                                if (customerIds.isEmpty) {
+                                  return;
+                                }
+
+                                if (customerIds.length > 50) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Puoi selezionare al massimo 50 destinatari.',
+                                      ),
+                                    ),
+                                  );
+                                  return;
+                                }
+
+                                final channelLabel = channel == 'email'
+                                    ? 'Email'
+                                    : channel == 'whatsapp_text'
+                                    ? 'WhatsApp - solo testo'
+                                    : channel == 'whatsapp_image'
+                                    ? 'WhatsApp - immagine Capa + testo'
+                                    : 'Email + WhatsApp con immagine Capa';
+
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (dialogContext) {
+                                    return AlertDialog(
+                                      title: const Text('Conferma campagna'),
+                                      content: Text(
+                                        'Stai per inviare realmente questa campagna a '
+                                        ' clienti.\n\n'
+                                        'Canale: $channelLabel\n\n'
+                                        'Il sistema verifichera il consenso di ogni cliente prima dell'
+                                        'invio.',
+                                      ),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.of(
+                                            dialogContext,
+                                          ).pop(false),
+                                          child: const Text('ANNULLA'),
+                                        ),
+                                        FilledButton(
+                                          onPressed: () => Navigator.of(
+                                            dialogContext,
+                                          ).pop(true),
+                                          child: const Text('INVIA'),
+                                        ),
+                                      ],
+                                    );
+                                  },
+                                );
+
+                                if (confirmed != true) {
+                                  return;
+                                }
+
+                                if (!context.mounted) {
+                                  return;
+                                }
+
+                                setSheetState(() {
+                                  isSendingCampaign = true;
+                                  campaignCompleted = false;
+                                  campaignStatusSuccess = null;
+                                  campaignStatusMessage =
+                                      'Preparazione foto e invio ai destinatari. '
+                                      'Attendi il completamento.';
+                                });
+                                try {
+                                  String imageBase64 = '';
+                                  String imageFileName = '';
+                                  String imageContentType = '';
+
+                                  if (selectedImage != null &&
+                                      selectedImageBytes != null &&
+                                      channel != 'whatsapp_text') {
+                                    imageBase64 = base64Encode(
+                                      selectedImageBytes!,
+                                    );
+
+                                    imageFileName = selectedImage!.name;
+
+                                    final mimeType = selectedImage!.mimeType;
+
+                                    final lowerFileName = selectedImage!.name
+                                        .toLowerCase();
+
+                                    if (mimeType != null &&
+                                        mimeType.startsWith('image/')) {
+                                      imageContentType = mimeType;
+                                    } else if (lowerFileName.endsWith('.png')) {
+                                      imageContentType = 'image/png';
+                                    } else if (lowerFileName.endsWith(
+                                      '.webp',
+                                    )) {
+                                      imageContentType = 'image/webp';
+                                    } else {
+                                      imageContentType = 'image/jpeg';
+                                    }
+                                  }
+                                  final result = await CallableHttpService.call(
+                                    'sendMarketingCampaign',
+                                    <String, dynamic>{
+                                      'campaignName': campaignName,
+                                      'message': message,
+                                      'channel': channel,
+                                      'customerIds': customerIds,
+                                      'imageBase64': imageBase64,
+                                      'imageFileName': imageFileName,
+                                      'imageContentType': imageContentType,
+                                    },
+                                  );
+
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+
+                                  final emailSent = result['emailSent'] ?? 0;
+                                  final emailSkipped =
+                                      result['emailSkipped'] ?? 0;
+                                  final emailFailed =
+                                      result['emailFailed'] ?? 0;
+
+                                  final whatsappSent =
+                                      result['whatsappSent'] ?? 0;
+                                  final whatsappSkipped =
+                                      result['whatsappSkipped'] ?? 0;
+                                  final whatsappFailed =
+                                      result['whatsappFailed'] ?? 0;
+
+                                  final completedWithoutErrors =
+                                      emailFailed == 0 && whatsappFailed == 0;
+
+                                  final resultMessage =
+                                      'Email: $emailSent inviate, '
+                                      '$emailSkipped saltate, '
+                                      '$emailFailed errori.\n'
+                                      'WhatsApp: $whatsappSent inviati, '
+                                      '$whatsappSkipped saltati, '
+                                      '$whatsappFailed errori.';
+
+                                  setSheetState(() {
+                                    isSendingCampaign = false;
+                                    campaignCompleted = true;
+                                    campaignStatusSuccess =
+                                        completedWithoutErrors;
+                                    campaignStatusMessage = resultMessage;
+                                  });
+
+                                  setState(() {
+                                    _selectedIds.clear();
+                                  });
+                                } catch (error) {
+                                  if (!context.mounted) {
+                                    return;
+                                  }
+
+                                  setSheetState(() {
+                                    isSendingCampaign = false;
+                                    campaignCompleted = false;
+                                    campaignStatusSuccess = false;
+                                    campaignStatusMessage =
+                                        'Errore invio: $error';
+                                  });
+                                }
+                              },
+                        icon: Icon(
+                          campaignCompleted
+                              ? Icons.check_circle_outline
+                              : Icons.send_outlined,
+                        ),
+                        label: Text(
+                          campaignCompleted
+                              ? 'CAMPAGNA COMPLETATA'
+                              : isSendingCampaign
+                              ? 'INVIO IN CORSO...'
+                              : 'INVIA CAMPAGNA',
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
