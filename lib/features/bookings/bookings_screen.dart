@@ -1,4 +1,4 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/push_notification_service.dart';
@@ -78,9 +78,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
   static const List<String> _selectableStatuses = [
     'booked',
     'confirmed',
+    'arrived',
+    'released',
     'cancelled',
     'no_show',
-    'released',
   ];
 
   static const Set<String> _pastStatuses = {
@@ -1914,61 +1915,82 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          ..._selectableStatuses.map((status) {
-                            final selected = status == currentStatus;
-                            final color = _statusColor(status);
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: _selectableStatuses.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 9,
+                                  mainAxisExtent: 48,
+                                ),
+                            itemBuilder: (context, index) {
+                              final status = _selectableStatuses[index];
+                              final selected = status == currentStatus;
+                              final color = _statusColor(status);
 
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 9),
-                              child: SizedBox(
-                                height: 48,
-                                child: FilledButton.icon(
-                                  style: FilledButton.styleFrom(
-                                    backgroundColor: selected
-                                        ? color
-                                        : color.withValues(alpha: 0.18),
-                                    foregroundColor: selected
-                                        ? Colors.white
-                                        : color,
-                                    side: BorderSide(color: color),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
+                              return FilledButton.icon(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: selected
+                                      ? color
+                                      : color.withValues(alpha: 0.18),
+                                  foregroundColor: selected
+                                      ? Colors.white
+                                      : color,
+                                  disabledBackgroundColor: color.withValues(
+                                    alpha: 0.28,
                                   ),
-                                  onPressed: selected
-                                      ? null
-                                      : () async {
-                                          await _changeStatus(document, status);
+                                  disabledForegroundColor: color.withValues(
+                                    alpha: 0.65,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 7,
+                                  ),
+                                  side: BorderSide(color: color),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                                onPressed: selected
+                                    ? null
+                                    : () async {
+                                        await _changeStatus(document, status);
 
-                                          final freshDocument = await document
-                                              .reference
-                                              .get();
+                                        final freshDocument = await document
+                                            .reference
+                                            .get();
 
-                                          if (!sheetContext.mounted ||
-                                              !freshDocument.exists) {
-                                            return;
-                                          }
+                                        if (!sheetContext.mounted ||
+                                            !freshDocument.exists) {
+                                          return;
+                                        }
 
-                                          final freshStatus =
-                                              freshDocument.data()?['status']
-                                                  as String? ??
-                                              currentStatus;
+                                        final freshStatus =
+                                            freshDocument.data()?['status']
+                                                as String? ??
+                                            currentStatus;
 
-                                          setModalState(() {
-                                            currentStatus = freshStatus;
-                                          });
-                                        },
-                                  icon: Icon(_statusIcon(status), size: 19),
-                                  label: Text(
+                                        setModalState(() {
+                                          currentStatus = freshStatus;
+                                        });
+                                      },
+                                icon: Icon(_statusIcon(status), size: 17),
+                                label: FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  child: Text(
                                     _statusLabel(status),
+                                    maxLines: 1,
                                     style: const TextStyle(
+                                      fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            },
+                          ),
                         ],
                       ),
                     ),
