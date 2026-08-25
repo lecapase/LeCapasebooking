@@ -88,11 +88,6 @@ const gmailAppPassword =
 
 const dialog360ApiKey =
   defineSecret("DIALOG360_API_KEY");
-const dialog360WebhookUsername =
-  defineSecret("DIALOG360_WEBHOOK_USERNAME");
-
-const dialog360WebhookPassword =
-  defineSecret("DIALOG360_WEBHOOK_PASSWORD");
 
 // ============================================================
 // UTILITÀ GENERALI
@@ -3785,43 +3780,6 @@ async function processMarketingWhatsappOptOut(message) {
   return true;
 }
 
-function validDialog360Authorization(request) {
-  const username =
-    dialog360WebhookUsername.value();
-
-  const password =
-    dialog360WebhookPassword.value();
-
-  const expectedHeader =
-    "Basic " +
-    Buffer
-        .from(username + ":" + password)
-        .toString("base64");
-
-  const receivedHeader =
-    typeof request.get("authorization") === "string" ?
-      request.get("authorization") :
-      "";
-
-  const expectedBuffer =
-    Buffer.from(expectedHeader);
-
-  const receivedBuffer =
-    Buffer.from(receivedHeader);
-
-  if (
-    expectedBuffer.length !==
-    receivedBuffer.length
-  ) {
-    return false;
-  }
-
-  return require("crypto")
-      .timingSafeEqual(
-          expectedBuffer,
-          receivedBuffer,
-      );
-}
 exports.dialog360Webhook =
   onRequest(
       {
@@ -3830,10 +3788,6 @@ exports.dialog360Webhook =
 
         timeoutSeconds:
           60,
-        secrets: [
-          dialog360WebhookUsername,
-          dialog360WebhookPassword,
-        ],
       },
       async (request, response) => {
         if (request.method !== "POST") {
@@ -3844,17 +3798,6 @@ exports.dialog360Webhook =
           return;
         }
 
-        if (!validDialog360Authorization(request)) {
-          logger.warn(
-              "Webhook 360dialog non autorizzato.",
-          );
-
-          response
-              .status(401)
-              .send("UNAUTHORIZED");
-
-          return;
-        }
         try {
           const messages =
             extractWhatsappMessages(
