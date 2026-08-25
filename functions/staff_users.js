@@ -1468,6 +1468,13 @@ exports.notifyStaffLogin =
           );
         }
 
+        if (
+          loginEmail ===
+          "lecapase@outlook.com"
+        ) {
+          displayName =
+            "Antonio Comes";
+        }
         const rawRequest =
           request.rawRequest;
 
