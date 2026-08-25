@@ -3,12 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'firebase_options.dart';
+import 'services/firebase_app_check_service.dart';
 import 'features/customer_booking/customer_home_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await initializeFirebaseAppCheck();
 
   runApp(const LeCapaseBookingPublicApp());
 }
