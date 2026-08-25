@@ -2,7 +2,6 @@ import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../agenda/kitchen_agenda_screen.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -501,18 +500,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   const SizedBox(height: 34),
                   Expanded(child: _content()),
-                  OutlinedButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const KitchenAgendaScreen(),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.calendar_month_outlined, size: 18),
-                    label: const Text('Agenda'),
-                  ),
-                  const SizedBox(height: 4),
                   TextButton.icon(
                     onPressed: _openAdministratorLogin,
                     icon: const Icon(
