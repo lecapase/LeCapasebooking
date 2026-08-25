@@ -815,6 +815,40 @@ async function requireAdministrator(request) {
   return uid;
 }
 
+async function userCanViewBookings(uid) {
+  if (!uid) {
+    return false;
+  }
+
+  const legacyAdminSnapshot =
+    await db
+        .collection("admins")
+        .doc(uid)
+        .get();
+
+  if (legacyAdminSnapshot.exists) {
+    return true;
+  }
+
+  const staffSnapshot =
+    await db
+        .collection("staff_users")
+        .doc(uid)
+        .get();
+
+  if (!staffSnapshot.exists) {
+    return false;
+  }
+
+  const staffData =
+    staffSnapshot.data();
+
+  return Boolean(
+      staffData &&
+      staffData.active === true &&
+      validRole(staffData.role),
+  );
+}
 function validatedPassword(value) {
   const password =
     typeof value === "string" ?
@@ -1429,7 +1463,7 @@ exports.deleteStaffUser =
       },
   );
 
-// AGENDA PUBBLICA 2.0
+// AGENDA PROTETTA 2.0
 exports.getKitchenAgenda =
   onCall(
       {
@@ -1438,6 +1472,22 @@ exports.getKitchenAgenda =
         memory: "256MiB",
       },
       async (request) => {
+        const uid =
+          request.auth?.uid;
+
+        if (!uid) {
+          throw new HttpsError(
+              "unauthenticated",
+              "Devi effettuare l'accesso.",
+          );
+        }
+
+        if (!await userCanViewBookings(uid)) {
+          throw new HttpsError(
+              "permission-denied",
+              "Non sei autorizzato a consultare l'agenda.",
+          );
+        }
         const dateKey =
           typeof request.data?.dateKey === "string" ?
             request.data.dateKey.trim() :
