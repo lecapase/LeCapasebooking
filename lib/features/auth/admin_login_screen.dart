@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -141,7 +139,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   password: password,
                 );
 
-                unawaited(_notifySuccessfulLogin());
+                await _notifySuccessfulLogin();
 
                 if (!dialogContext.mounted) {
                   return;
@@ -295,7 +293,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   password: password,
                 );
 
-                unawaited(_notifySuccessfulLogin());
+                await _notifySuccessfulLogin();
 
                 if (!dialogContext.mounted) {
                   return;
