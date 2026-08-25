@@ -3291,7 +3291,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ],
       ),
       child: NavigationBar(
-        height: 56,
+        height: 62,
         backgroundColor: const Color(0xFF201D18),
         indicatorColor: const Color(0xFFC8A45D),
         selectedIndex: _bottomIndex,
@@ -3328,12 +3328,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
               icon: Icon(
                 Icons.add_circle_outline,
                 color: Color(0xFFE9E1D2),
-                size: 25,
+                size: 28,
               ),
               selectedIcon: Icon(
                 Icons.add_circle,
                 color: Colors.black,
-                size: 25,
+                size: 28,
               ),
               label: 'Aggiungi',
             )
