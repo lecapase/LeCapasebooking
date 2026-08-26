@@ -340,7 +340,7 @@ service cloud.firestore {
     }
 
     // =====================================================
-    // DISPONIBILITÀ E SERVIZI
+    // DISPONIBILITÃƒâ‚¬ E SERVIZI
     // =====================================================
 
     match /availability_weekly/{documentId} {
@@ -362,9 +362,37 @@ service cloud.firestore {
     // PRENOTAZIONI
     // =====================================================
 
+    match /booking_slot_closures/{documentId} {
+      allow read: if true;
+
+      allow create, update: if isManager()
+        && request.resource.data.keys().hasOnly([
+          'dateKey',
+          'service',
+          'time',
+          'closed',
+          'updatedAt'
+        ])
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.size() == 10
+        && (
+          request.resource.data['service'] == 'lunch'
+          || request.resource.data['service'] == 'dinner'
+        )
+        && request.resource.data.time is string
+        && request.resource.data.time.size() == 5
+        && request.resource.data.closed == true
+
+      allow delete: if isManager();
+    }
     match /bookings/{bookingId} {
       allow create: if isManager()
-        || isValidCustomerBooking();
+        || (
+          isValidCustomerBooking()
+          && !exists(
+            /databases/$(database)/documents/booking_slot_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'] + "_" + request.resource.data.time)
+          )
+        );
 
       allow read: if canViewBookings();
 

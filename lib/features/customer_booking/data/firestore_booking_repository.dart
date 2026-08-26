@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../../availability/data/booking_slot_closures_repository.dart';
 import '../../availability/models/service_availability.dart';
 import 'customer_availability_service.dart';
 
@@ -68,7 +69,7 @@ class FirestoreBookingRepository {
 
     if (guests < 1) {
       throw const BookingCapacityException(
-        'Il numero di persone non Ã¨ valido.',
+        'Il numero di persone non ÃƒÂ¨ valido.',
       );
     }
 
@@ -113,7 +114,7 @@ class FirestoreBookingRepository {
 
     if (selectedService == null || !selectedService.isOpen) {
       throw const BookingCapacityException(
-        'Questo servizio non Ã¨ disponibile.',
+        'Questo servizio non ÃƒÂ¨ disponibile.',
       );
     }
 
@@ -128,7 +129,7 @@ class FirestoreBookingRepository {
 
     if (!availableTimes.contains(time)) {
       throw const BookingCapacityException(
-        'Lâ€™orario selezionato non Ã¨ piÃ¹ disponibile.',
+        'LÃ¢â‚¬â„¢orario selezionato non ÃƒÂ¨ piÃƒÂ¹ disponibile.',
       );
     }
 
@@ -137,7 +138,7 @@ class FirestoreBookingRepository {
       time: time,
     )) {
       throw const BookingCapacityException(
-        'Lâ€™orario selezionato Ã¨ stato bloccato.',
+        'LÃ¢â‚¬â„¢orario selezionato ÃƒÂ¨ stato bloccato.',
       );
     }
 
@@ -165,6 +166,12 @@ class FirestoreBookingRepository {
         .collection(_countersCollection)
         .doc('${dateKey}_$service');
 
+    final closureReference = BookingSlotClosuresRepository.reference(
+      date: normalizedDate,
+      service: service,
+      time: time,
+    );
+
     // =======================================================
     // TRANSAZIONE FIRESTORE
     //
@@ -173,6 +180,13 @@ class FirestoreBookingRepository {
     // =======================================================
 
     await _firestore.runTransaction((transaction) async {
+      final closureSnapshot = await transaction.get(closureReference);
+
+      if (closureSnapshot.exists) {
+        throw const BookingCapacityException(
+          'Fascia oraria completa. Seleziona un altro orario.',
+        );
+      }
       final counterSnapshot = await transaction.get(counterReference);
 
       var bookedGuests = 0;
@@ -403,7 +417,7 @@ class FirestoreBookingRepository {
   }
 
   // =========================================================
-  // COPERTI GIÃ€ OCCUPATI
+  // COPERTI GIÃƒâ‚¬ OCCUPATI
   // =========================================================
 
   static Future<int> getBookedGuests({

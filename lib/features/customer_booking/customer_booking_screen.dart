@@ -1,3 +1,4 @@
+import '../availability/data/booking_slot_closures_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -40,6 +41,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   List<String> lunchTimes = [];
   List<String> dinnerTimes = [];
+
+  Set<String> closedLunchTimes = {};
+  Set<String> closedDinnerTimes = {};
 
   final List<String> occasioni = [
     'Nessuna',
@@ -186,9 +190,26 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             )
           : <String>[];
 
+      final loadedClosures = await Future.wait([
+        BookingSlotClosuresRepository.loadClosedTimes(
+          date: normalizedDate,
+          service: 'lunch',
+        ),
+        BookingSlotClosuresRepository.loadClosedTimes(
+          date: normalizedDate,
+          service: 'dinner',
+        ),
+      ]);
+
+      if (!mounted) {
+        return;
+      }
+
       setState(() {
         lunchTimes = _filterBookableTimes(normalizedDate, loadedLunchTimes);
         dinnerTimes = _filterBookableTimes(normalizedDate, loadedDinnerTimes);
+        closedLunchTimes = loadedClosures[0];
+        closedDinnerTimes = loadedClosures[1];
 
         if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
           currentStep = 1;
@@ -199,7 +220,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return;
       }
 
-      _message('Errore disponibilità : $error');
+      _message('Errore disponibilitÃƒÂ Ã‚Â : $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -228,7 +249,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       });
 
       _message(
-        'Questo orario non è più prenotabile. Scegli un orario successivo.',
+        'Questo orario non ÃƒÂ¨ piÃƒÂ¹ prenotabile. Scegli un orario successivo.',
       );
       return;
     }
@@ -315,7 +336,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         currentStep = 2;
       });
 
-      _message('Questo orario non è più disponibile. Scegli un nuovo orario.');
+      _message(
+        'Questo orario non ÃƒÂ¨ piÃƒÂ¹ disponibile. Scegli un nuovo orario.',
+      );
       return;
     }
 
@@ -370,9 +393,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             content: Text(
               autoConfirmed
                   ? 'Grazie per aver scelto Le Capase.\n\n'
-                        'La tua prenotazione è confermata.'
+                        'La tua prenotazione ÃƒÂ¨ confermata.'
                   : 'Grazie per aver scelto Le Capase.\n\n'
-                        'La richiesta è in attesa di conferma. '
+                        'La richiesta ÃƒÂ¨ in attesa di conferma. '
                         'Riceverai una risposta appena possibile.',
               textAlign: TextAlign.center,
               style: GoogleFonts.libreBaskerville(color: dark, height: 1.5),
@@ -604,7 +627,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             const CircularProgressIndicator(color: gold),
             const SizedBox(height: 10),
             const Text(
-              'Controllo disponibilità …',
+              'Controllo disponibilitÃƒÂ Ã‚Â Ã¢â‚¬Â¦',
               style: TextStyle(color: muted),
             ),
           ],
@@ -734,7 +757,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       subtitle: selectedDate == null
           ? ''
           : '${_formattedDate(selectedDate!)}'
-                ' · $persone '
+                ' Ã‚Â· $persone '
                 '${persone == 1 ? 'persona' : 'persone'}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -813,12 +836,23 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             itemBuilder: (context, index) {
               final time = times[index];
 
+              final isClosed = service == 'lunch'
+                  ? closedLunchTimes.contains(time)
+                  : closedDinnerTimes.contains(time);
+
               return Material(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(13),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(13),
                   onTap: () {
+                    if (isClosed) {
+                      _message(
+                        'Fascia oraria completa. Seleziona un altro orario.',
+                      );
+                      return;
+                    }
+
                     _selectTime(time: time, service: service);
                   },
                   child: Container(
@@ -829,10 +863,13 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                     ),
                     child: Text(
                       time,
-                      style: const TextStyle(
-                        color: dark,
+                      style: TextStyle(
+                        color: isClosed ? Colors.grey : dark,
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
+                        decoration: isClosed
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
                       ),
                     ),
                   ),
@@ -1085,7 +1122,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   : const Icon(Icons.check_rounded),
               label: Text(
                 _saving
-                    ? 'INVIO IN CORSO…'
+                    ? 'INVIO IN CORSOÃ¢â‚¬Â¦'
                     : persone <= 4
                     ? 'CONFERMA PRENOTAZIONE'
                     : 'INVIA RICHIESTA',
@@ -1133,7 +1170,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           Expanded(
             child: Text(
               automatic
-                  ? 'La prenotazione sarà confermata immediatamente.'
+                  ? 'La prenotazione sarÃƒÂ  confermata immediatamente.'
                   : 'Le richieste da 5 persone in su devono '
                         'essere confermate dal ristorante.',
               style: const TextStyle(
@@ -1246,11 +1283,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   String _formattedDate(DateTime date) {
     const weekdayNames = [
-      'Lunedì',
-      'Martedì',
-      'Mercoledì',
-      'Giovedì',
-      'Venerdì',
+      'LunedÃƒÂ¬',
+      'MartedÃƒÂ¬',
+      'MercoledÃƒÂ¬',
+      'GiovedÃƒÂ¬',
+      'VenerdÃƒÂ¬',
       'Sabato',
       'Domenica',
     ];

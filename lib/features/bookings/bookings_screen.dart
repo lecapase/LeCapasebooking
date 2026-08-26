@@ -1,3 +1,5 @@
+import '../availability/data/booking_slot_closures_repository.dart';
+import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
@@ -163,13 +165,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final weekEnd = weekStart.add(const Duration(days: 6));
 
     if (weekStart.month == weekEnd.month) {
-      return '${weekStart.day}–${weekEnd.day} '
+      return '${weekStart.day}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“${weekEnd.day} '
           '${_monthNames[weekStart.month - 1]} '
           '${weekStart.year}';
     }
 
     return '${weekStart.day} '
-        '${_monthNames[weekStart.month - 1]} – '
+        '${_monthNames[weekStart.month - 1]} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ '
         '${weekEnd.day} '
         '${_monthNames[weekEnd.month - 1]} '
         '${weekEnd.year}';
@@ -528,7 +530,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã‚Â .';
         }
 
         buttonLabel = 'Prenotata';
@@ -542,14 +544,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         if (oldStatus == 'pending') {
           message +=
-              '\n\nIl cliente riceverà automaticamente '
-              'l’email di conferma.';
+              '\n\nIl cliente riceverÃƒÆ’Ã‚Â  automaticamente '
+              'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di conferma.';
         }
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã‚Â .';
         }
 
         buttonLabel = 'Conferma';
@@ -564,12 +566,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã‚Â .';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverà '
-            'l’email di annullamento.';
+            '\n\nSe presente, il cliente riceverÃƒÆ’Ã‚Â  '
+            'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di annullamento.';
 
         buttonLabel = 'Annulla';
         break;
@@ -583,12 +585,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã‚Â .';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverà '
-            'l’email di rifiuto.';
+            '\n\nSe presente, il cliente riceverÃƒÆ’Ã‚Â  '
+            'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di rifiuto.';
 
         buttonLabel = 'Rifiuta';
         break;
@@ -602,7 +604,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilità.';
+              'nella disponibilitÃƒÆ’Ã‚Â .';
         }
 
         buttonLabel = 'Arrivata';
@@ -612,16 +614,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
         title = 'Segna come no-show';
         message =
             'Vuoi segnalare che $customerName '
-            'non si è presentato?';
+            'non si ÃƒÆ’Ã‚Â¨ presentato?';
 
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã‚Â .';
         }
 
         message +=
-            '\n\nIl cliente sarà contrassegnato '
+            '\n\nIl cliente sarÃƒÆ’Ã‚Â  contrassegnato '
             'nello storico come possibile cliente a rischio.';
 
         buttonLabel = 'No-show';
@@ -636,7 +638,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilità.';
+              'dalla disponibilitÃƒÆ’Ã‚Â .';
         }
 
         buttonLabel = 'Liberato';
@@ -698,7 +700,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Il Supervisor può gestire solo le richieste in attesa.',
+              'Il Supervisor puÃƒÆ’Ã‚Â² gestire solo le richieste in attesa.',
             ),
           ),
         );
@@ -1085,15 +1087,214 @@ class _BookingsScreenState extends State<BookingsScreen> {
             icon: Icons.light_mode_outlined,
             guests: lunchGuests,
           ),
+          if (_isManager)
+            SizedBox(
+              width: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: 'Gestisci fasce Pranzo',
+                onPressed: () {
+                  _openSlotClosures('lunch');
+                },
+                icon: const Icon(
+                  Icons.settings_outlined,
+                  size: 17,
+                  color: Color(0xFFC8A45D),
+                ),
+              ),
+            ),
           _serviceButton(
             value: 'dinner',
             label: 'Cena',
             icon: Icons.dark_mode_outlined,
             guests: dinnerGuests,
           ),
+          if (_isManager)
+            SizedBox(
+              width: 32,
+              child: IconButton(
+                padding: EdgeInsets.zero,
+                tooltip: 'Gestisci fasce Cena',
+                onPressed: () {
+                  _openSlotClosures('dinner');
+                },
+                icon: const Icon(
+                  Icons.settings_outlined,
+                  size: 17,
+                  color: Color(0xFFC8A45D),
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _openSlotClosures(String service) async {
+    if (!_isManager) {
+      return;
+    }
+
+    final serviceLabel = service == 'lunch' ? 'Pranzo' : 'Cena';
+
+    try {
+      final availability =
+          await CustomerAvailabilityService.getAvailabilityForDate(
+            _selectedDate,
+          );
+
+      if (!mounted) {
+        return;
+      }
+
+      if (availability == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Nessun servizio disponibile per questa data.'),
+          ),
+        );
+        return;
+      }
+
+      final selectedAvailability = service == 'lunch'
+          ? availability.lunch
+          : availability.dinner;
+
+      if (!selectedAvailability.isOpen) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$serviceLabel non disponibile per questa data.'),
+          ),
+        );
+        return;
+      }
+
+      final times = CustomerAvailabilityService.generateAvailableTimes(
+        selectedAvailability,
+        date: _selectedDate,
+      );
+
+      final closedTimes = await BookingSlotClosuresRepository.loadClosedTimes(
+        date: _selectedDate,
+        service: service,
+      );
+
+      if (!mounted) {
+        return;
+      }
+
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                title: Text(
+                  '$serviceLabel Ã‚Â· ${_fullDateLabel(_selectedDate)}',
+                ),
+                content: SizedBox(
+                  width: 380,
+                  child: times.isEmpty
+                      ? const Text('Nessuna fascia oraria disponibile.')
+                      : ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: times.length,
+                          separatorBuilder: (_, _) => const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            final time = times[index];
+                            final closed = closedTimes.contains(time);
+
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              title: Text(
+                                time,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  decoration: closed
+                                      ? TextDecoration.lineThrough
+                                      : TextDecoration.none,
+                                  color: closed ? Colors.grey : null,
+                                ),
+                              ),
+                              subtitle: Text(
+                                closed
+                                    ? 'Fascia completa'
+                                    : 'Prenotabile online',
+                              ),
+                              trailing: IconButton(
+                                tooltip: closed
+                                    ? 'Riapri fascia online'
+                                    : 'Chiudi fascia online',
+                                icon: Icon(
+                                  closed
+                                      ? Icons.public_off_outlined
+                                      : Icons.public,
+                                  color: closed
+                                      ? Colors.grey
+                                      : const Color(0xFFC8A45D),
+                                ),
+                                onPressed: () async {
+                                  try {
+                                    await BookingSlotClosuresRepository.setClosed(
+                                      date: _selectedDate,
+                                      service: service,
+                                      time: time,
+                                      closed: !closed,
+                                    );
+
+                                    if (!mounted) {
+                                      return;
+                                    }
+
+                                    setDialogState(() {
+                                      if (closed) {
+                                        closedTimes.remove(time);
+                                      } else {
+                                        closedTimes.add(time);
+                                      }
+                                    });
+                                  } catch (error) {
+                                    if (!context.mounted) {
+                                      return;
+                                    }
+
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(
+                                          'Modifica fascia non riuscita: $error',
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop();
+                    },
+                    child: const Text('CHIUDI'),
+                  ),
+                ],
+              );
+            },
+          );
+        },
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Caricamento fasce non riuscito: $error')),
+      );
+    }
   }
 
   Widget _sectionButton({
@@ -1545,7 +1746,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
     if (!_isManager) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Solo Admin e Manager possono modificare l’orario.'),
+          content: Text(
+            'Solo Admin e Manager possono modificare lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢orario.',
+          ),
         ),
       );
       return false;
@@ -1771,7 +1974,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               Text(
                                 '$currentGuests'
                                 '${currentGuests == 1 ? ' persona' : ' persone'}'
-                                ' · ${_bookingSheetDateLabel(dateKey)}',
+                                ' Ãƒâ€šÃ‚Â· ${_bookingSheetDateLabel(dateKey)}',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 13,
@@ -2213,7 +2416,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
-                  '$time — ${guests}p',
+                  '$time ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${guests}p',
                   style: const TextStyle(
                     color: Colors.black,
                     fontSize: 11,
@@ -2446,7 +2649,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final status = booking['status'] as String? ?? 'pending';
 
     // Risposta ricevuta alla riconferma:
-    // resta finché viene aperta.
+    // resta finchÃƒÆ’Ã‚Â© viene aperta.
     if (_unreadReconfirmationResult(booking)) {
       return true;
     }
@@ -2457,18 +2660,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     // Richiesta >4 persone:
-    // rimane finché viene gestita.
+    // rimane finchÃƒÆ’Ã‚Â© viene gestita.
     if (status == 'pending') {
       return true;
     }
 
-    // Se una richiesta manuale è stata gestita,
+    // Se una richiesta manuale ÃƒÆ’Ã‚Â¨ stata gestita,
     // non deve restare nelle notifiche.
     if (booking['requiresManualConfirmation'] == true) {
       return false;
     }
 
-    // Stati già conclusi o cliente già arrivato.
+    // Stati giÃƒÆ’Ã‚Â  conclusi o cliente giÃƒÆ’Ã‚Â  arrivato.
     if (_isPastStatus(status) || status == 'arrived') {
       return false;
     }
@@ -2636,7 +2839,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tutte le notifiche sono già lette.')),
+        const SnackBar(
+          content: Text('Tutte le notifiche sono giÃƒÆ’Ã‚Â  lette.'),
+        ),
       );
       return;
     }
@@ -2846,8 +3051,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${_italianDateFromKey(dateKey)} · '
-                  '$time · ${_serviceLabel(service)}',
+                  '${_italianDateFromKey(dateKey)} Ãƒâ€šÃ‚Â· '
+                  '$time Ãƒâ€šÃ‚Â· ${_serviceLabel(service)}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 6),
@@ -2991,7 +3196,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         return AlertDialog(
           title: const Text('Uscire dal gestionale?'),
           content: const Text(
-            'Il logout richiederà nuovamente '
+            'Il logout richiederÃƒÆ’Ã‚Â  nuovamente '
             'email e password al prossimo accesso.\n\n'
             'Se vuoi soltanto proteggere il gestionale, '
             'usa \u201CBlocca gestionale\u201D.',
@@ -3089,7 +3294,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.history,
           title: 'Prenotazioni passate',
-          subtitle: 'Apri l’archivio della data selezionata',
+          subtitle: 'Apri lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢archivio della data selezionata',
           onTap: () {
             setState(() {
               _bottomIndex = 0;
@@ -3131,7 +3336,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             icon: Icons.calendar_month_outlined,
             title: 'Gestione servizi',
             subtitle:
-                'Calendario, disponibilità, orari, '
+                'Calendario, disponibilitÃƒÆ’Ã‚Â , orari, '
                 'coperti e chiusure',
             onTap: () {
               Navigator.of(context).push(
@@ -3211,7 +3416,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.lock_outline_rounded,
           title: 'Blocca gestionale',
-          subtitle: 'Proteggi l’accesso senza effettuare il logout',
+          subtitle:
+              'Proteggi lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢accesso senza effettuare il logout',
           onTap: () async {
             final lock = widget.onLock;
 
