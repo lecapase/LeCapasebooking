@@ -121,6 +121,94 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
     });
   }
 
+  Future<void> _removeFromMarketingList(
+    QueryDocumentSnapshot<Map<String, dynamic>> document,
+  ) async {
+    final data = document.data();
+    final name = _fullName(data);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          icon: const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.redAccent,
+            size: 46,
+          ),
+          title: const Text(
+            'ATTENZIONE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          content: Text(
+            '${name.isEmpty ? 'Il contatto' : name} sarà eliminato '
+            'definitivamente dalla lista marketing e non riceverà più '
+            'comunicazioni promozionali.',
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('ANNULLA'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('RIMUOVI'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) {
+      return;
+    }
+
+    try {
+      await document.reference.set({
+        'marketingEmailConsent': false,
+        'marketingWhatsappConsent': false,
+        'marketingOptOutAt': FieldValue.serverTimestamp(),
+        'marketingOptOutSource': 'admin_removed',
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _selectedIds.remove(document.id);
+      });
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Contatto rimosso dalla lista marketing.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Rimozione non riuscita: $error')));
+    }
+  }
+
   Future<void> _openCampaignPreview(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> contacts,
   ) async {
@@ -963,6 +1051,31 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                                               style: TextStyle(
                                                 fontSize: 12,
                                                 color: Colors.grey.shade700,
+                                              ),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Align(
+                                              alignment: Alignment.centerRight,
+                                              child: TextButton.icon(
+                                                style: TextButton.styleFrom(
+                                                  foregroundColor:
+                                                      Colors.redAccent,
+                                                ),
+                                                onPressed: () {
+                                                  _removeFromMarketingList(
+                                                    document,
+                                                  );
+                                                },
+                                                icon: const Icon(
+                                                  Icons.delete_outline,
+                                                  size: 18,
+                                                ),
+                                                label: const Text(
+                                                  'Rimuovi',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                                ),
                                               ),
                                             ),
                                           ],
