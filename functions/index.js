@@ -2984,6 +2984,51 @@ function romeMinuteKey(date) {
   };
 }
 
+async function syncCurrentBusinessDate(now) {
+  const current =
+    romeMinuteKey(now);
+
+  const reference =
+    db
+        .collection("_system")
+        .doc("current_business_date");
+
+  const snapshot =
+    await reference.get();
+
+  if (
+    snapshot.exists &&
+    snapshot.data()?.dateKey === current.dateKey
+  ) {
+    return;
+  }
+
+  await reference.set(
+      {
+        dateKey:
+          current.dateKey,
+
+        timeZone:
+          "Europe/Rome",
+
+        updatedAt:
+          FieldValue.serverTimestamp(),
+      },
+      {
+        merge:
+          true,
+      },
+  );
+
+  logger.info(
+      "Data operativa sincronizzata",
+      {
+        dateKey:
+          current.dateKey,
+      },
+  );
+}
+
 function reminderMinuteKeys(now) {
   const keys =
     new Set();
@@ -3342,6 +3387,8 @@ exports.sendReconfirmationReminders =
       async () => {
         const now =
           new Date();
+
+        await syncCurrentBusinessDate(now);
 
         const wantedKeys =
           reminderMinuteKeys(now);

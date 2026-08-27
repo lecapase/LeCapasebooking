@@ -66,6 +66,29 @@ service cloud.firestore {
     }
 
     // =====================================================
+    // BLOCCO DELLE GIORNATE PASSATE
+    // =====================================================
+
+    function currentBusinessDateKey() {
+      return get(
+        /databases/$(database)/documents/_system/current_business_date
+      ).data.dateKey;
+    }
+
+    function isCurrentOrFutureBooking(bookingData) {
+      return bookingData.dateKey == currentBusinessDateKey()
+        || (
+          bookingData.date is timestamp
+          && bookingData.date > request.time
+        );
+    }
+
+    function bookingDateIsUnchanged() {
+      return request.resource.data.dateKey == resource.data.dateKey
+        && request.resource.data.date == resource.data.date;
+    }
+
+    // =====================================================
     // AGGIORNAMENTI CONSENTITI AL SUPERVISOR
     // =====================================================
 
@@ -416,23 +439,31 @@ service cloud.firestore {
     }
 
     match /bookings/{bookingId} {
-      allow create: if isManager()
-        || (
-          isValidCustomerBooking()
-          && !exists(
-            /databases/$(database)/documents/booking_slot_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'] + "_" + request.resource.data.time)
-          )
-          && !exists(
-            /databases/$(database)/documents/booking_service_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'])
+      allow create: if isCurrentOrFutureBooking(request.resource.data)
+        && (
+          isManager()
+          || (
+            isValidCustomerBooking()
+            && !exists(
+              /databases/$(database)/documents/booking_slot_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'] + "_" + request.resource.data.time)
+            )
+            && !exists(
+              /databases/$(database)/documents/booking_service_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'])
+            )
           )
         );
 
       allow read: if canViewBookings();
 
-      allow update: if isManager()
-        || validSupervisorBookingUpdate();
+      allow update: if isCurrentOrFutureBooking(resource.data)
+        && bookingDateIsUnchanged()
+        && (
+          isManager()
+          || validSupervisorBookingUpdate()
+        );
 
-      allow delete: if isAdmin();
+      allow delete: if isAdmin()
+        && isCurrentOrFutureBooking(resource.data);
     }
 
     // =====================================================
