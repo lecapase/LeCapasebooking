@@ -3,6 +3,7 @@ import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 import '../../services/push_notification_service.dart';
 
@@ -2010,21 +2011,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
       case 'google':
         backgroundColor = Colors.white;
         foregroundColor = const Color(0xFF4285F4);
-        child = const Text(
-          'G',
-          style: TextStyle(
-            color: Color(0xFF4285F4),
-            fontSize: 18,
-            fontWeight: FontWeight.w900,
-          ),
+        child = const FaIcon(
+          FontAwesomeIcons.google,
+          color: Color(0xFF4285F4),
+          size: 17,
         );
         break;
 
       case 'instagram':
         backgroundColor = const Color(0xFFE1306C);
         foregroundColor = Colors.white;
-        child = const Icon(
-          Icons.camera_alt_outlined,
+        child = const FaIcon(
+          FontAwesomeIcons.instagram,
           color: Colors.white,
           size: 17,
         );
@@ -2033,8 +2031,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
       case 'whatsapp':
         backgroundColor = const Color(0xFF25D366);
         foregroundColor = Colors.white;
-        child = const Icon(
-          Icons.phone_in_talk_outlined,
+        child = const FaIcon(
+          FontAwesomeIcons.whatsapp,
           color: Colors.white,
           size: 17,
         );
@@ -2043,7 +2041,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       case 'direct':
         backgroundColor = Colors.blueGrey;
         foregroundColor = Colors.white;
-        child = const Icon(Icons.link_rounded, color: Colors.white, size: 18);
+        child = const FaIcon(
+          FontAwesomeIcons.link,
+          color: Colors.white,
+          size: 16,
+        );
         break;
 
       default:
