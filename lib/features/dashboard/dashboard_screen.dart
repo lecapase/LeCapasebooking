@@ -215,7 +215,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          '${booking.persone} persone â€¢ ${booking.orario}',
+                          '${booking.persone} persone • ${booking.orario}',
                           style: const TextStyle(color: Colors.white70),
                         ),
                         trailing: Text(

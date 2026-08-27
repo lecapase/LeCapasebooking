@@ -220,7 +220,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return;
       }
 
-      _message('Errore disponibilitÃƒÂ Ã‚Â : $error');
+      _message('Errore disponibilità: $error');
     } finally {
       if (mounted) {
         setState(() {
@@ -249,7 +249,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       });
 
       _message(
-        'Questo orario non ÃƒÂ¨ piÃƒÂ¹ prenotabile. Scegli un orario successivo.',
+        'Questo orario non è più prenotabile. Scegli un orario successivo.',
       );
       return;
     }
@@ -336,9 +336,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         currentStep = 2;
       });
 
-      _message(
-        'Questo orario non ÃƒÂ¨ piÃƒÂ¹ disponibile. Scegli un nuovo orario.',
-      );
+      _message('Questo orario non è più disponibile. Scegli un nuovo orario.');
       return;
     }
 
@@ -393,9 +391,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             content: Text(
               autoConfirmed
                   ? 'Grazie per aver scelto Le Capase.\n\n'
-                        'La tua prenotazione ÃƒÂ¨ confermata.'
+                        'La tua prenotazione è confermata.'
                   : 'Grazie per aver scelto Le Capase.\n\n'
-                        'La richiesta ÃƒÂ¨ in attesa di conferma. '
+                        'La richiesta è in attesa di conferma. '
                         'Riceverai una risposta appena possibile.',
               textAlign: TextAlign.center,
               style: GoogleFonts.libreBaskerville(color: dark, height: 1.5),
@@ -627,7 +625,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             const CircularProgressIndicator(color: gold),
             const SizedBox(height: 10),
             const Text(
-              'Controllo disponibilitÃƒÂ Ã‚Â Ã¢â‚¬Â¦',
+              'Controllo disponibilità…',
               style: TextStyle(color: muted),
             ),
           ],
@@ -757,7 +755,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       subtitle: selectedDate == null
           ? ''
           : '${_formattedDate(selectedDate!)}'
-                ' Ã‚Â· $persone '
+                ' · $persone '
                 '${persone == 1 ? 'persona' : 'persone'}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1122,7 +1120,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   : const Icon(Icons.check_rounded),
               label: Text(
                 _saving
-                    ? 'INVIO IN CORSOÃ¢â‚¬Â¦'
+                    ? 'INVIO IN CORSO…'
                     : persone <= 4
                     ? 'CONFERMA PRENOTAZIONE'
                     : 'INVIA RICHIESTA',
@@ -1170,7 +1168,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           Expanded(
             child: Text(
               automatic
-                  ? 'La prenotazione sarÃƒÂ  confermata immediatamente.'
+                  ? 'La prenotazione sarà confermata immediatamente.'
                   : 'Le richieste da 5 persone in su devono '
                         'essere confermate dal ristorante.',
               style: const TextStyle(
@@ -1283,11 +1281,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   String _formattedDate(DateTime date) {
     const weekdayNames = [
-      'LunedÃƒÂ¬',
-      'MartedÃƒÂ¬',
-      'MercoledÃƒÂ¬',
-      'GiovedÃƒÂ¬',
-      'VenerdÃƒÂ¬',
+      'Lunedì',
+      'Martedì',
+      'Mercoledì',
+      'Giovedì',
+      'Venerdì',
       'Sabato',
       'Domenica',
     ];

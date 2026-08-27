@@ -6,7 +6,7 @@ class CustomerAvailabilityService {
   CustomerAvailabilityService._();
 
   // =========================================================
-  // DISPONIBILITÃ€ EFFETTIVA PER UNA DATA
+  // DISPONIBILITÀ EFFETTIVA PER UNA DATA
   // =========================================================
 
   static Future<DayAvailability?> getAvailabilityForDate(DateTime date) async {
@@ -25,7 +25,7 @@ class CustomerAvailabilityService {
   }
 
   // =========================================================
-  // CONVERSIONE NUOVI SERVIZI -> DISPONIBILITÃ€ CLIENTE
+  // CONVERSIONE NUOVI SERVIZI -> DISPONIBILITÀ CLIENTE
   // =========================================================
 
   static DayAvailability _availabilityFromManagedServices(DateTime date) {
@@ -278,19 +278,19 @@ class CustomerAvailabilityService {
   static String _dayName(int weekday) {
     switch (weekday) {
       case DateTime.monday:
-        return 'LunedÃ¬';
+        return 'Lunedì';
 
       case DateTime.tuesday:
-        return 'MartedÃ¬';
+        return 'Martedì';
 
       case DateTime.wednesday:
-        return 'MercoledÃ¬';
+        return 'Mercoledì';
 
       case DateTime.thursday:
-        return 'GiovedÃ¬';
+        return 'Giovedì';
 
       case DateTime.friday:
-        return 'VenerdÃ¬';
+        return 'Venerdì';
 
       case DateTime.saturday:
         return 'Sabato';

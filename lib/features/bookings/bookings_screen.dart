@@ -165,13 +165,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final weekEnd = weekStart.add(const Duration(days: 6));
 
     if (weekStart.month == weekEnd.month) {
-      return '${weekStart.day}ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“${weekEnd.day} '
+      return '${weekStart.day}–${weekEnd.day} '
           '${_monthNames[weekStart.month - 1]} '
           '${weekStart.year}';
     }
 
     return '${weekStart.day} '
-        '${_monthNames[weekStart.month - 1]} ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ '
+        '${_monthNames[weekStart.month - 1]} – '
         '${weekEnd.day} '
         '${_monthNames[weekEnd.month - 1]} '
         '${weekEnd.year}';
@@ -530,7 +530,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilitÃƒÆ’Ã‚Â .';
+              'nella disponibilità.';
         }
 
         buttonLabel = 'Prenotata';
@@ -544,14 +544,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         if (oldStatus == 'pending') {
           message +=
-              '\n\nIl cliente riceverÃƒÆ’Ã‚Â  automaticamente '
-              'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di conferma.';
+              '\n\nIl cliente riceverà automaticamente '
+              'l’email di conferma.';
         }
 
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilitÃƒÆ’Ã‚Â .';
+              'nella disponibilità.';
         }
 
         buttonLabel = 'Conferma';
@@ -566,12 +566,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilitÃƒÆ’Ã‚Â .';
+              'dalla disponibilità.';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverÃƒÆ’Ã‚Â  '
-            'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di annullamento.';
+            '\n\nSe presente, il cliente riceverà '
+            'l’email di annullamento.';
 
         buttonLabel = 'Annulla';
         break;
@@ -585,12 +585,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilitÃƒÆ’Ã‚Â .';
+              'dalla disponibilità.';
         }
 
         message +=
-            '\n\nSe presente, il cliente riceverÃƒÆ’Ã‚Â  '
-            'lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢email di rifiuto.';
+            '\n\nSe presente, il cliente riceverà '
+            'l’email di rifiuto.';
 
         buttonLabel = 'Rifiuta';
         break;
@@ -604,7 +604,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (!_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno reinseriti '
-              'nella disponibilitÃƒÆ’Ã‚Â .';
+              'nella disponibilità.';
         }
 
         buttonLabel = 'Arrivata';
@@ -614,16 +614,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
         title = 'Segna come no-show';
         message =
             'Vuoi segnalare che $customerName '
-            'non si ÃƒÆ’Ã‚Â¨ presentato?';
+            'non si è presentato?';
 
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilitÃƒÆ’Ã‚Â .';
+              'dalla disponibilità.';
         }
 
         message +=
-            '\n\nIl cliente sarÃƒÆ’Ã‚Â  contrassegnato '
+            '\n\nIl cliente sarà contrassegnato '
             'nello storico come possibile cliente a rischio.';
 
         buttonLabel = 'No-show';
@@ -638,7 +638,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         if (_countsForCapacity(oldStatus)) {
           message +=
               '\n\nI coperti verranno liberati '
-              'dalla disponibilitÃƒÆ’Ã‚Â .';
+              'dalla disponibilità.';
         }
 
         buttonLabel = 'Liberato';
@@ -700,7 +700,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
-              'Il Supervisor puÃƒÆ’Ã‚Â² gestire solo le richieste in attesa.',
+              'Il Supervisor può gestire solo le richieste in attesa.',
             ),
           ),
         );
@@ -1189,9 +1189,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           return StatefulBuilder(
             builder: (context, setDialogState) {
               return AlertDialog(
-                title: Text(
-                  '$serviceLabel Ã‚Â· ${_fullDateLabel(_selectedDate)}',
-                ),
+                title: Text('$serviceLabel · ${_fullDateLabel(_selectedDate)}'),
                 content: SizedBox(
                   width: 380,
                   child: times.isEmpty
@@ -1746,9 +1744,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     if (!_isManager) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Solo Admin e Manager possono modificare lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢orario.',
-          ),
+          content: Text('Solo Admin e Manager possono modificare l’orario.'),
         ),
       );
       return false;
@@ -1974,7 +1970,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               Text(
                                 '$currentGuests'
                                 '${currentGuests == 1 ? ' persona' : ' persone'}'
-                                ' Ãƒâ€šÃ‚Â· ${_bookingSheetDateLabel(dateKey)}',
+                                ' · ${_bookingSheetDateLabel(dateKey)}',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontSize: 13,
@@ -2416,7 +2412,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(
-                  '$time ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â ${guests}p',
+                  '$time • ${guests}p',
                   style: const TextStyle(
                     color: Colors.black,
                     fontSize: 11,
@@ -2649,7 +2645,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final status = booking['status'] as String? ?? 'pending';
 
     // Risposta ricevuta alla riconferma:
-    // resta finchÃƒÆ’Ã‚Â© viene aperta.
+    // resta finché viene aperta.
     if (_unreadReconfirmationResult(booking)) {
       return true;
     }
@@ -2660,18 +2656,18 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     // Richiesta >4 persone:
-    // rimane finchÃƒÆ’Ã‚Â© viene gestita.
+    // rimane finché viene gestita.
     if (status == 'pending') {
       return true;
     }
 
-    // Se una richiesta manuale ÃƒÆ’Ã‚Â¨ stata gestita,
+    // Se una richiesta manuale è stata gestita,
     // non deve restare nelle notifiche.
     if (booking['requiresManualConfirmation'] == true) {
       return false;
     }
 
-    // Stati giÃƒÆ’Ã‚Â  conclusi o cliente giÃƒÆ’Ã‚Â  arrivato.
+    // Stati già conclusi o cliente già arrivato.
     if (_isPastStatus(status) || status == 'arrived') {
       return false;
     }
@@ -2839,9 +2835,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       }
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Tutte le notifiche sono giÃƒÆ’Ã‚Â  lette.'),
-        ),
+        const SnackBar(content: Text('Tutte le notifiche sono già lette.')),
       );
       return;
     }
@@ -3051,8 +3045,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 ),
                 const SizedBox(height: 5),
                 Text(
-                  '${_italianDateFromKey(dateKey)} Ãƒâ€šÃ‚Â· '
-                  '$time Ãƒâ€šÃ‚Â· ${_serviceLabel(service)}',
+                  '${_italianDateFromKey(dateKey)} · '
+                  '$time · ${_serviceLabel(service)}',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
                 const SizedBox(height: 6),
@@ -3196,7 +3190,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         return AlertDialog(
           title: const Text('Uscire dal gestionale?'),
           content: const Text(
-            'Il logout richiederÃƒÆ’Ã‚Â  nuovamente '
+            'Il logout richiederà nuovamente '
             'email e password al prossimo accesso.\n\n'
             'Se vuoi soltanto proteggere il gestionale, '
             'usa \u201CBlocca gestionale\u201D.',
@@ -3294,7 +3288,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.history,
           title: 'Prenotazioni passate',
-          subtitle: 'Apri lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢archivio della data selezionata',
+          subtitle: 'Apri l’archivio della data selezionata',
           onTap: () {
             setState(() {
               _bottomIndex = 0;
@@ -3336,7 +3330,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             icon: Icons.calendar_month_outlined,
             title: 'Gestione servizi',
             subtitle:
-                'Calendario, disponibilitÃƒÆ’Ã‚Â , orari, '
+                'Calendario, disponibilità, orari, '
                 'coperti e chiusure',
             onTap: () {
               Navigator.of(context).push(
@@ -3416,8 +3410,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         item(
           icon: Icons.lock_outline_rounded,
           title: 'Blocca gestionale',
-          subtitle:
-              'Proteggi lÃƒÂ¢Ã¢â€šÂ¬Ã¢â€žÂ¢accesso senza effettuare il logout',
+          subtitle: 'Proteggi l’accesso senza effettuare il logout',
           onTap: () async {
             final lock = widget.onLock;
 
