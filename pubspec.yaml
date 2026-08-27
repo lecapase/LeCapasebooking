@@ -40,7 +40,7 @@ dependencies:
   firebase_storage: ^13.5.0
   image_picker: 1.2.3
   firebase_app_check: ^0.4.7
-  font_awesome_flutter: ^11.0.0
+  flutter_svg: ^2.2.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -53,6 +53,7 @@ flutter:
 
   assets:
     - assets/images/
+    - assets/images/booking_origins/
 
 flutter_launcher_icons:
   android: true

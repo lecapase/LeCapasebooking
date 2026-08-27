@@ -3,7 +3,7 @@ import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../services/push_notification_service.dart';
 
@@ -2004,48 +2004,37 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   Widget _bookingOriginLogo(String origin) {
     late final Color backgroundColor;
-    late final Color foregroundColor;
-    late final Widget child;
+    late final Color borderColor;
+    late final String assetPath;
+    late final double logoSize;
 
     switch (origin) {
       case 'google':
         backgroundColor = Colors.white;
-        foregroundColor = const Color(0xFF4285F4);
-        child = const FaIcon(
-          FontAwesomeIcons.google,
-          color: Color(0xFF4285F4),
-          size: 17,
-        );
+        borderColor = const Color(0xFF4285F4);
+        assetPath = 'assets/images/booking_origins/google.svg';
+        logoSize = 18;
         break;
 
       case 'instagram':
         backgroundColor = const Color(0xFFE1306C);
-        foregroundColor = Colors.white;
-        child = const FaIcon(
-          FontAwesomeIcons.instagram,
-          color: Colors.white,
-          size: 17,
-        );
+        borderColor = Colors.white;
+        assetPath = 'assets/images/booking_origins/instagram.svg';
+        logoSize = 18;
         break;
 
       case 'whatsapp':
         backgroundColor = const Color(0xFF25D366);
-        foregroundColor = Colors.white;
-        child = const FaIcon(
-          FontAwesomeIcons.whatsapp,
-          color: Colors.white,
-          size: 17,
-        );
+        borderColor = Colors.white;
+        assetPath = 'assets/images/booking_origins/whatsapp.svg';
+        logoSize = 18;
         break;
 
       case 'direct':
         backgroundColor = Colors.blueGrey;
-        foregroundColor = Colors.white;
-        child = const FaIcon(
-          FontAwesomeIcons.link,
-          color: Colors.white,
-          size: 16,
-        );
+        borderColor = Colors.white;
+        assetPath = 'assets/images/booking_origins/direct.svg';
+        logoSize = 18;
         break;
 
       default:
@@ -2053,15 +2042,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     return Container(
-      width: 30,
-      height: 30,
+      width: 32,
+      height: 32,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: backgroundColor,
         shape: BoxShape.circle,
-        border: Border.all(color: foregroundColor.withValues(alpha: 0.45)),
+        border: Border.all(color: borderColor.withValues(alpha: 0.65)),
       ),
-      child: child,
+      child: SvgPicture.asset(
+        assetPath,
+        width: logoSize,
+        height: logoSize,
+        fit: BoxFit.contain,
+      ),
     );
   }
 
