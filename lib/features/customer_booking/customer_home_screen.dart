@@ -3,16 +3,15 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../../theme/app_colors.dart';
 import 'customer_booking_screen.dart';
+import 'booking_language.dart';
 
 class CustomerHomeScreen extends StatelessWidget {
   const CustomerHomeScreen({super.key});
 
   void _openBooking(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const CustomerBookingScreen(),
-      ),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const CustomerBookingScreen()));
   }
 
   @override
@@ -40,12 +39,7 @@ class CustomerHomeScreen extends StatelessWidget {
                   Color(0x33000000),
                   Color(0xE8000000),
                 ],
-                stops: [
-                  0,
-                  0.35,
-                  0.60,
-                  1,
-                ],
+                stops: [0, 0.35, 0.60, 1],
               ),
             ),
           ),
@@ -53,16 +47,9 @@ class CustomerHomeScreen extends StatelessWidget {
           SafeArea(
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(
-                  maxWidth: 620,
-                ),
+                constraints: const BoxConstraints(maxWidth: 620),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    24,
-                    12,
-                    24,
-                    30,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 30),
                   child: Column(
                     children: [
                       // Logo ingrandito
@@ -73,8 +60,7 @@ class CustomerHomeScreen extends StatelessWidget {
                           child: Image.asset(
                             'assets/images/logo.png',
                             fit: BoxFit.contain,
-                            filterQuality:
-                                FilterQuality.high,
+                            filterQuality: FilterQuality.high,
                             isAntiAlias: true,
                           ),
                         ),
@@ -84,23 +70,12 @@ class CustomerHomeScreen extends StatelessWidget {
 
                       Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.fromLTRB(
-                          22,
-                          24,
-                          22,
-                          22,
-                        ),
+                        padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
                         decoration: BoxDecoration(
-                          color: AppColors.black.withValues(
-                            alpha: 0.76,
-                          ),
-                          borderRadius:
-                              BorderRadius.circular(26),
+                          color: AppColors.black.withValues(alpha: 0.76),
+                          borderRadius: BorderRadius.circular(26),
                           border: Border.all(
-                            color:
-                                AppColors.gold.withValues(
-                              alpha: 0.52,
-                            ),
+                            color: AppColors.gold.withValues(alpha: 0.52),
                           ),
                           boxShadow: const [
                             BoxShadow(
@@ -113,14 +88,16 @@ class CustomerHomeScreen extends StatelessWidget {
                         child: Column(
                           children: [
                             Text(
-                              'Benvenuti a\nLe Capase',
+                              bookingText(
+                                context,
+                                'Benvenuti a\nLe Capase',
+                                'Welcome to\nLe Capase',
+                              ),
                               textAlign: TextAlign.center,
-                              style: GoogleFonts
-                                  .libreBaskerville(
+                              style: GoogleFonts.libreBaskerville(
                                 color: AppColors.white,
                                 fontSize: 29,
-                                fontWeight:
-                                    FontWeight.w700,
+                                fontWeight: FontWeight.w700,
                                 height: 1.2,
                               ),
                             ),
@@ -128,15 +105,14 @@ class CustomerHomeScreen extends StatelessWidget {
                             const SizedBox(height: 12),
 
                             Text(
-                              'Prenota il tuo tavolo e vivi '
-                              'una serata nel cuore di Cisternino.',
+                              bookingText(
+                                context,
+                                'Prenota il tuo tavolo e vivi una serata nel cuore di Cisternino.',
+                                'Book your table and enjoy an evening in the heart of Cisternino.',
+                              ),
                               textAlign: TextAlign.center,
-                              style: GoogleFonts
-                                  .libreBaskerville(
-                                color:
-                                    Colors.white.withValues(
-                                  alpha: 0.82,
-                                ),
+                              style: GoogleFonts.libreBaskerville(
+                                color: Colors.white.withValues(alpha: 0.82),
                                 fontSize: 15,
                                 height: 1.55,
                               ),
@@ -151,32 +127,26 @@ class CustomerHomeScreen extends StatelessWidget {
                                 onPressed: () {
                                   _openBooking(context);
                                 },
-                                style:
-                                    FilledButton.styleFrom(
-                                  backgroundColor:
-                                      AppColors.gold,
-                                  foregroundColor:
-                                      AppColors.black,
-                                  shape:
-                                      RoundedRectangleBorder(
-                                    borderRadius:
-                                        BorderRadius.circular(
-                                      16,
-                                    ),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: AppColors.gold,
+                                  foregroundColor: AppColors.black,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(16),
                                   ),
                                 ),
                                 icon: const Icon(
-                                  Icons
-                                      .calendar_month_outlined,
+                                  Icons.calendar_month_outlined,
                                   size: 22,
                                 ),
                                 label: Text(
-                                  'PRENOTA UN TAVOLO',
-                                  style: GoogleFonts
-                                      .libreBaskerville(
+                                  bookingText(
+                                    context,
+                                    'PRENOTA UN TAVOLO',
+                                    'BOOK A TABLE',
+                                  ),
+                                  style: GoogleFonts.libreBaskerville(
                                     fontSize: 16,
-                                    fontWeight:
-                                        FontWeight.w700,
+                                    fontWeight: FontWeight.w700,
                                     letterSpacing: 0.6,
                                   ),
                                 ),
@@ -186,20 +156,17 @@ class CustomerHomeScreen extends StatelessWidget {
                             const SizedBox(height: 15),
 
                             Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 const Icon(
-                                  Icons
-                                      .location_on_outlined,
+                                  Icons.location_on_outlined,
                                   color: AppColors.gold,
                                   size: 18,
                                 ),
                                 const SizedBox(width: 6),
                                 Text(
                                   'Cisternino · Puglia',
-                                  style: GoogleFonts
-                                      .libreBaskerville(
+                                  style: GoogleFonts.libreBaskerville(
                                     color: Colors.white70,
                                     fontSize: 12,
                                   ),
@@ -214,6 +181,11 @@ class CustomerHomeScreen extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+          const Positioned(
+            top: 14,
+            right: 16,
+            child: SafeArea(child: BookingLanguageToggle()),
           ),
         ],
       ),

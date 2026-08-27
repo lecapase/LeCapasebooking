@@ -4,6 +4,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import 'data/customer_availability_service.dart';
 import 'data/firestore_booking_repository.dart';
+import 'booking_language.dart';
 
 class CustomerBookingScreen extends StatefulWidget {
   const CustomerBookingScreen({super.key});
@@ -32,7 +33,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   int persone = 2;
   int currentStep = 0;
 
-  String selectedOccasione = 'Nessuna';
+  String selectedOccasione = 'none';
 
   bool _loadingAvailability = false;
   bool _saving = false;
@@ -46,12 +47,45 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   Set<String> closedDinnerTimes = {};
 
   final List<String> occasioni = [
-    'Nessuna',
-    'Compleanno',
-    'Anniversario',
-    'Cena romantica',
-    'Evento aziendale',
+    'none',
+    'birthday',
+    'anniversary',
+    'romantic_dinner',
+    'business_event',
   ];
+
+  String _t(String italian, String english) =>
+      bookingText(context, italian, english);
+
+  String _occasionLabel(String code) {
+    switch (code) {
+      case 'birthday':
+        return _t('Compleanno', 'Birthday');
+      case 'anniversary':
+        return _t('Anniversario', 'Anniversary');
+      case 'romantic_dinner':
+        return _t('Cena romantica', 'Romantic dinner');
+      case 'business_event':
+        return _t('Evento aziendale', 'Business event');
+      default:
+        return _t('Nessuna', 'None');
+    }
+  }
+
+  String _occasionItalianValue(String code) {
+    switch (code) {
+      case 'birthday':
+        return 'Compleanno';
+      case 'anniversary':
+        return 'Anniversario';
+      case 'romantic_dinner':
+        return 'Cena romantica';
+      case 'business_event':
+        return 'Evento aziendale';
+      default:
+        return 'Nessuna';
+    }
+  }
 
   String get _bookingOrigin {
     final source = (Uri.base.queryParameters['utm_source'] ?? '')
@@ -257,7 +291,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return;
       }
 
-      _message('Errore disponibilità: $error');
+      _message(
+        _t('Errore disponibilità: $error', 'Availability error: $error'),
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -286,7 +322,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       });
 
       _message(
-        'Questo orario non è più prenotabile. Scegli un orario successivo.',
+        _t(
+          'Questo orario non è più prenotabile. Scegli un orario successivo.',
+          'This time can no longer be booked. Please choose a later time.',
+        ),
       );
       return;
     }
@@ -327,13 +366,23 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     final telefono = telefonoController.text.trim();
 
     if (nome.isEmpty || cognome.isEmpty || email.isEmpty || telefono.isEmpty) {
-      _message('Compila Nome, Cognome, Email e Telefono.');
+      _message(
+        _t(
+          'Compila Nome, Cognome, Email e Telefono.',
+          'Enter your first name, last name, email and phone number.',
+        ),
+      );
 
       return;
     }
 
     if (!email.contains('@') || !email.contains('.')) {
-      _message('Inserisci un indirizzo email valido.');
+      _message(
+        _t(
+          'Inserisci un indirizzo email valido.',
+          'Enter a valid email address.',
+        ),
+      );
 
       return;
     }
@@ -359,7 +408,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     if (selectedDate == null ||
         selectedTime == null ||
         selectedService == null) {
-      _message('Data, persone o orario non selezionato.');
+      _message(
+        _t(
+          'Data, persone o orario non selezionato.',
+          'Date, number of guests or time not selected.',
+        ),
+      );
 
       return;
     }
@@ -373,7 +427,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         currentStep = 2;
       });
 
-      _message('Questo orario non è più disponibile. Scegli un nuovo orario.');
+      _message(
+        _t(
+          'Questo orario non è più disponibile. Scegli un nuovo orario.',
+          'This time is no longer available. Please choose another time.',
+        ),
+      );
       return;
     }
 
@@ -391,7 +450,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         time: selectedTime!,
         guests: persone,
         service: selectedService!,
-        occasion: selectedOccasione,
+        occasion: _occasionItalianValue(selectedOccasione),
+        occasionCode: selectedOccasione,
+        language: bookingIsItalian(context) ? 'it' : 'en',
         notes: noteController.text.trim(),
         bookingOrigin: _bookingOrigin,
         bookingWhatsappConsent: true,
@@ -419,7 +480,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               size: 56,
             ),
             title: Text(
-              autoConfirmed ? 'Prenotazione confermata' : 'Richiesta ricevuta',
+              autoConfirmed
+                  ? _t('Prenotazione confermata', 'Booking confirmed')
+                  : _t('Richiesta ricevuta', 'Request received'),
               textAlign: TextAlign.center,
               style: GoogleFonts.libreBaskerville(
                 color: dark,
@@ -428,11 +491,14 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             ),
             content: Text(
               autoConfirmed
-                  ? 'Grazie per aver scelto Le Capase.\n\n'
-                        'La tua prenotazione è confermata.'
-                  : 'Grazie per aver scelto Le Capase.\n\n'
-                        'La richiesta è in attesa di conferma. '
-                        'Riceverai una risposta appena possibile.',
+                  ? _t(
+                      'Grazie per aver scelto Le Capase.\n\nLa tua prenotazione è confermata.',
+                      'Thank you for choosing Le Capase.\n\nYour booking is confirmed.',
+                    )
+                  : _t(
+                      'Grazie per aver scelto Le Capase.\n\nLa richiesta è in attesa di conferma. Riceverai una risposta appena possibile.',
+                      'Thank you for choosing Le Capase.\n\nYour request is awaiting confirmation. We will reply as soon as possible.',
+                    ),
               textAlign: TextAlign.center,
               style: GoogleFonts.libreBaskerville(color: dark, height: 1.5),
             ),
@@ -442,7 +508,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                 onPressed: () {
                   Navigator.pop(dialogContext);
                 },
-                child: const Text('CHIUDI'),
+                child: Text(_t('CHIUDI', 'CLOSE')),
               ),
             ],
           );
@@ -459,13 +525,13 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         return;
       }
 
-      _message(error.message);
+      _message(_localizedRepositoryError(error.message));
     } catch (error) {
       if (!mounted) {
         return;
       }
 
-      _message('Errore tecnico: $error');
+      _message(_t('Errore tecnico: $error', 'Technical error: $error'));
     } finally {
       if (mounted) {
         setState(() {
@@ -491,7 +557,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             color: Colors.white,
             shape: const CircleBorder(),
             child: IconButton(
-              tooltip: 'Indietro',
+              tooltip: _t('Indietro', 'Back'),
               onPressed: _goBack,
               icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
             ),
@@ -504,6 +570,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           filterQuality: FilterQuality.high,
         ),
         centerTitle: true,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.only(right: 10),
+            child: Center(child: BookingLanguageToggle(compact: true)),
+          ),
+        ],
       ),
       body: SafeArea(
         child: Center(
@@ -533,12 +605,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   }
 
   Widget _buildProgress() {
-    const steps = [
-      (icon: Icons.calendar_today_outlined, label: 'Data'),
-      (icon: Icons.groups_outlined, label: 'Persone'),
-      (icon: Icons.schedule_outlined, label: 'Orario'),
-      (icon: Icons.person_outline_rounded, label: 'Dati'),
-      (icon: Icons.receipt_long_outlined, label: 'Riepilogo'),
+    final steps = [
+      (icon: Icons.calendar_today_outlined, label: _t('Data', 'Date')),
+      (icon: Icons.groups_outlined, label: _t('Persone', 'Guests')),
+      (icon: Icons.schedule_outlined, label: _t('Orario', 'Time')),
+      (icon: Icons.person_outline_rounded, label: _t('Dati', 'Details')),
+      (icon: Icons.receipt_long_outlined, label: _t('Riepilogo', 'Summary')),
     ];
 
     return Padding(
@@ -637,8 +709,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     final firstDate = DateTime(today.year, today.month, today.day);
 
     return _section(
-      title: 'Quando vuoi venire?',
-      subtitle: 'Tocca una data per continuare.',
+      title: _t('Quando vuoi venire?', 'When would you like to visit?'),
+      subtitle: _t(
+        'Tocca una data per continuare.',
+        'Select a date to continue.',
+      ),
       child: Column(
         children: [
           Card(
@@ -662,9 +737,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             const SizedBox(height: 24),
             const CircularProgressIndicator(color: gold),
             const SizedBox(height: 10),
-            const Text(
-              'Controllo disponibilità…',
-              style: TextStyle(color: muted),
+            Text(
+              _t('Controllo disponibilità…', 'Checking availability…'),
+              style: const TextStyle(color: muted),
             ),
           ],
           if (!_loadingAvailability &&
@@ -673,7 +748,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               dinnerTimes.isEmpty) ...[
             const SizedBox(height: 20),
             _notice(
-              text: 'Non ci sono orari prenotabili per questa data.',
+              text: _t(
+                'Non ci sono orari prenotabili per questa data.',
+                'There are no available times for this date.',
+              ),
               icon: Icons.event_busy_outlined,
             ),
           ],
@@ -684,8 +762,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   Widget _buildGuestsStep() {
     return _section(
-      title: 'Quante persone?',
-      subtitle: 'Tocca il numero degli ospiti.',
+      title: _t('Quante persone?', 'How many guests?'),
+      subtitle: _t(
+        'Tocca il numero degli ospiti.',
+        'Select the number of guests.',
+      ),
       child: Column(
         children: [
           _buildGuestsGrid(first: 1, last: 8),
@@ -724,8 +805,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           ),
           const SizedBox(height: 18),
           Text(
-            'Per gruppi superiori a 20 persone '
-            'contattaci direttamente.',
+            _t(
+              'Per gruppi superiori a 20 persone contattaci direttamente.',
+              'For groups of more than 20 guests, please contact us directly.',
+            ),
             textAlign: TextAlign.center,
             style: GoogleFonts.libreBaskerville(
               color: muted,
@@ -789,19 +872,19 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   Widget _buildTimeStep() {
     return _section(
-      title: 'Scegli un orario disponibile',
+      title: _t('Scegli un orario disponibile', 'Choose an available time'),
       subtitle: selectedDate == null
           ? ''
           : '${_formattedDate(selectedDate!)}'
                 ' · $persone '
-                '${persone == 1 ? 'persona' : 'persone'}',
+                '${persone == 1 ? _t('persona', 'guest') : _t('persone', 'guests')}',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (lunchTimes.isNotEmpty)
             _serviceTimes(
               icon: Icons.wb_sunny_outlined,
-              title: 'PRANZO',
+              title: _t('PRANZO', 'LUNCH'),
               times: lunchTimes,
               service: 'lunch',
             ),
@@ -810,13 +893,13 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           if (dinnerTimes.isNotEmpty)
             _serviceTimes(
               icon: Icons.nightlight_outlined,
-              title: 'CENA',
+              title: _t('CENA', 'DINNER'),
               times: dinnerTimes,
               service: 'dinner',
             ),
           if (lunchTimes.isEmpty && dinnerTimes.isEmpty)
             _notice(
-              text: 'Nessun orario disponibile.',
+              text: _t('Nessun orario disponibile.', 'No times available.'),
               icon: Icons.schedule_outlined,
             ),
         ],
@@ -884,7 +967,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   onTap: () {
                     if (isClosed) {
                       _message(
-                        'Fascia oraria completa. Seleziona un altro orario.',
+                        _t(
+                          'Fascia oraria completa. Seleziona un altro orario.',
+                          'This time slot is full. Please choose another time.',
+                        ),
                       );
                       return;
                     }
@@ -920,8 +1006,11 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   Widget _buildDetailsStep() {
     return _section(
-      title: 'I tuoi dati',
-      subtitle: 'Inserisci i dati necessari per la prenotazione.',
+      title: _t('I tuoi dati', 'Your details'),
+      subtitle: _t(
+        'Inserisci i dati necessari per la prenotazione.',
+        'Enter the details needed for your booking.',
+      ),
       child: Column(
         children: [
           TextField(
@@ -929,9 +1018,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.givenName],
-            decoration: const InputDecoration(
-              labelText: 'Nome *',
-              prefixIcon: Icon(Icons.person_outline),
+            decoration: InputDecoration(
+              labelText: _t('Nome *', 'First name *'),
+              prefixIcon: const Icon(Icons.person_outline),
             ),
           ),
           const SizedBox(height: 14),
@@ -940,9 +1029,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             textCapitalization: TextCapitalization.words,
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.familyName],
-            decoration: const InputDecoration(
-              labelText: 'Cognome *',
-              prefixIcon: Icon(Icons.person_outline),
+            decoration: InputDecoration(
+              labelText: _t('Cognome *', 'Last name *'),
+              prefixIcon: const Icon(Icons.person_outline),
             ),
           ),
           const SizedBox(height: 14),
@@ -951,9 +1040,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.email],
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Email *',
-              prefixIcon: Icon(Icons.email_outlined),
+              prefixIcon: const Icon(Icons.email_outlined),
             ),
           ),
           const SizedBox(height: 14),
@@ -962,9 +1051,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             keyboardType: TextInputType.phone,
             textInputAction: TextInputAction.next,
             autofillHints: const [AutofillHints.telephoneNumber],
-            decoration: const InputDecoration(
-              labelText: 'Telefono *',
-              prefixIcon: Icon(Icons.phone_outlined),
+            decoration: InputDecoration(
+              labelText: _t('Telefono *', 'Phone *'),
+              prefixIcon: const Icon(Icons.phone_outlined),
             ),
           ),
           const SizedBox(height: 8),
@@ -988,16 +1077,26 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                       marketingConsent = value ?? false;
                     });
                   },
-                  title: const Text(
-                    'Desidero ricevere offerte, eventi e promozioni solo ed esclusivamente da Le Capase.',
-                    style: TextStyle(fontWeight: FontWeight.w600),
+                  title: Text(
+                    _t(
+                      'Desidero ricevere offerte, eventi e promozioni solo ed esclusivamente da Le Capase.',
+                      'I would like to receive offers, events and promotions exclusively from Le Capase.',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
                 ),
-                const Padding(
-                  padding: EdgeInsets.only(left: 12, right: 12, bottom: 6),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 12,
+                    right: 12,
+                    bottom: 6,
+                  ),
                   child: Text(
-                    'Confermando la prenotazione si accetta di ricevere aggiornamenti in merito tramite WhatsApp/mail.',
-                    style: TextStyle(fontSize: 12, height: 1.45),
+                    _t(
+                      'Confermando la prenotazione si accetta di ricevere aggiornamenti in merito tramite WhatsApp/mail.',
+                      'By confirming the booking, you agree to receive booking updates via WhatsApp/email.',
+                    ),
+                    style: const TextStyle(fontSize: 12, height: 1.45),
                   ),
                 ),
               ],
@@ -1006,14 +1105,16 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
             initialValue: selectedOccasione,
-            decoration: const InputDecoration(
-              labelText: 'Occasione',
-              prefixIcon: Icon(Icons.celebration_outlined),
+            decoration: InputDecoration(
+              labelText: _t('Occasione', 'Occasion'),
+              prefixIcon: const Icon(Icons.celebration_outlined),
             ),
             items: occasioni
                 .map(
-                  (occasion) =>
-                      DropdownMenuItem(value: occasion, child: Text(occasion)),
+                  (occasion) => DropdownMenuItem(
+                    value: occasion,
+                    child: Text(_occasionLabel(occasion)),
+                  ),
                 )
                 .toList(),
             onChanged: (value) {
@@ -1032,12 +1133,13 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             minLines: 3,
             maxLines: 5,
             textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Richieste particolari',
-              hintText:
-                  'Allergie, intolleranze '
-                  'o altre richieste',
-              prefixIcon: Icon(Icons.notes_outlined),
+            decoration: InputDecoration(
+              labelText: _t('Richieste particolari', 'Special requests'),
+              hintText: _t(
+                'Allergie, intolleranze o altre richieste',
+                'Allergies, intolerances or other requests',
+              ),
+              prefixIcon: const Icon(Icons.notes_outlined),
               alignLabelWithHint: true,
             ),
           ),
@@ -1048,7 +1150,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             child: FilledButton.icon(
               onPressed: _reviewBooking,
               icon: const Icon(Icons.receipt_long_outlined),
-              label: const Text('RIVEDI PRENOTAZIONE'),
+              label: Text(_t('RIVEDI PRENOTAZIONE', 'REVIEW BOOKING')),
             ),
           ),
         ],
@@ -1057,11 +1159,16 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   }
 
   Widget _buildSummaryStep() {
-    final serviceText = selectedService == 'lunch' ? 'Pranzo' : 'Cena';
+    final serviceText = selectedService == 'lunch'
+        ? _t('Pranzo', 'Lunch')
+        : _t('Cena', 'Dinner');
 
     return _section(
-      title: 'Riepilogo',
-      subtitle: 'Controlla i dati prima di prenotare.',
+      title: _t('Riepilogo', 'Summary'),
+      subtitle: _t(
+        'Controlla i dati prima di prenotare.',
+        'Check your details before booking.',
+      ),
       child: Column(
         children: [
           Container(
@@ -1076,7 +1183,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               children: [
                 _summaryRow(
                   icon: Icons.calendar_today_outlined,
-                  label: 'Data',
+                  label: _t('Data', 'Date'),
                   value: selectedDate == null
                       ? '-'
                       : _formattedDate(selectedDate!),
@@ -1084,25 +1191,25 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                 _summaryDivider(),
                 _summaryRow(
                   icon: Icons.groups_outlined,
-                  label: 'Persone',
+                  label: _t('Persone', 'Guests'),
                   value: '$persone',
                 ),
                 _summaryDivider(),
                 _summaryRow(
                   icon: Icons.restaurant_outlined,
-                  label: 'Servizio',
+                  label: _t('Servizio', 'Service'),
                   value: serviceText,
                 ),
                 _summaryDivider(),
                 _summaryRow(
                   icon: Icons.schedule_outlined,
-                  label: 'Orario',
+                  label: _t('Orario', 'Time'),
                   value: selectedTime ?? '-',
                 ),
                 _summaryDivider(),
                 _summaryRow(
                   icon: Icons.person_outline_rounded,
-                  label: 'Cliente',
+                  label: _t('Cliente', 'Guest'),
                   value:
                       '${nomeController.text.trim()} '
                       '${cognomeController.text.trim()}',
@@ -1116,22 +1223,22 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                 _summaryDivider(),
                 _summaryRow(
                   icon: Icons.phone_outlined,
-                  label: 'Telefono',
+                  label: _t('Telefono', 'Phone'),
                   value: telefonoController.text.trim(),
                 ),
-                if (selectedOccasione != 'Nessuna') ...[
+                if (selectedOccasione != 'none') ...[
                   _summaryDivider(),
                   _summaryRow(
                     icon: Icons.celebration_outlined,
-                    label: 'Occasione',
-                    value: selectedOccasione,
+                    label: _t('Occasione', 'Occasion'),
+                    value: _occasionLabel(selectedOccasione),
                   ),
                 ],
                 if (noteController.text.trim().isNotEmpty) ...[
                   _summaryDivider(),
                   _summaryRow(
                     icon: Icons.notes_outlined,
-                    label: 'Richieste',
+                    label: _t('Richieste', 'Requests'),
                     value: noteController.text.trim(),
                   ),
                 ],
@@ -1158,18 +1265,21 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   : const Icon(Icons.check_rounded),
               label: Text(
                 _saving
-                    ? 'INVIO IN CORSO…'
+                    ? _t('INVIO IN CORSO…', 'SENDING…')
                     : persone <= 4
-                    ? 'CONFERMA PRENOTAZIONE'
-                    : 'INVIA RICHIESTA',
+                    ? _t('CONFERMA PRENOTAZIONE', 'CONFIRM BOOKING')
+                    : _t('INVIA RICHIESTA', 'SEND REQUEST'),
               ),
             ),
           ),
           const SizedBox(height: 10),
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Text(
-              'I dati personali saranno trattati nel rispetto della normativa vigente sulla privacy e utilizzati esclusivamente per la gestione della prenotazione e, previo consenso, per comunicazioni promozionali di Le Capase.',
+              _t(
+                'I dati personali saranno trattati nel rispetto della normativa vigente sulla privacy e utilizzati esclusivamente per la gestione della prenotazione e, previo consenso, per comunicazioni promozionali di Le Capase.',
+                'Personal data will be processed in accordance with applicable privacy laws and used only to manage the booking and, with consent, for Le Capase promotional communications.',
+              ),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey),
             ),
@@ -1206,9 +1316,14 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           Expanded(
             child: Text(
               automatic
-                  ? 'La prenotazione sarà confermata immediatamente.'
-                  : 'Le richieste da 5 persone in su devono '
-                        'essere confermate dal ristorante.',
+                  ? _t(
+                      'La prenotazione sarà confermata immediatamente.',
+                      'Your booking will be confirmed immediately.',
+                    )
+                  : _t(
+                      'Le richieste da 5 persone in su devono essere confermate dal ristorante.',
+                      'Requests for 5 or more guests must be confirmed by the restaurant.',
+                    ),
               style: const TextStyle(
                 color: dark,
                 fontSize: 13,
@@ -1317,31 +1432,85 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     );
   }
 
-  String _formattedDate(DateTime date) {
-    const weekdayNames = [
-      'Lunedì',
-      'Martedì',
-      'Mercoledì',
-      'Giovedì',
-      'Venerdì',
-      'Sabato',
-      'Domenica',
-    ];
+  String _localizedRepositoryError(String message) {
+    if (bookingIsItalian(context)) return message;
 
-    const monthNames = [
-      'gennaio',
-      'febbraio',
-      'marzo',
-      'aprile',
-      'maggio',
-      'giugno',
-      'luglio',
-      'agosto',
-      'settembre',
-      'ottobre',
-      'novembre',
-      'dicembre',
-    ];
+    const translations = <String, String>{
+      'Il numero di persone non è valido.': 'The number of guests is invalid.',
+      'Servizio non valido.': 'Invalid service.',
+      'Inserisci il nome.': 'Enter your first name.',
+      'Inserisci un indirizzo email.': 'Enter an email address.',
+      'Inserisci un numero di telefono.': 'Enter a phone number.',
+      'Nessun servizio disponibile per questa data.':
+          'No service is available for this date.',
+      'Questo servizio non è disponibile.': 'This service is not available.',
+      'L’orario selezionato non è più disponibile.':
+          'The selected time is no longer available.',
+      'L’orario selezionato è stato bloccato.':
+          'The selected time has been blocked.',
+      'Questo servizio non accetta prenotazioni online.':
+          'This service is not accepting online bookings.',
+      'Servizio completo. Seleziona un altro servizio.':
+          'This service is full. Please select another service.',
+      'Fascia oraria completa. Seleziona un altro orario.':
+          'This time slot is full. Please select another time.',
+      'Non ci sono abbastanza posti disponibili per questo servizio.':
+          'There are not enough places available for this service.',
+    };
+
+    return translations[message] ?? message;
+  }
+
+  String _formattedDate(DateTime date) {
+    final weekdayNames = bookingIsItalian(context)
+        ? const [
+            'Lunedì',
+            'Martedì',
+            'Mercoledì',
+            'Giovedì',
+            'Venerdì',
+            'Sabato',
+            'Domenica',
+          ]
+        : const [
+            'Monday',
+            'Tuesday',
+            'Wednesday',
+            'Thursday',
+            'Friday',
+            'Saturday',
+            'Sunday',
+          ];
+
+    final monthNames = bookingIsItalian(context)
+        ? const [
+            'gennaio',
+            'febbraio',
+            'marzo',
+            'aprile',
+            'maggio',
+            'giugno',
+            'luglio',
+            'agosto',
+            'settembre',
+            'ottobre',
+            'novembre',
+            'dicembre',
+          ]
+        : const [
+            'January',
+            'February',
+            'March',
+            'April',
+            'May',
+            'June',
+            'July',
+            'August',
+            'September',
+            'October',
+            'November',
+            'December',
+          ];
 
     return '${weekdayNames[date.weekday - 1]} '
         '${date.day} '

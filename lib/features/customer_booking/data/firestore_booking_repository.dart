@@ -42,6 +42,8 @@ class FirestoreBookingRepository {
     required int guests,
     required String service,
     required String occasion,
+    required String occasionCode,
+    required String language,
     required String notes,
     required String bookingOrigin,
     bool bookingWhatsappConsent = false,
@@ -255,6 +257,10 @@ class FirestoreBookingRepository {
         'guests': guests,
 
         'occasion': occasion,
+
+        'occasionCode': occasionCode,
+
+        'language': language == 'it' ? 'it' : 'en',
 
         'notes': notes.trim(),
 

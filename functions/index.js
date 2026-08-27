@@ -1083,6 +1083,57 @@ EMAIL_TYPES.reminder = {
     "Ti aspettiamo!",
 };
 
+const EMAIL_TYPES_EN = {
+  received: {
+    subject: "Booking request received – Le Capase",
+    title: "Request received",
+    opening: "we have received your booking request.",
+    notice: "Your request is being processed and you will receive final confirmation as soon as possible.",
+    warning: "Please note: your booking is not confirmed yet.",
+    closing: "We will contact you as soon as possible.",
+  },
+  confirmed: {
+    subject: "Booking confirmation – Le Capase",
+    title: "Booking confirmed",
+    opening: "your booking at Le Capase is confirmed.",
+    notice: "Your table has been reserved.",
+    warning: "",
+    closing: "We look forward to welcoming you!",
+  },
+  restored: {
+    subject: "Booking active again – Le Capase",
+    title: "Booking active again",
+    opening: "your booking at Le Capase has been reactivated.",
+    notice: "Your table has been reserved again.",
+    warning: "",
+    closing: "We look forward to welcoming you!",
+  },
+  rejected: {
+    subject: "Booking request not accepted – Le Capase",
+    title: "Request not accepted",
+    opening: "we are sorry to let you know that we cannot confirm your booking request.",
+    notice: "Due to internal operational requirements, we are unable to accept this request.",
+    warning: "",
+    closing: "We apologise for the inconvenience.",
+  },
+  cancelled: {
+    subject: "Booking cancelled – Le Capase",
+    title: "Booking cancelled",
+    opening: "we are sorry to let you know that your booking has been cancelled.",
+    notice: "Due to internal operational issues, we are unable to keep this booking.",
+    warning: "",
+    closing: "We sincerely apologise for the inconvenience.",
+  },
+  reminder: {
+    subject: "Booking reminder – Le Capase",
+    title: "Booking reminder",
+    opening: "your booking at Le Capase is in approximately 90 minutes.",
+    notice: "We have also sent you a WhatsApp message to reconfirm your attendance.",
+    warning: "Use the buttons in the WhatsApp message to confirm or cancel.",
+    closing: "We look forward to welcoming you!",
+  },
+};
+
 // ============================================================
 // BLOCCO CONTRO EMAIL DUPLICATE
 //
@@ -1222,8 +1273,10 @@ function buildEmail(
     data,
     type,
 ) {
+  const isEnglish = data.language === "en";
+
   const config =
-    EMAIL_TYPES[type];
+    (isEnglish ? EMAIL_TYPES_EN : EMAIL_TYPES)[type];
 
   const details =
     bookingDetails(data);
@@ -1238,18 +1291,18 @@ function buildEmail(
       (type === "cancelled" || type === "rejected") &&
       cancellationReason.length > 0
     ) ?
-      `Motivazione: ${cancellationReason}` :
+      `${isEnglish ? "Reason" : "Motivazione"}: ${cancellationReason}` :
       config.notice;
 
   const textLines = [
-    `Gentile ${details.name},`,
+    `${isEnglish ? "Dear" : "Gentile"} ${details.name},`,
     "",
     config.opening,
     "",
-    `Data: ${details.date}`,
-    `Orario: ${details.time}`,
-    `Servizio: ${details.service}`,
-    `Ospiti: ${details.guestsText}`,
+    `${isEnglish ? "Date" : "Data"}: ${details.date}`,
+    `${isEnglish ? "Time" : "Orario"}: ${details.time}`,
+    `${isEnglish ? "Service" : "Servizio"}: ${isEnglish ? (data.service === "lunch" ? "Lunch" : "Dinner") : details.service}`,
+    `${isEnglish ? "Guests" : "Ospiti"}: ${isEnglish ? details.guests : details.guestsText}`,
     "",
     notice,
   ];
@@ -1296,7 +1349,7 @@ function buildEmail(
       </h2>
 
       <p>
-        Gentile
+        ${isEnglish ? "Dear" : "Gentile"}
         <strong>
           ${escapeHtml(details.name)}
         </strong>,
@@ -1316,7 +1369,7 @@ function buildEmail(
             padding:8px;
             border-bottom:1px solid #ddd;
           ">
-            Data
+            ${isEnglish ? "Date" : "Data"}
           </td>
 
           <td style="
@@ -1334,7 +1387,7 @@ function buildEmail(
             padding:8px;
             border-bottom:1px solid #ddd;
           ">
-            Orario
+            ${isEnglish ? "Time" : "Orario"}
           </td>
 
           <td style="
@@ -1352,7 +1405,7 @@ function buildEmail(
             padding:8px;
             border-bottom:1px solid #ddd;
           ">
-            Servizio
+            ${isEnglish ? "Service" : "Servizio"}
           </td>
 
           <td style="
@@ -1360,7 +1413,7 @@ function buildEmail(
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(details.service)}
+              ${escapeHtml(isEnglish ? (data.service === "lunch" ? "Lunch" : "Dinner") : details.service)}
             </strong>
           </td>
         </tr>
@@ -1370,7 +1423,7 @@ function buildEmail(
             padding:8px;
             border-bottom:1px solid #ddd;
           ">
-            Ospiti
+            ${isEnglish ? "Guests" : "Ospiti"}
           </td>
 
           <td style="
@@ -1378,7 +1431,7 @@ function buildEmail(
             border-bottom:1px solid #ddd;
           ">
             <strong>
-              ${escapeHtml(details.guestsText)}
+              ${escapeHtml(isEnglish ? String(details.guests) : details.guestsText)}
             </strong>
           </td>
         </tr>
@@ -1759,7 +1812,7 @@ async function sendBookingEmail({
     snapshot.data();
 
   const config =
-    EMAIL_TYPES[type];
+    (data && data.language === "en" ? EMAIL_TYPES_EN : EMAIL_TYPES)[type];
 
   if (
     !data ||
