@@ -53,6 +53,26 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     'Evento aziendale',
   ];
 
+  String get _bookingOrigin {
+    final source = (Uri.base.queryParameters['utm_source'] ?? '')
+        .trim()
+        .toLowerCase();
+
+    if (source == 'google' || source == 'google_business') {
+      return 'google';
+    }
+
+    if (source == 'instagram' || source == 'ig') {
+      return 'instagram';
+    }
+
+    if (source == 'whatsapp' || source == 'wa' || source == 'whats_app') {
+      return 'whatsapp';
+    }
+
+    return 'direct';
+  }
+
   @override
   void dispose() {
     nomeController.dispose();
@@ -373,6 +393,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         service: selectedService!,
         occasion: selectedOccasione,
         notes: noteController.text.trim(),
+        bookingOrigin: _bookingOrigin,
         bookingWhatsappConsent: true,
         marketingEmailConsent: marketingConsent,
         marketingWhatsappConsent: marketingConsent,

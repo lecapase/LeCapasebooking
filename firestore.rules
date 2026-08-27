@@ -164,6 +164,7 @@ service cloud.firestore {
         'autoConfirmed',
         'requiresManualConfirmation',
         'source',
+        'bookingOrigin',
         'marketingEmailConsent',
         'marketingWhatsappConsent',
         'marketingConsentVersion',
@@ -240,6 +241,14 @@ service cloud.firestore {
       && request.resource.data.notes.size() <= 2000
 
       && request.resource.data.source == 'customer'
+
+      && request.resource.data.bookingOrigin is string
+      && (
+        request.resource.data.bookingOrigin == 'google'
+        || request.resource.data.bookingOrigin == 'instagram'
+        || request.resource.data.bookingOrigin == 'whatsapp'
+        || request.resource.data.bookingOrigin == 'direct'
+      )
 
       && request.resource.data.marketingEmailConsent is bool
       && request.resource.data.marketingWhatsappConsent is bool

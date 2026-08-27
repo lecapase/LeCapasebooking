@@ -2001,6 +2001,68 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  Widget _bookingOriginLogo(String origin) {
+    late final Color backgroundColor;
+    late final Color foregroundColor;
+    late final Widget child;
+
+    switch (origin) {
+      case 'google':
+        backgroundColor = Colors.white;
+        foregroundColor = const Color(0xFF4285F4);
+        child = const Text(
+          'G',
+          style: TextStyle(
+            color: Color(0xFF4285F4),
+            fontSize: 18,
+            fontWeight: FontWeight.w900,
+          ),
+        );
+        break;
+
+      case 'instagram':
+        backgroundColor = const Color(0xFFE1306C);
+        foregroundColor = Colors.white;
+        child = const Icon(
+          Icons.camera_alt_outlined,
+          color: Colors.white,
+          size: 17,
+        );
+        break;
+
+      case 'whatsapp':
+        backgroundColor = const Color(0xFF25D366);
+        foregroundColor = Colors.white;
+        child = const Icon(
+          Icons.phone_in_talk_outlined,
+          color: Colors.white,
+          size: 17,
+        );
+        break;
+
+      case 'direct':
+        backgroundColor = Colors.blueGrey;
+        foregroundColor = Colors.white;
+        child = const Icon(Icons.link_rounded, color: Colors.white, size: 18);
+        break;
+
+      default:
+        return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: 30,
+      height: 30,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        shape: BoxShape.circle,
+        border: Border.all(color: foregroundColor.withValues(alpha: 0.45)),
+      ),
+      child: child,
+    );
+  }
+
   Widget _noShowWarning(int noShowCount) {
     if (noShowCount < 1) {
       return const SizedBox.shrink();
@@ -2284,6 +2346,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final occasion = booking['occasion'] as String? ?? '';
     final notes = booking['notes'] as String? ?? '';
     final source = booking['source'] as String? ?? '';
+    final bookingOrigin = booking['bookingOrigin'] as String? ?? '';
     final dateKey = booking['dateKey'] as String? ?? '';
     final isPastBooking = _isBookingPast(booking);
     final noShowCount = _readInteger(booking['customerNoShowCount']);
@@ -2482,7 +2545,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                   const SizedBox(height: 12),
                                   Align(
                                     alignment: Alignment.centerLeft,
-                                    child: _onlineBadge(),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        _onlineBadge(),
+                                        if (bookingOrigin.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          _bookingOriginLogo(bookingOrigin),
+                                        ],
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ],

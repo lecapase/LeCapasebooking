@@ -43,6 +43,7 @@ class FirestoreBookingRepository {
     required String service,
     required String occasion,
     required String notes,
+    required String bookingOrigin,
     bool bookingWhatsappConsent = false,
     bool marketingEmailConsent = false,
     bool marketingWhatsappConsent = false,
@@ -266,6 +267,8 @@ class FirestoreBookingRepository {
         'requiresManualConfirmation': !autoBooked,
 
         'source': 'customer',
+
+        'bookingOrigin': bookingOrigin,
 
         // =============================================
         // CONSENSI MARKETING
