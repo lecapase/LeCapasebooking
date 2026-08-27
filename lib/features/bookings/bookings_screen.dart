@@ -150,6 +150,41 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return '$year-$month-$day';
   }
 
+  bool _isDatePast(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+
+    return normalizedDate.isBefore(today);
+  }
+
+  bool _isBookingPast(Map<String, dynamic> booking) {
+    final dateKey = booking['dateKey'] as String? ?? '';
+    final parts = dateKey.split('-');
+
+    if (parts.length != 3) {
+      return false;
+    }
+
+    final year = int.tryParse(parts[0]);
+    final month = int.tryParse(parts[1]);
+    final day = int.tryParse(parts[2]);
+
+    if (year == null || month == null || day == null) {
+      return false;
+    }
+
+    return _isDatePast(DateTime(year, month, day));
+  }
+
+  void _showArchivedDayMessage() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Le giornate passate sono in sola consultazione.'),
+      ),
+    );
+  }
+
   DateTime _startOfWeek(DateTime date) {
     final normalized = DateTime(date.year, date.month, date.day);
 
@@ -355,10 +390,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _selectManualDate() async {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     final selectedDate = await showDatePicker(
       context: context,
-      initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
+      initialDate: _isDatePast(_selectedDate) ? today : _selectedDate,
+      firstDate: today,
       lastDate: DateTime(DateTime.now().year + 5, 12, 31),
       locale: const Locale('it', 'IT'),
       helpText: 'Data della prenotazione',
@@ -411,6 +449,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       );
       return;
     }
+    if (_isDatePast(_selectedDate)) {
+      _showArchivedDayMessage();
+      return;
+    }
+
     final firstName = _manualFirstNameController.text.trim();
 
     if (firstName.isEmpty) {
@@ -685,6 +728,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
     String newStatus,
   ) async {
     final booking = document.data();
+
+    if (_isBookingPast(booking)) {
+      _showArchivedDayMessage();
+      return;
+    }
     final oldStatus = booking['status'] as String? ?? 'pending';
 
     if (!_isSupervisor) {
@@ -1159,7 +1207,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   icon: Icons.light_mode_outlined,
                   guests: lunchGuests,
                   forceSelected: serviceCount == 1 && _selectedService == 'all',
-                  onSettings: _isManager
+                  onSettings: _isManager && !_isDatePast(_selectedDate)
                       ? () => _openSlotClosures('lunch')
                       : null,
                 ),
@@ -1170,7 +1218,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   icon: Icons.dark_mode_outlined,
                   guests: dinnerGuests,
                   forceSelected: serviceCount == 1 && _selectedService == 'all',
-                  onSettings: _isManager
+                  onSettings: _isManager && !_isDatePast(_selectedDate)
                       ? () => _openSlotClosures('dinner')
                       : null,
                 ),
@@ -1323,6 +1371,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   Future<void> _openSlotClosures(String service) async {
     if (!_isManager) {
+      return;
+    }
+
+    if (_isDatePast(_selectedDate)) {
+      _showArchivedDayMessage();
       return;
     }
 
@@ -2008,6 +2061,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return false;
     }
 
+    if (_isBookingPast(document.data())) {
+      _showArchivedDayMessage();
+      return false;
+    }
+
     if (newGuests < 1) {
       return false;
     }
@@ -2084,6 +2142,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
           content: Text('Solo Admin e Manager possono modificare l’orario.'),
         ),
       );
+      return false;
+    }
+
+    if (_isBookingPast(document.data())) {
+      _showArchivedDayMessage();
       return false;
     }
 
@@ -2222,6 +2285,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final notes = booking['notes'] as String? ?? '';
     final source = booking['source'] as String? ?? '';
     final dateKey = booking['dateKey'] as String? ?? '';
+    final isPastBooking = _isBookingPast(booking);
     final noShowCount = _readInteger(booking['customerNoShowCount']);
     final fullName = '$firstName $lastName'.trim();
 
@@ -2240,7 +2304,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (sheetContext, setModalState) {
-            final canQuickEdit = _isManager;
+            final canQuickEdit = _isManager && !isPastBooking;
 
             Future<void> changeGuests(int difference) async {
               final newGuests = currentGuests + difference;
@@ -2335,10 +2399,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          const Text(
-                            'Modifica prenotazione',
+                          Text(
+                            isPastBooking
+                                ? 'Prenotazione archiviata'
+                                : 'Modifica prenotazione',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Color(0xFFC8A45D),
                               fontSize: 15,
                               fontWeight: FontWeight.bold,
@@ -2496,7 +2562,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
-                                onPressed: selected
+                                onPressed: isPastBooking || selected
                                     ? null
                                     : () async {
                                         await _changeStatus(document, status);
@@ -2899,7 +2965,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ),
         const SizedBox(height: 14),
         FilledButton.icon(
-          onPressed: _savingManualBooking ? null : _saveManualBooking,
+          onPressed: _savingManualBooking || _isDatePast(_selectedDate)
+              ? null
+              : _saveManualBooking,
           icon: _savingManualBooking
               ? const SizedBox(
                   width: 16,
@@ -3414,7 +3482,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     style: const TextStyle(fontSize: 12),
                   ),
                 ],
-                if (status == 'pending' && _isSupervisor) ...[
+                if (status == 'pending' &&
+                    _isSupervisor &&
+                    !_isBookingPast(booking)) ...[
                   const SizedBox(height: 10),
                   Row(
                     children: [
@@ -3988,6 +4058,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
           setState(() {
             _bottomIndex = index;
+
+            if (index == 2 && _isDatePast(_selectedDate)) {
+              _selectedDate = DateTime.now();
+            }
 
             if (index == 0) {
               _selectedDate = DateTime.now();
