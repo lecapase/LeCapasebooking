@@ -1,6 +1,7 @@
 import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/push_notification_service.dart';
@@ -1028,38 +1029,75 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required String label,
     required IconData icon,
     required int guests,
+    VoidCallback? onSettings,
+    bool forceSelected = false,
   }) {
-    final selected = _selectedService == value;
+    final selected = _selectedService == value || forceSelected;
 
     return Expanded(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 2),
-        child: OutlinedButton.icon(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(0, 34),
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-            backgroundColor: selected
-                ? const Color(0xFFC8A45D)
-                : Colors.transparent,
-            foregroundColor: selected ? Colors.black : const Color(0xFFC8A45D),
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-            side: const BorderSide(color: Color(0xFF6C5733)),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(7),
-            ),
+        child: Container(
+          height: 34,
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFFC8A45D) : Colors.transparent,
+            border: Border.all(color: const Color(0xFF6C5733)),
+            borderRadius: BorderRadius.circular(7),
           ),
-          onPressed: () {
-            setState(() {
-              _selectedService = value;
-            });
-          },
-          icon: Icon(icon, size: 14),
-          label: FittedBox(
-            child: Text(
-              '$label ${guests}p',
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
-            ),
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(7),
+                  onTap: () {
+                    setState(() {
+                      _selectedService = value;
+                    });
+                  },
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        icon,
+                        size: 14,
+                        color: selected
+                            ? Colors.black
+                            : const Color(0xFFC8A45D),
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: FittedBox(
+                          child: Text(
+                            '$label ${guests}p',
+                            style: TextStyle(
+                              color: selected
+                                  ? Colors.black
+                                  : const Color(0xFFC8A45D),
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (onSettings != null) ...[
+                Container(width: 1, height: 20, color: const Color(0xFF6C5733)),
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints.tightFor(width: 32),
+                  tooltip: 'Gestisci servizio',
+                  onPressed: onSettings,
+                  icon: Icon(
+                    Icons.settings_outlined,
+                    size: 17,
+                    color: selected ? Colors.black : const Color(0xFFC8A45D),
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ),
@@ -1071,63 +1109,212 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required int lunchGuests,
     required int dinnerGuests,
   }) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
-      child: Row(
-        children: [
-          _serviceButton(
-            value: 'all',
-            label: 'Tutti',
-            icon: Icons.restaurant,
-            guests: allGuests,
-          ),
-          _serviceButton(
-            value: 'lunch',
-            label: 'Pranzo',
-            icon: Icons.light_mode_outlined,
-            guests: lunchGuests,
-          ),
-          if (_isManager)
-            SizedBox(
-              width: 32,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                tooltip: 'Gestisci fasce Pranzo',
-                onPressed: () {
-                  _openSlotClosures('lunch');
-                },
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  size: 17,
-                  color: Color(0xFFC8A45D),
+    return FutureBuilder(
+      future: CustomerAvailabilityService.getAvailabilityForDate(_selectedDate),
+      builder: (context, snapshot) {
+        final availability = snapshot.data;
+        final hasLunch = availability?.lunch.isOpen ?? false;
+        final hasDinner = availability?.dinner.isOpen ?? false;
+        final serviceCount = (hasLunch ? 1 : 0) + (hasDinner ? 1 : 0);
+
+        final selectedServiceUnavailable =
+            (_selectedService == 'lunch' && !hasLunch) ||
+            (_selectedService == 'dinner' && !hasDinner);
+
+        if (selectedServiceUnavailable) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              setState(() => _selectedService = 'all');
+            }
+          });
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 40);
+        }
+
+        if (serviceCount == 0) {
+          return const SizedBox.shrink();
+        }
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+          child: Row(
+            children: [
+              if (serviceCount > 1)
+                _serviceButton(
+                  value: 'all',
+                  label: 'Tutti',
+                  icon: Icons.restaurant,
+                  guests: allGuests,
                 ),
-              ),
-            ),
-          _serviceButton(
-            value: 'dinner',
-            label: 'Cena',
-            icon: Icons.dark_mode_outlined,
-            guests: dinnerGuests,
-          ),
-          if (_isManager)
-            SizedBox(
-              width: 32,
-              child: IconButton(
-                padding: EdgeInsets.zero,
-                tooltip: 'Gestisci fasce Cena',
-                onPressed: () {
-                  _openSlotClosures('dinner');
-                },
-                icon: const Icon(
-                  Icons.settings_outlined,
-                  size: 17,
-                  color: Color(0xFFC8A45D),
+              if (hasLunch)
+                _serviceButton(
+                  value: 'lunch',
+                  label: 'Pranzo',
+                  icon: Icons.light_mode_outlined,
+                  guests: lunchGuests,
+                  forceSelected: serviceCount == 1 && _selectedService == 'all',
+                  onSettings: _isManager
+                      ? () => _openSlotClosures('lunch')
+                      : null,
                 ),
-              ),
-            ),
-        ],
-      ),
+              if (hasDinner)
+                _serviceButton(
+                  value: 'dinner',
+                  label: 'Cena',
+                  icon: Icons.dark_mode_outlined,
+                  guests: dinnerGuests,
+                  forceSelected: serviceCount == 1 && _selectedService == 'all',
+                  onSettings: _isManager
+                      ? () => _openSlotClosures('dinner')
+                      : null,
+                ),
+            ],
+          ),
+        );
+      },
     );
+  }
+
+  Future<int?> _confirmServiceClosure({
+    required String service,
+    required String serviceLabel,
+  }) async {
+    final reasonController = TextEditingController();
+    var submitting = false;
+
+    final result = await showDialog<int>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              icon: const Icon(
+                Icons.warning_amber_rounded,
+                color: Colors.redAccent,
+                size: 48,
+              ),
+              title: Text(
+                'CHIUSURA $serviceLabel',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              content: SizedBox(
+                width: 420,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Stai chiudendo l’intero servizio. Tutte le prenotazioni '
+                      'attive verranno annullate automaticamente e i clienti '
+                      'riceveranno la motivazione indicata.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 18),
+                    TextField(
+                      controller: reasonController,
+                      enabled: !submitting,
+                      minLines: 3,
+                      maxLines: 5,
+                      maxLength: 500,
+                      autofocus: true,
+                      decoration: const InputDecoration(
+                        labelText: 'Motivazione obbligatoria',
+                        hintText: 'Esempio: chiusura straordinaria per guasto…',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: submitting
+                      ? null
+                      : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('ANNULLA'),
+                ),
+                FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                  ),
+                  onPressed: submitting
+                      ? null
+                      : () async {
+                          final reason = reasonController.text.trim();
+
+                          if (reason.length < 8) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'Inserisci una motivazione di almeno 8 caratteri.',
+                                ),
+                              ),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() => submitting = true);
+
+                          try {
+                            final callable = FirebaseFunctions.instanceFor(
+                              region: 'europe-west1',
+                            ).httpsCallable('closeBookingService');
+                            final response = await callable.call({
+                              'dateKey': BookingSlotClosuresRepository.dateKey(
+                                _selectedDate,
+                              ),
+                              'service': service,
+                              'reason': reason,
+                            });
+                            final data = Map<String, dynamic>.from(
+                              response.data as Map,
+                            );
+
+                            if (dialogContext.mounted) {
+                              Navigator.of(dialogContext).pop(
+                                (data['cancelledBookings'] as num?)?.toInt() ??
+                                    0,
+                              );
+                            }
+                          } catch (error) {
+                            setDialogState(() => submitting = false);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Chiusura servizio non riuscita: $error',
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  icon: submitting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.power_settings_new),
+                  label: const Text('CHIUDI IL SERVIZIO'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    reasonController.dispose();
+    return result;
   }
 
   Future<void> _openSlotClosures(String service) async {
@@ -1179,6 +1366,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
         service: service,
       );
 
+      var serviceClosure =
+          await BookingSlotClosuresRepository.loadServiceClosure(
+            date: _selectedDate,
+            service: service,
+          );
+
       if (!mounted) {
         return;
       }
@@ -1191,85 +1384,225 @@ class _BookingsScreenState extends State<BookingsScreen> {
               return AlertDialog(
                 title: Text('$serviceLabel · ${_fullDateLabel(_selectedDate)}'),
                 content: SizedBox(
-                  width: 380,
-                  child: times.isEmpty
-                      ? const Text('Nessuna fascia oraria disponibile.')
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: times.length,
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final time = times[index];
-                            final closed = closedTimes.contains(time);
+                  width: 420,
+                  height: 520,
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () async {
+                                final currentlyClosed = serviceClosure != null;
 
-                            return ListTile(
-                              dense: true,
-                              contentPadding: EdgeInsets.zero,
-                              title: Text(
-                                time,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                  decoration: closed
-                                      ? TextDecoration.lineThrough
-                                      : TextDecoration.none,
-                                  color: closed ? Colors.grey : null,
-                                ),
-                              ),
-                              subtitle: Text(
-                                closed
-                                    ? 'Fascia completa'
-                                    : 'Prenotabile online',
-                              ),
-                              trailing: IconButton(
-                                tooltip: closed
-                                    ? 'Riapri fascia online'
-                                    : 'Chiudi fascia online',
-                                icon: Icon(
-                                  closed
-                                      ? Icons.public_off_outlined
-                                      : Icons.public,
-                                  color: closed
-                                      ? Colors.grey
-                                      : const Color(0xFFC8A45D),
-                                ),
-                                onPressed: () async {
-                                  try {
-                                    await BookingSlotClosuresRepository.setClosed(
-                                      date: _selectedDate,
-                                      service: service,
-                                      time: time,
-                                      closed: !closed,
-                                    );
+                                try {
+                                  await BookingSlotClosuresRepository.setServiceOnlineDisabled(
+                                    date: _selectedDate,
+                                    service: service,
+                                    disabled: !currentlyClosed,
+                                  );
 
-                                    if (!mounted) {
-                                      return;
-                                    }
-
-                                    setDialogState(() {
-                                      if (closed) {
-                                        closedTimes.remove(time);
-                                      } else {
-                                        closedTimes.add(time);
-                                      }
-                                    });
-                                  } catch (error) {
-                                    if (!context.mounted) {
-                                      return;
-                                    }
-
+                                  setDialogState(() {
+                                    serviceClosure = currentlyClosed
+                                        ? null
+                                        : {
+                                            'mode': 'online_disabled',
+                                            'closed': true,
+                                          };
+                                  });
+                                } catch (error) {
+                                  if (context.mounted) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
-                                          'Modifica fascia non riuscita: $error',
+                                          'Modifica servizio non riuscita: $error',
                                         ),
                                       ),
                                     );
                                   }
+                                }
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      serviceClosure == null
+                                          ? Icons.public
+                                          : Icons.public_off_outlined,
+                                      color: serviceClosure == null
+                                          ? const Color(0xFFC8A45D)
+                                          : Colors.grey,
+                                    ),
+                                    const SizedBox(height: 3),
+                                    Text(
+                                      serviceClosure == null
+                                          ? 'Disattiva online'
+                                          : serviceClosure?['mode'] ==
+                                                'service_closed'
+                                          ? 'Riapri servizio'
+                                          : 'Riattiva online',
+                                      textAlign: TextAlign.center,
+                                      style: const TextStyle(fontSize: 10),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.redAccent),
+                              ),
+                              onPressed:
+                                  serviceClosure?['mode'] == 'service_closed'
+                                  ? null
+                                  : () async {
+                                      final cancelled =
+                                          await _confirmServiceClosure(
+                                            service: service,
+                                            serviceLabel: serviceLabel,
+                                          );
+
+                                      if (cancelled == null ||
+                                          !context.mounted) {
+                                        return;
+                                      }
+
+                                      Navigator.of(dialogContext).pop();
+                                      ScaffoldMessenger.of(
+                                        context,
+                                      ).showSnackBar(
+                                        SnackBar(
+                                          content: Text(
+                                            'Servizio chiuso. Prenotazioni annullate: $cancelled.',
+                                          ),
+                                        ),
+                                      );
+                                    },
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Column(
+                                  children: [
+                                    Icon(
+                                      Icons.power_settings_new,
+                                      color: Colors.redAccent,
+                                    ),
+                                    SizedBox(height: 3),
+                                    Text(
+                                      'Chiudi servizio',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.redAccent,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Divider(height: 1),
+                      const SizedBox(height: 4),
+                      Expanded(
+                        child: times.isEmpty
+                            ? const Center(
+                                child: Text(
+                                  'Nessuna fascia oraria disponibile.',
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: times.length,
+                                separatorBuilder: (_, _) =>
+                                    const Divider(height: 1),
+                                itemBuilder: (context, index) {
+                                  final time = times[index];
+                                  final closed =
+                                      serviceClosure != null ||
+                                      closedTimes.contains(time);
+
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    title: Text(
+                                      time,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        decoration: closed
+                                            ? TextDecoration.lineThrough
+                                            : TextDecoration.none,
+                                        color: closed ? Colors.grey : null,
+                                      ),
+                                    ),
+                                    subtitle: Text(
+                                      closed
+                                          ? 'Fascia completa'
+                                          : 'Prenotabile online',
+                                    ),
+                                    trailing: IconButton(
+                                      tooltip: closed
+                                          ? 'Riapri fascia online'
+                                          : 'Chiudi fascia online',
+                                      icon: Icon(
+                                        closed
+                                            ? Icons.public_off_outlined
+                                            : Icons.public,
+                                        color: closed
+                                            ? Colors.grey
+                                            : const Color(0xFFC8A45D),
+                                      ),
+                                      onPressed: serviceClosure != null
+                                          ? null
+                                          : () async {
+                                              try {
+                                                await BookingSlotClosuresRepository.setClosed(
+                                                  date: _selectedDate,
+                                                  service: service,
+                                                  time: time,
+                                                  closed: !closed,
+                                                );
+
+                                                if (!mounted) {
+                                                  return;
+                                                }
+
+                                                setDialogState(() {
+                                                  if (closed) {
+                                                    closedTimes.remove(time);
+                                                  } else {
+                                                    closedTimes.add(time);
+                                                  }
+                                                });
+                                              } catch (error) {
+                                                if (!context.mounted) {
+                                                  return;
+                                                }
+
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      'Modifica fascia non riuscita: $error',
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+                                    ),
+                                  );
                                 },
                               ),
-                            );
-                          },
-                        ),
+                      ),
+                    ],
+                  ),
                 ),
                 actions: [
                   TextButton(

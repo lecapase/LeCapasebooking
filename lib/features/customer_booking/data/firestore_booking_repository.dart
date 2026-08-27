@@ -172,6 +172,12 @@ class FirestoreBookingRepository {
       time: time,
     );
 
+    final serviceClosureReference =
+        BookingSlotClosuresRepository.serviceReference(
+          date: normalizedDate,
+          service: service,
+        );
+
     // =======================================================
     // TRANSAZIONE FIRESTORE
     //
@@ -180,6 +186,16 @@ class FirestoreBookingRepository {
     // =======================================================
 
     await _firestore.runTransaction((transaction) async {
+      final serviceClosureSnapshot = await transaction.get(
+        serviceClosureReference,
+      );
+
+      if (serviceClosureSnapshot.exists) {
+        throw const BookingCapacityException(
+          'Servizio completo. Seleziona un altro servizio.',
+        );
+      }
+
       final closureSnapshot = await transaction.get(closureReference);
 
       if (closureSnapshot.exists) {

@@ -1228,6 +1228,19 @@ function buildEmail(
   const details =
     bookingDetails(data);
 
+  const cancellationReason =
+    typeof data.cancellationReason === "string" ?
+      data.cancellationReason.trim() :
+      "";
+
+  const notice =
+    (
+      (type === "cancelled" || type === "rejected") &&
+      cancellationReason.length > 0
+    ) ?
+      `Motivazione: ${cancellationReason}` :
+      config.notice;
+
   const textLines = [
     `Gentile ${details.name},`,
     "",
@@ -1238,7 +1251,7 @@ function buildEmail(
     `Servizio: ${details.service}`,
     `Ospiti: ${details.guestsText}`,
     "",
-    config.notice,
+    notice,
   ];
 
   if (config.warning) {
@@ -1372,7 +1385,7 @@ function buildEmail(
       </table>
 
       <p>
-        ${escapeHtml(config.notice)}
+        ${escapeHtml(notice)}
       </p>
 
       ${warningHtml}
@@ -3911,3 +3924,6 @@ exports.deleteStaffUser =
 
 exports.getKitchenAgenda =
   staffUserFunctions.getKitchenAgenda;
+
+exports.closeBookingService =
+  staffUserFunctions.closeBookingService;

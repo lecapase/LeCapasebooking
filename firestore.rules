@@ -385,12 +385,45 @@ service cloud.firestore {
 
       allow delete: if isManager();
     }
+
+    match /booking_service_closures/{documentId} {
+      allow read: if true;
+
+      allow create, update: if isManager()
+        && request.resource.data.keys().hasOnly([
+          'dateKey',
+          'service',
+          'mode',
+          'closed',
+          'reason',
+          'closedBy',
+          'cancelledBookings',
+          'updatedAt'
+        ])
+        && request.resource.data.dateKey is string
+        && request.resource.data.dateKey.size() == 10
+        && (
+          request.resource.data['service'] == 'lunch'
+          || request.resource.data['service'] == 'dinner'
+        )
+        && (
+          request.resource.data.mode == 'online_disabled'
+          || request.resource.data.mode == 'service_closed'
+        )
+        && request.resource.data.closed == true;
+
+      allow delete: if isManager();
+    }
+
     match /bookings/{bookingId} {
       allow create: if isManager()
         || (
           isValidCustomerBooking()
           && !exists(
             /databases/$(database)/documents/booking_slot_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'] + "_" + request.resource.data.time)
+          )
+          && !exists(
+            /databases/$(database)/documents/booking_service_closures/$(request.resource.data.dateKey + "_" + request.resource.data['service'])
           )
         );
 

@@ -201,6 +201,17 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         ),
       ]);
 
+      final closedServices = await Future.wait([
+        BookingSlotClosuresRepository.isServiceClosed(
+          date: normalizedDate,
+          service: 'lunch',
+        ),
+        BookingSlotClosuresRepository.isServiceClosed(
+          date: normalizedDate,
+          service: 'dinner',
+        ),
+      ]);
+
       if (!mounted) {
         return;
       }
@@ -208,8 +219,14 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       setState(() {
         lunchTimes = _filterBookableTimes(normalizedDate, loadedLunchTimes);
         dinnerTimes = _filterBookableTimes(normalizedDate, loadedDinnerTimes);
-        closedLunchTimes = loadedClosures[0];
-        closedDinnerTimes = loadedClosures[1];
+        closedLunchTimes = {
+          ...loadedClosures[0],
+          if (closedServices[0]) ...loadedLunchTimes,
+        };
+        closedDinnerTimes = {
+          ...loadedClosures[1],
+          if (closedServices[1]) ...loadedDinnerTimes,
+        };
 
         if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
           currentStep = 1;

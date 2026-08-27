@@ -815,6 +815,39 @@ async function requireAdministrator(request) {
   return uid;
 }
 
+async function requireManager(request) {
+  const uid = request.auth?.uid;
+
+  if (!uid) {
+    throw new HttpsError(
+        "unauthenticated",
+        "Devi effettuare l'accesso.",
+    );
+  }
+
+  if (await userIsAdmin(uid)) {
+    return uid;
+  }
+
+  const staffSnapshot =
+    await db.collection("staff_users").doc(uid).get();
+
+  const staffData = staffSnapshot.data();
+
+  if (
+    !staffSnapshot.exists ||
+    staffData?.active !== true ||
+    staffData?.role !== "manager"
+  ) {
+    throw new HttpsError(
+        "permission-denied",
+        "Solo Admin e Manager possono chiudere un servizio.",
+    );
+  }
+
+  return uid;
+}
+
 async function userCanViewBookings(uid) {
   if (!uid) {
     return false;
@@ -1861,5 +1894,130 @@ exports.getKitchenAgenda =
           dateKey,
           bookings,
         };
+      },
+  );
+
+// CHIUSURA COMPLETA DI UN SERVIZIO
+exports.closeBookingService =
+  onCall(
+      {
+        region: "europe-west1",
+        timeoutSeconds: 60,
+        memory: "256MiB",
+      },
+      async (request) => {
+        const uid = await requireManager(request);
+
+        const dateKey = cleanText(request.data?.dateKey);
+        const service = cleanText(request.data?.service);
+        const reason = cleanText(request.data?.reason);
+
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey)) {
+          throw new HttpsError("invalid-argument", "Data non valida.");
+        }
+
+        if (service !== "lunch" && service !== "dinner") {
+          throw new HttpsError("invalid-argument", "Servizio non valido.");
+        }
+
+        if (reason.length < 8 || reason.length > 500) {
+          throw new HttpsError(
+              "invalid-argument",
+              "Inserisci una motivazione da 8 a 500 caratteri.",
+          );
+        }
+
+        const closureReference = db
+            .collection("booking_service_closures")
+            .doc(`${dateKey}_${service}`);
+
+        const counterReference = db
+            .collection("availability_counters")
+            .doc(`${dateKey}_${service}`);
+
+        const bookingsQuery = db
+            .collection("bookings")
+            .where("dateKey", "==", dateKey)
+            .where("service", "==", service);
+
+        const result = await db.runTransaction(async (transaction) => {
+          const [bookingsSnapshot, counterSnapshot] = await Promise.all([
+            transaction.get(bookingsQuery),
+            transaction.get(counterReference),
+          ]);
+
+          const activeStatuses = new Set([
+            "pending",
+            "booked",
+            "confirmed",
+          ]);
+
+          const activeBookings = bookingsSnapshot.docs.filter((document) =>
+            activeStatuses.has(document.data().status),
+          );
+
+          if (activeBookings.length > 450) {
+            throw new HttpsError(
+                "resource-exhausted",
+                "Troppe prenotazioni da annullare in una sola operazione.",
+            );
+          }
+
+          let cancelledGuests = 0;
+
+          for (const document of activeBookings) {
+            const booking = document.data();
+            cancelledGuests += Number(booking.guests || 0);
+
+            transaction.update(document.ref, {
+              status: "cancelled",
+              cancellationReason: reason,
+              cancellationSource: "service_closed",
+              cancelledAt: FieldValue.serverTimestamp(),
+              cancelledBy: uid,
+              updatedAt: FieldValue.serverTimestamp(),
+            });
+          }
+
+          const currentGuests = counterSnapshot.exists ?
+            Number(counterSnapshot.data()?.bookedGuests || 0) :
+            0;
+
+          transaction.set(
+              counterReference,
+              {
+                dateKey,
+                service,
+                bookedGuests: Math.max(0, currentGuests - cancelledGuests),
+                updatedAt: FieldValue.serverTimestamp(),
+              },
+              {merge: true},
+          );
+
+          transaction.set(closureReference, {
+            dateKey,
+            service,
+            mode: "service_closed",
+            closed: true,
+            reason,
+            closedBy: uid,
+            cancelledBookings: activeBookings.length,
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+
+          return {
+            cancelledBookings: activeBookings.length,
+            cancelledGuests,
+          };
+        });
+
+        logger.warn("Servizio chiuso dal gestionale", {
+          uid,
+          dateKey,
+          service,
+          cancelledBookings: result.cancelledBookings,
+        });
+
+        return {success: true, ...result};
       },
   );
