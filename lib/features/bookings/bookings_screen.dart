@@ -158,7 +158,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   void _changeWeek(int numberOfWeeks) {
     setState(() {
-      _selectedDate = _selectedDate.add(Duration(days: numberOfWeeks * 7));
+      final currentWeekStart = _startOfWeek(_selectedDate);
+
+      _selectedDate = currentWeekStart.add(Duration(days: numberOfWeeks * 7));
+      _selectedSection = 0;
+      _selectedFilter = 'all';
     });
   }
 
@@ -3763,7 +3767,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           padding: EdgeInsets.only(top: 18, bottom: 12),
           child: Center(
             child: Text(
-              'Versione 2.0.1',
+              'Versione 2.1.0',
               style: TextStyle(fontSize: 12, color: Colors.white54),
             ),
           ),

@@ -500,7 +500,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   const SizedBox(height: 18),
                   const Text(
-                    'Le Capase Booking 2.0',
+                    'Le Capase Booking 2.1',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
                   ),
