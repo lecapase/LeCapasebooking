@@ -561,7 +561,8 @@ class FirestoreBookingRepository {
     const terms = <String>[
       'allerg',
       'intoller',
-      'celiach',
+      'celiac',
+      'coeliac',
       'glutine',
       'gluten',
       'lattos',
