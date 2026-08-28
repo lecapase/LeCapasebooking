@@ -44,8 +44,10 @@ class FirestoreBookingRepository {
     required String occasion,
     required String occasionCode,
     required String language,
-    required String notes,
     required String bookingOrigin,
+    required String notes,
+    required bool privacyNoticeAccepted,
+    required bool healthDataConsent,
     bool bookingWhatsappConsent = false,
     bool marketingEmailConsent = false,
     bool marketingWhatsappConsent = false,
@@ -56,6 +58,8 @@ class FirestoreBookingRepository {
     final cleanSurname = cognome.trim();
     final cleanEmail = email.trim();
     final cleanPhone = telefono.trim();
+    final cleanNotes = notes.trim();
+    final containsHealthData = notesContainHealthData(cleanNotes);
 
     final normalizedEmail = _normalizeEmail(cleanEmail);
 
@@ -90,6 +94,24 @@ class FirestoreBookingRepository {
 
     if (cleanPhone.isEmpty) {
       throw const BookingCapacityException('Inserisci un numero di telefono.');
+    }
+
+    if (!privacyNoticeAccepted) {
+      throw const BookingCapacityException(
+        'È necessario leggere l’Informativa Privacy.',
+      );
+    }
+
+    if (cleanNotes.length > 500) {
+      throw const BookingCapacityException(
+        'Le Note non possono superare 500 caratteri.',
+      );
+    }
+
+    if (containsHealthData && !healthDataConsent) {
+      throw const BookingCapacityException(
+        'È necessario il consenso per le informazioni sanitarie inserite nelle Note.',
+      );
     }
 
     // =======================================================
@@ -262,7 +284,21 @@ class FirestoreBookingRepository {
 
         'language': language == 'it' ? 'it' : 'en',
 
-        'notes': notes.trim(),
+        'notes': cleanNotes,
+
+        'healthDataDetected': containsHealthData,
+
+        'healthDataConsent': containsHealthData && healthDataConsent,
+
+        'healthDataConsentVersion': '1.0',
+
+        'healthDataConsentLanguage': language == 'it' ? 'it' : 'en',
+
+        'healthDataConsentRecordedAt': containsHealthData
+            ? FieldValue.serverTimestamp()
+            : null,
+
+        'notesPurgedAt': null,
 
         'status': initialStatus,
 
@@ -275,6 +311,14 @@ class FirestoreBookingRepository {
         'source': 'customer',
 
         'bookingOrigin': bookingOrigin,
+
+        'privacyNoticeAccepted': privacyNoticeAccepted,
+
+        'privacyNoticeVersion': '1.0',
+
+        'privacyNoticeLanguage': language == 'it' ? 'it' : 'en',
+
+        'privacyNoticeAcceptedAt': FieldValue.serverTimestamp(),
 
         // =============================================
         // CONSENSI MARKETING
@@ -510,5 +554,30 @@ class FirestoreBookingRepository {
     final day = date.day.toString().padLeft(2, '0');
 
     return '$year-$month-$day';
+  }
+
+  static bool notesContainHealthData(String notes) {
+    final normalized = notes.toLowerCase();
+    const terms = <String>[
+      'allerg',
+      'intoller',
+      'celiach',
+      'glutine',
+      'gluten',
+      'lattos',
+      'lactos',
+      'diabet',
+      'anafil',
+      'farmac',
+      'patolog',
+      'malatt',
+      'salute',
+      'sanitari',
+      'health',
+      'medical',
+      'medication',
+      'disease',
+    ];
+    return terms.any(normalized.contains);
   }
 }

@@ -142,8 +142,14 @@ service cloud.firestore {
     // VALIDAZIONE PRENOTAZIONE CLIENTE
     // =====================================================
 
+    function notesContainHealthData(notes) {
+      return notes.matches(
+        '(?i).*(allerg|intoller|celiach|glutine|gluten|lattos|lactos|diabet|anafil|farmac|patolog|malatt|salute|sanitari|health|medical|medication|disease).*'
+      );
+    }
+
     function isValidCustomerBooking() {
-      return request.resource.data.keys().hasAll([
+      return request.resource.data.keys().hasOnly([
         'nome',
         'cognome',
         'email',
@@ -158,13 +164,29 @@ service cloud.firestore {
         'service',
         'guests',
         'occasion',
+        'occasionCode',
+        'language',
         'notes',
+        'healthDataDetected',
+        'healthDataConsent',
+        'healthDataConsentVersion',
+        'healthDataConsentLanguage',
+        'healthDataConsentRecordedAt',
+        'notesPurgedAt',
         'status',
         'autoBooked',
         'autoConfirmed',
         'requiresManualConfirmation',
         'source',
         'bookingOrigin',
+        'privacyNoticeAccepted',
+        'privacyNoticeVersion',
+        'privacyNoticeLanguage',
+        'privacyNoticeAcceptedAt',
+        'bookingWhatsappConsent',
+        'bookingWhatsappConsentVersion',
+        'bookingWhatsappConsentSource',
+        'bookingWhatsappConsentRecordedAt',
         'marketingEmailConsent',
         'marketingWhatsappConsent',
         'marketingConsentVersion',
@@ -178,6 +200,15 @@ service cloud.firestore {
         'cancellationWhatsappSent',
         'rejectionWhatsappSent',
         'adminNotificationSent',
+        'bookedAt',
+        'bookedBy',
+        'confirmedAt',
+        'confirmedBy',
+        'cancelledAt',
+        'cancelledBy',
+        'noShowAt',
+        'noShowBy',
+        'noShowRecorded',
         'createdAt',
         'updatedAt'
       ])
@@ -237,8 +268,44 @@ service cloud.firestore {
       && request.resource.data.occasion is string
       && request.resource.data.occasion.size() <= 200
 
+      && request.resource.data.occasionCode is string
+      && (
+        request.resource.data.occasionCode == 'none'
+        || request.resource.data.occasionCode == 'birthday'
+        || request.resource.data.occasionCode == 'anniversary'
+        || request.resource.data.occasionCode == 'romantic_dinner'
+        || request.resource.data.occasionCode == 'business_event'
+      )
+
+      && request.resource.data.language is string
+      && (
+        request.resource.data.language == 'it'
+        || request.resource.data.language == 'en'
+      )
+
       && request.resource.data.notes is string
-      && request.resource.data.notes.size() <= 2000
+      && request.resource.data.notes.size() <= 500
+
+      && request.resource.data.healthDataDetected is bool
+      && request.resource.data.healthDataDetected
+        == notesContainHealthData(request.resource.data.notes)
+      && request.resource.data.healthDataConsent is bool
+      && request.resource.data.healthDataConsentVersion == '1.0'
+      && request.resource.data.healthDataConsentLanguage
+        == request.resource.data.language
+      && request.resource.data.notesPurgedAt == null
+      && (
+        (
+          request.resource.data.healthDataDetected == true
+          && request.resource.data.healthDataConsent == true
+          && request.resource.data.healthDataConsentRecordedAt is timestamp
+        )
+        || (
+          request.resource.data.healthDataDetected == false
+          && request.resource.data.healthDataConsent == false
+          && request.resource.data.healthDataConsentRecordedAt == null
+        )
+      )
 
       && request.resource.data.source == 'customer'
 
@@ -250,11 +317,49 @@ service cloud.firestore {
         || request.resource.data.bookingOrigin == 'direct'
       )
 
+      && request.resource.data.privacyNoticeAccepted == true
+      && request.resource.data.privacyNoticeVersion == '1.0'
+      && request.resource.data.privacyNoticeLanguage
+        == request.resource.data.language
+      && request.resource.data.privacyNoticeAcceptedAt is timestamp
+
+      && request.resource.data.bookingWhatsappConsent == true
+      && request.resource.data.bookingWhatsappConsentVersion == '1.0'
+      && request.resource.data.bookingWhatsappConsentSource
+        == 'customer_booking_submit'
+      && request.resource.data.bookingWhatsappConsentRecordedAt is timestamp
+
       && request.resource.data.marketingEmailConsent is bool
       && request.resource.data.marketingWhatsappConsent is bool
-      && request.resource.data.marketingConsentVersion is string
-      && request.resource.data.marketingConsentSource is string
+      && request.resource.data.marketingEmailConsent
+        == request.resource.data.marketingWhatsappConsent
+      && request.resource.data.marketingConsentVersion == '1.0'
+      && request.resource.data.marketingConsentSource == 'customer_booking'
       && request.resource.data.marketingConsentRecordedAt is timestamp
+
+      && request.resource.data.createdAt is timestamp
+      && request.resource.data.updatedAt is timestamp
+
+      && (
+        (
+          request.resource.data.guests <= 4
+          && request.resource.data.bookedAt is timestamp
+          && request.resource.data.bookedBy == 'automatic'
+        )
+        || (
+          request.resource.data.guests >= 5
+          && request.resource.data.bookedAt == null
+          && request.resource.data.bookedBy == null
+        )
+      )
+
+      && request.resource.data.confirmedAt == null
+      && request.resource.data.confirmedBy == null
+      && request.resource.data.cancelledAt == null
+      && request.resource.data.cancelledBy == null
+      && request.resource.data.noShowAt == null
+      && request.resource.data.noShowBy == null
+      && request.resource.data.noShowRecorded == false
 
       && request.resource.data.requestReceivedEmailSent == false
       && request.resource.data.confirmationEmailSent == false

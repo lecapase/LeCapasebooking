@@ -5,6 +5,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'data/customer_availability_service.dart';
 import 'data/firestore_booking_repository.dart';
 import 'booking_language.dart';
+import 'privacy_policy_screen.dart';
 
 class CustomerBookingScreen extends StatefulWidget {
   const CustomerBookingScreen({super.key});
@@ -39,6 +40,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   bool _saving = false;
   bool _showMoreGuests = false;
   bool marketingConsent = false;
+  bool privacyNoticeAccepted = false;
+  bool healthDataConsent = false;
 
   List<String> lunchTimes = [];
   List<String> dinnerTimes = [];
@@ -56,6 +59,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   String _t(String italian, String english) =>
       bookingText(context, italian, english);
+
+  bool get _notesContainHealthData =>
+      FirestoreBookingRepository.notesContainHealthData(noteController.text);
 
   String _occasionLabel(String code) {
     switch (code) {
@@ -387,6 +393,26 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       return;
     }
 
+    if (!privacyNoticeAccepted) {
+      _message(
+        _t(
+          'Per continuare, conferma di aver letto l’Informativa Privacy.',
+          'To continue, confirm that you have read the Privacy Notice.',
+        ),
+      );
+      return;
+    }
+
+    if (_notesContainHealthData && !healthDataConsent) {
+      _message(
+        _t(
+          'Per continuare, esprimi il consenso al trattamento delle informazioni sanitarie inserite nelle Note.',
+          'To continue, consent to the processing of the health information entered in Notes.',
+        ),
+      );
+      return;
+    }
+
     setState(() {
       currentStep = 4;
     });
@@ -398,6 +424,28 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       ..showSnackBar(
         SnackBar(content: Text(text), behavior: SnackBarBehavior.floating),
       );
+  }
+
+  Future<void> _showHealthDataDetails() {
+    return showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(_t('Trattamento delle Note', 'Processing of Notes')),
+        content: Text(
+          _t(
+            'Le informazioni sanitarie eventualmente inserite nelle Note sono utilizzate esclusivamente per gestire questa prenotazione. Il consenso è facoltativo: puoi rimuovere tali informazioni e continuare a prenotare. Le Note vengono cancellate automaticamente al termine del servizio o in caso di annullamento o rifiuto.',
+            'Any health information entered in Notes is used solely to manage this booking. Consent is optional: you may remove that information and continue booking. Notes are automatically deleted after the service or if the booking is cancelled or rejected.',
+          ),
+          style: const TextStyle(height: 1.45),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: Text(_t('CHIUDI', 'CLOSE')),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _saveBooking() async {
@@ -453,8 +501,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         occasion: _occasionItalianValue(selectedOccasione),
         occasionCode: selectedOccasione,
         language: bookingIsItalian(context) ? 'it' : 'en',
-        notes: noteController.text.trim(),
         bookingOrigin: _bookingOrigin,
+        notes: noteController.text.trim(),
+        privacyNoticeAccepted: privacyNoticeAccepted,
+        healthDataConsent: healthDataConsent,
         bookingWhatsappConsent: true,
         marketingEmailConsent: marketingConsent,
         marketingWhatsappConsent: marketingConsent,
@@ -1071,6 +1121,41 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
+                  value: privacyNoticeAccepted,
+                  onChanged: (value) {
+                    setState(() {
+                      privacyNoticeAccepted = value ?? false;
+                    });
+                  },
+                  title: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        _t(
+                          'Dichiaro di aver letto l’',
+                          'I confirm that I have read the ',
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => const PrivacyPolicyScreen(),
+                            ),
+                          );
+                        },
+                        child: Text(
+                          _t('Informativa Privacy *', 'Privacy Notice *'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
                   value: marketingConsent,
                   onChanged: (value) {
                     setState(() {
@@ -1079,8 +1164,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   },
                   title: Text(
                     _t(
-                      'Desidero ricevere offerte, eventi e promozioni solo ed esclusivamente da Le Capase.',
-                      'I would like to receive offers, events and promotions exclusively from Le Capase.',
+                      'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
+                      'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
                     ),
                     style: const TextStyle(fontWeight: FontWeight.w600),
                   ),
@@ -1093,8 +1178,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   ),
                   child: Text(
                     _t(
-                      'Confermando la prenotazione si accetta di ricevere aggiornamenti in merito tramite WhatsApp/mail.',
-                      'By confirming the booking, you agree to receive booking updates via WhatsApp/email.',
+                      'Le comunicazioni operative sulla prenotazione tramite email e WhatsApp sono necessarie alla gestione del servizio e sono descritte nell’Informativa Privacy.',
+                      'Operational booking updates by email and WhatsApp are necessary to manage the service and are described in the Privacy Notice.',
                     ),
                     style: const TextStyle(fontSize: 12, height: 1.45),
                   ),
@@ -1132,17 +1217,60 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             controller: noteController,
             minLines: 3,
             maxLines: 5,
+            maxLength: 500,
             textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) {
+              setState(() {
+                if (!_notesContainHealthData) healthDataConsent = false;
+              });
+            },
             decoration: InputDecoration(
-              labelText: _t('Richieste particolari', 'Special requests'),
+              labelText: _t('Note (facoltative)', 'Notes (optional)'),
               hintText: _t(
-                'Allergie, intolleranze o altre richieste',
-                'Allergies, intolerances or other requests',
+                'Inserisci eventuali richieste per la prenotazione',
+                'Enter any requests for your booking',
               ),
               prefixIcon: const Icon(Icons.notes_outlined),
               alignLabelWithHint: true,
             ),
           ),
+          if (_notesContainHealthData) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0x14C8A45D),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x66C8A45D)),
+              ),
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                value: healthDataConsent,
+                onChanged: (value) {
+                  setState(() {
+                    healthDataConsent = value ?? false;
+                  });
+                },
+                title: Wrap(
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      _t(
+                        'Acconsento esplicitamente al trattamento delle informazioni sanitarie inserite nelle Note, esclusivamente per gestire questa prenotazione. *',
+                        'I explicitly consent to the processing of the health information entered in Notes solely to manage this booking. *',
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    TextButton(
+                      onPressed: _showHealthDataDetails,
+                      child: Text(_t('Dettagli', 'Details')),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
@@ -1238,7 +1366,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   _summaryDivider(),
                   _summaryRow(
                     icon: Icons.notes_outlined,
-                    label: _t('Richieste', 'Requests'),
+                    label: _t('Note', 'Notes'),
                     value: noteController.text.trim(),
                   ),
                 ],
@@ -1441,6 +1569,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       'Inserisci il nome.': 'Enter your first name.',
       'Inserisci un indirizzo email.': 'Enter an email address.',
       'Inserisci un numero di telefono.': 'Enter a phone number.',
+      'È necessario leggere l’Informativa Privacy.':
+          'You must read the Privacy Notice.',
+      'Le Note non possono superare 500 caratteri.':
+          'Notes cannot exceed 500 characters.',
+      'È necessario il consenso per le informazioni sanitarie inserite nelle Note.':
+          'Consent is required for health information entered in Notes.',
       'Nessun servizio disponibile per questa data.':
           'No service is available for this date.',
       'Questo servizio non è disponibile.': 'This service is not available.',

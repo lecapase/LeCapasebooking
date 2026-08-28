@@ -3514,6 +3514,125 @@ exports.sendReconfirmationReminders =
   );
 
 // ============================================================
+// CANCELLAZIONE AUTOMATICA NOTE PRENOTAZIONE
+// ============================================================
+
+const TERMINAL_BOOKING_STATUSES =
+  new Set([
+    "cancelled",
+    "rejected",
+    "no_show",
+    "released",
+    "completed",
+  ]);
+
+function notesPurgePayload() {
+  return {
+    notes: "",
+    healthDataDetected: false,
+    healthDataConsent: false,
+    notesPurgedAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+}
+
+exports.purgeTerminalBookingNotes =
+  onDocumentUpdated(
+      {
+        document: "bookings/{bookingId}",
+      },
+      async (event) => {
+        const after = event.data?.after;
+        const data = after?.data();
+
+        if (
+          !after ||
+          !data ||
+          typeof data.notes !== "string" ||
+          data.notes.trim().length === 0 ||
+          !TERMINAL_BOOKING_STATUSES.has(data.status)
+        ) {
+          return;
+        }
+
+        await after.ref.set(
+            notesPurgePayload(),
+            {merge: true},
+        );
+      },
+  );
+
+exports.purgeExpiredBookingNotes =
+  onSchedule(
+      {
+        schedule: "15 * * * *",
+        timeZone: "Europe/Rome",
+        timeoutSeconds: 120,
+      },
+      async () => {
+        const now = new Date();
+        const current = romeMinuteKey(now);
+        const recentDateKeys = new Set();
+
+        for (let daysAgo = 0; daysAgo < 14; daysAgo++) {
+          recentDateKeys.add(
+              romeMinuteKey(
+                  new Date(now.getTime() - daysAgo * 86400000),
+              ).dateKey,
+          );
+        }
+
+        const snapshots = await db
+            .collection(BOOKINGS_COLLECTION)
+            .where("dateKey", "in", [...recentDateKeys])
+            .get();
+
+        const previousDateKey = romeMinuteKey(
+            new Date(now.getTime() - 86400000),
+        ).dateKey;
+        const updates = [];
+
+        for (const snapshot of snapshots.docs) {
+          const data = snapshot.data();
+
+          if (
+            typeof data.notes !== "string" ||
+            data.notes.trim().length === 0
+          ) {
+            continue;
+          }
+
+          const dateKey = String(data.dateKey || "");
+          const isPastDate = dateKey < current.dateKey;
+          const dinnerStillInProgress =
+            data.service === "dinner" &&
+            dateKey === previousDateKey &&
+            current.time < "04:00";
+          const lunchFinished =
+            dateKey === current.dateKey &&
+            data.service === "lunch" &&
+            current.time >= "18:00";
+
+          if ((isPastDate && !dinnerStillInProgress) || lunchFinished) {
+            updates.push(
+                snapshot.ref.set(
+                    notesPurgePayload(),
+                    {merge: true},
+                ),
+            );
+          }
+        }
+
+        await Promise.all(updates);
+
+        logger.info(
+            "Cancellazione automatica note completata.",
+            {purged: updates.length},
+        );
+      },
+  );
+
+// ============================================================
 // WEBHOOK 360DIALOG
 // ============================================================
 
