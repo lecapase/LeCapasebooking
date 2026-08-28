@@ -1106,88 +1106,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               prefixIcon: const Icon(Icons.phone_outlined),
             ),
           ),
-          const SizedBox(height: 8),
-          const SizedBox(height: 4),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0x14C8A45D),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x66C8A45D)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: privacyNoticeAccepted,
-                  onChanged: (value) {
-                    setState(() {
-                      privacyNoticeAccepted = value ?? false;
-                    });
-                  },
-                  title: Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      Text(
-                        _t(
-                          'Dichiaro di aver letto l’',
-                          'I confirm that I have read the ',
-                        ),
-                        style: const TextStyle(fontWeight: FontWeight.w600),
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.of(context).push(
-                            MaterialPageRoute<void>(
-                              builder: (_) => const PrivacyPolicyScreen(),
-                            ),
-                          );
-                        },
-                        child: Text(
-                          _t('Informativa Privacy *', 'Privacy Notice *'),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const Divider(),
-                CheckboxListTile(
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  value: marketingConsent,
-                  onChanged: (value) {
-                    setState(() {
-                      marketingConsent = value ?? false;
-                    });
-                  },
-                  title: Text(
-                    _t(
-                      'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
-                      'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 12,
-                    right: 12,
-                    bottom: 6,
-                  ),
-                  child: Text(
-                    _t(
-                      'Le comunicazioni operative sulla prenotazione tramite email e WhatsApp sono necessarie alla gestione del servizio e sono descritte nell’Informativa Privacy.',
-                      'Operational booking updates by email and WhatsApp are necessary to manage the service and are described in the Privacy Notice.',
-                    ),
-                    style: const TextStyle(fontSize: 12, height: 1.45),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
+
           DropdownButtonFormField<String>(
             initialValue: selectedOccasione,
             decoration: InputDecoration(
@@ -1234,6 +1153,49 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               alignLabelWithHint: true,
             ),
           ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0x14C8A45D),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0x66C8A45D)),
+            ),
+            child: CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: privacyNoticeAccepted,
+              onChanged: (value) {
+                setState(() {
+                  privacyNoticeAccepted = value ?? false;
+                });
+              },
+              title: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  Text(
+                    _t(
+                      'Dichiaro di aver letto l’',
+                      'I confirm that I have read the ',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute<void>(
+                          builder: (_) => const PrivacyPolicyScreen(),
+                        ),
+                      );
+                    },
+                    child: Text(
+                      _t('Informativa Privacy *', 'Privacy Notice *'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           if (_notesContainHealthData) ...[
             const SizedBox(height: 8),
             Container(
@@ -1271,6 +1233,51 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               ),
             ),
           ],
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: const Color(0x14C8A45D),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0x66C8A45D)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: marketingConsent,
+                  onChanged: (value) {
+                    setState(() {
+                      marketingConsent = value ?? false;
+                    });
+                  },
+                  title: Text(
+                    _t(
+                      'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
+                      'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
+                    ),
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 12,
+                    right: 12,
+                    bottom: 6,
+                  ),
+                  child: Text(
+                    _t(
+                      'Le comunicazioni operative sulla prenotazione tramite email e WhatsApp sono necessarie alla gestione del servizio e sono descritte nell’Informativa Privacy.',
+                      'Operational booking updates by email and WhatsApp are necessary to manage the service and are described in the Privacy Notice.',
+                    ),
+                    style: const TextStyle(fontSize: 12, height: 1.45),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
