@@ -1485,6 +1485,23 @@ const WHATSAPP_TEMPLATES = Object.freeze({
     "le_capase_prenotazione_annullata",
 });
 
+const WHATSAPP_TEMPLATES_EN = Object.freeze({
+  received:
+    "le_capase_richiesta_ricevuta_en",
+
+  confirmed:
+    "le_capase_prenotazione_confermata_en",
+
+  restored:
+    "le_capase_prenotazione_confermata_en",
+
+  rejected:
+    "le_capase_richiesta_non_accettata_en",
+
+  cancelled:
+    "le_capase_prenotazione_annullata_en",
+});
+
 function whatsappTextParameter(value) {
   return {
     type: "text",
@@ -1565,6 +1582,7 @@ async function claimWhatsappEvent({
 async function send360DialogTemplate({
   phone,
   templateName,
+  languageCode = "it",
   bodyParameters,
 }) {
   const response =
@@ -1602,7 +1620,7 @@ async function send360DialogTemplate({
 
                 language: {
                   code:
-                    "it",
+                    languageCode,
                 },
 
                 components: [
@@ -1660,8 +1678,15 @@ async function sendBookingWhatsapp({
   const data =
     snapshot.data();
 
+  const isEnglish =
+    data?.language === "en";
+
   const templateName =
-    WHATSAPP_TEMPLATES[type];
+    (
+      isEnglish
+        ? WHATSAPP_TEMPLATES_EN
+        : WHATSAPP_TEMPLATES
+    )[type];
 
   if (
     !data ||
@@ -1700,6 +1725,10 @@ async function sendBookingWhatsapp({
         phone,
 
         templateName,
+
+
+        languageCode:
+          isEnglish ? "en" : "it",
 
         bodyParameters:
           whatsappBookingParameters(
@@ -2988,8 +3017,14 @@ exports.onStaffUserUpdated =
 // RICONFERMA 90 MINUTI - PARTE 2
 // ============================================================
 
-const RECONFIRMATION_TEMPLATE =
-  "le_capase_richiesta_riconferma";
+const RECONFIRMATION_TEMPLATES =
+  Object.freeze({
+    it:
+      "le_capase_richiesta_riconferma",
+
+    en:
+      "le_capase_richiesta_riconferma_en",
+  });
 
 function romeMinuteKey(date) {
   const parts =
@@ -3167,11 +3202,17 @@ async function sendReconfirmationWhatsapp({
 
       template: {
         name:
-          RECONFIRMATION_TEMPLATE,
+          RECONFIRMATION_TEMPLATES[
+            data.language === "en"
+              ? "en"
+              : "it"
+          ],
 
         language: {
           code:
-            "it",
+            data.language === "en"
+              ? "en"
+              : "it",
         },
 
         components: [
