@@ -263,6 +263,53 @@ function customerIdentity(data) {
   };
 }
 
+function formatDateEnglish(dateKey) {
+  const match =
+    /^(\d{4})-(\d{2})-(\d{2})$/.exec(
+        String(dateKey || ""),
+    );
+
+  if (!match) {
+    return formatDate(dateKey);
+  }
+
+  const year =
+    Number(match[1]);
+
+  const month =
+    Number(match[2]);
+
+  const day =
+    Number(match[3]);
+
+  const months = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  if (
+    !Number.isInteger(year) ||
+    month < 1 ||
+    month > 12 ||
+    day < 1 ||
+    day > 31
+  ) {
+    return formatDate(dateKey);
+  }
+
+  return `${day} ${months[month - 1]} ${year}`;
+}
+
 function bookingDetails(data) {
   const guests =
     Number.isInteger(data.guests) ?
@@ -279,7 +326,9 @@ function bookingDetails(data) {
       guestsLabel(guests),
 
     date:
-      formatDate(data.dateKey),
+      data.language === "en" ?
+        formatDateEnglish(data.dateKey) :
+        formatDate(data.dateKey),
 
     time:
       typeof data.time === "string" ?
