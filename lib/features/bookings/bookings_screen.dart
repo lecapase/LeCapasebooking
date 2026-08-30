@@ -415,13 +415,79 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _selectManualTime() async {
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: _manualTime,
-      helpText: 'Orario della prenotazione',
-      cancelText: 'ANNULLA',
-      confirmText: 'SELEZIONA',
+    final scrollController = ScrollController(
+      initialScrollOffset: (_manualTime.hour * 64).toDouble(),
     );
+
+    final selectedTime = await showDialog<TimeOfDay>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Seleziona l’orario'),
+          content: SizedBox(
+            width: 420,
+            height: 460,
+            child: GridView.builder(
+              controller: scrollController,
+              itemCount: 96,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 1.75,
+                crossAxisSpacing: 7,
+                mainAxisSpacing: 7,
+              ),
+              itemBuilder: (context, index) {
+                final hour = index ~/ 4;
+                final minute = (index % 4) * 15;
+                final time = TimeOfDay(hour: hour, minute: minute);
+                final selected =
+                    hour == _manualTime.hour && minute == _manualTime.minute;
+                final label =
+                    '${hour.toString().padLeft(2, '0')}:'
+                    '${minute.toString().padLeft(2, '0')}';
+
+                return OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(time);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: selected
+                        ? const Color(0xFFC8A45D)
+                        : Colors.transparent,
+                    foregroundColor: selected
+                        ? Colors.black
+                        : const Color(0xFFE9E1D2),
+                    side: BorderSide(
+                      color: selected
+                          ? const Color(0xFFE7C97F)
+                          : const Color(0xFF6C5733),
+                    ),
+                  ),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('ANNULLA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    scrollController.dispose();
 
     if (selectedTime == null || !mounted) {
       return;
@@ -429,7 +495,16 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     setState(() {
       _manualTime = selectedTime;
+      _manualService = selectedTime.hour < 17 ? 'lunch' : 'dinner';
     });
+  }
+
+  TimeOfDay _currentQuarterHour() {
+    final now = DateTime.now();
+    final roundedMinutes = ((now.minute + 14) ~/ 15) * 15;
+    final hour = (now.hour + (roundedMinutes ~/ 60)) % 24;
+
+    return TimeOfDay(hour: hour, minute: roundedMinutes % 60);
   }
 
   String _manualTimeValue() {
@@ -539,6 +614,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         _savingManualBooking = false;
         _bottomIndex = 0;
         _selectedSection = 0;
+        _selectedService = _manualService;
         _selectedFilter = 'all';
       });
 
@@ -4089,6 +4165,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
             final selected = key == _dateKey(_selectedDate);
 
+            final isPast = _isDatePast(date);
+
             return InkWell(
               borderRadius: BorderRadius.circular(10),
               onTap: () {
@@ -4099,66 +4177,71 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   _selectedFilter = 'all';
                 });
               },
-              child: Container(
-                decoration: BoxDecoration(
-                  color: selected
-                      ? const Color(0xFFC8A45D).withValues(alpha: 0.22)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: selected
-                        ? const Color(0xFFC8A45D)
-                        : const Color(0xFF3A342B),
+              child: Opacity(
+                opacity: isPast ? 0.48 : 1,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: isPast
+                        ? const Color(0xFF303030)
+                        : selected
+                        ? const Color(0xFFC8A45D).withValues(alpha: 0.22)
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: selected
+                          ? const Color(0xFFC8A45D)
+                          : const Color(0xFF3A342B),
+                    ),
                   ),
-                ),
-                child: Stack(
-                  children: [
-                    Positioned(
-                      top: 6,
-                      left: 0,
-                      right: 0,
-                      child: Text(
-                        '$day',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: 6,
+                        left: 0,
+                        right: 0,
+                        child: Text(
+                          '$day',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                    ),
-                    if (guests > 0)
-                      Positioned(
-                        right: 3,
-                        bottom: 3,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 4,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFC8A45D),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Text(
-                            '${guests}p',
-                            style: const TextStyle(
-                              color: Colors.black,
-                              fontSize: 9,
-                              fontWeight: FontWeight.bold,
+                      if (guests > 0)
+                        Positioned(
+                          right: 3,
+                          bottom: 3,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFC8A45D),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '${guests}p',
+                              style: const TextStyle(
+                                color: Colors.black,
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    if (hasPending)
-                      const Positioned(
-                        left: 5,
-                        bottom: 6,
-                        child: CircleAvatar(
-                          radius: 3,
-                          backgroundColor: Colors.orange,
+                      if (hasPending)
+                        const Positioned(
+                          left: 5,
+                          bottom: 6,
+                          child: CircleAvatar(
+                            radius: 3,
+                            backgroundColor: Colors.orange,
+                          ),
                         ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             );
@@ -4204,8 +4287,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
           setState(() {
             _bottomIndex = index;
 
-            if (index == 2 && _isDatePast(_selectedDate)) {
-              _selectedDate = DateTime.now();
+            if (index == 2) {
+              if (_isDatePast(_selectedDate)) {
+                _selectedDate = DateTime.now();
+              }
+
+              _manualTime = _currentQuarterHour();
+              _manualService = _manualTime.hour < 17 ? 'lunch' : 'dinner';
             }
 
             if (index == 0) {

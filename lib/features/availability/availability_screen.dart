@@ -1332,13 +1332,81 @@ class _ManagedServiceEditorScreenState
 
     final parts = currentValue.split(':');
 
-    final selectedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay(
-        hour: int.parse(parts[0]),
-        minute: int.parse(parts[1]),
-      ),
+    final currentTime = TimeOfDay(
+      hour: int.parse(parts[0]),
+      minute: int.parse(parts[1]),
     );
+
+    final now = DateTime.now();
+
+    final scrollController = ScrollController(
+      initialScrollOffset: (now.hour * 64).toDouble(),
+    );
+
+    final selectedTime = await showDialog<TimeOfDay>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(start ? 'Orario di apertura' : 'Orario di chiusura'),
+          content: SizedBox(
+            width: 420,
+            height: 460,
+            child: GridView.builder(
+              controller: scrollController,
+              itemCount: 96,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 4,
+                childAspectRatio: 1.75,
+                crossAxisSpacing: 7,
+                mainAxisSpacing: 7,
+              ),
+              itemBuilder: (context, index) {
+                final hour = index ~/ 4;
+                final minute = (index % 4) * 15;
+                final time = TimeOfDay(hour: hour, minute: minute);
+                final selected =
+                    hour == currentTime.hour && minute == currentTime.minute;
+                final label =
+                    '${hour.toString().padLeft(2, '0')}:'
+                    '${minute.toString().padLeft(2, '0')}';
+
+                return OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(dialogContext).pop(time);
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    backgroundColor: selected
+                        ? const Color(0xFFC8A45D)
+                        : Colors.transparent,
+                    foregroundColor: selected
+                        ? Colors.black
+                        : Theme.of(context).colorScheme.onSurface,
+                  ),
+                  child: Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              child: const Text('ANNULLA'),
+            ),
+          ],
+        );
+      },
+    );
+
+    scrollController.dispose();
 
     if (selectedTime == null) return;
 
