@@ -2287,7 +2287,8 @@ async function marketingUserIsAdmin(uid) {
 
   if (
     adminSnapshot.exists &&
-    adminSnapshot.data()?.active !== false
+    adminSnapshot.data()?.active === true &&
+    adminSnapshot.data()?.role === "admin"
   ) {
     return true;
   }

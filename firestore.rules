@@ -15,7 +15,13 @@ service cloud.firestore {
       return isSignedIn()
         && exists(
           /databases/$(database)/documents/admins/$(request.auth.uid)
-        );
+        )
+        && get(
+          /databases/$(database)/documents/admins/$(request.auth.uid)
+        ).data.active == true
+        && get(
+          /databases/$(database)/documents/admins/$(request.auth.uid)
+        ).data.role == 'admin';
     }
 
     function staffProfileExists() {

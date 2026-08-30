@@ -82,7 +82,14 @@ async function userIsAdmin(uid) {
         .doc(uid)
         .get();
 
-  if (legacyAdminSnapshot.exists) {
+  const legacyAdmin =
+    legacyAdminSnapshot.data();
+
+  if (
+    legacyAdminSnapshot.exists &&
+    legacyAdmin?.active === true &&
+    legacyAdmin?.role === "admin"
+  ) {
     return true;
   }
 
@@ -859,7 +866,14 @@ async function userCanViewBookings(uid) {
         .doc(uid)
         .get();
 
-  if (legacyAdminSnapshot.exists) {
+  const legacyAdmin =
+    legacyAdminSnapshot.data();
+
+  if (
+    legacyAdminSnapshot.exists &&
+    legacyAdmin?.active === true &&
+    legacyAdmin?.role === "admin"
+  ) {
     return true;
   }
 
@@ -981,7 +995,10 @@ exports.listActiveStaffProfiles =
           const data =
             document.data();
 
-          if (data.active === false) {
+          if (
+            data.active !== true ||
+            data.role !== "admin"
+          ) {
             continue;
           }
 
@@ -1363,6 +1380,13 @@ exports.completeFirstStaffLogin =
           );
         }
 
+        if (snapshot.data()?.active !== true) {
+          throw new HttpsError(
+              "permission-denied",
+              "Account staff disattivato.",
+          );
+        }
+
         const requestedPassword =
           request.data &&
           request.data.password;
@@ -1496,7 +1520,11 @@ exports.notifyStaffLogin =
           loginEmail =
             normalizeEmail(staffData.loginEmail) ||
             loginEmail;
-        } else if (!adminSnapshot.exists) {
+        } else if (
+          !adminSnapshot.exists ||
+          adminSnapshot.data()?.active !== true ||
+          adminSnapshot.data()?.role !== "admin"
+        ) {
           throw new HttpsError(
               "permission-denied",
               "Account non autorizzato.",
