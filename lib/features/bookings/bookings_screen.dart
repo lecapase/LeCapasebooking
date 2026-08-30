@@ -853,11 +853,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
         ? 'questo cliente'
         : '$firstName $lastName'.trim();
 
-    final confirmed = await _confirmStatusChange(
-      oldStatus: oldStatus,
-      newStatus: newStatus,
-      customerName: customerName,
-    );
+    final confirmed = newStatus == 'cancelled'
+        ? await _confirmStatusChange(
+            oldStatus: oldStatus,
+            newStatus: newStatus,
+            customerName: customerName,
+          )
+        : true;
 
     if (!confirmed || !mounted) {
       return;
@@ -2747,6 +2749,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                             freshDocument.data()?['status']
                                                 as String? ??
                                             currentStatus;
+
+                                        if (freshStatus == status) {
+                                          Navigator.of(sheetContext).pop();
+                                          return;
+                                        }
 
                                         setModalState(() {
                                           currentStatus = freshStatus;
