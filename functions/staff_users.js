@@ -911,7 +911,9 @@ exports.listActiveStaffProfiles =
         region:
           "europe-west1",
       },
-      async () => {
+      async (request) => {
+        await requireAdministrator(request);
+
         const [
           staffSnapshot,
           adminSnapshot,

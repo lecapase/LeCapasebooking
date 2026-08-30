@@ -19,228 +19,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     }
   }
 
-  List<Map<String, String>> _profiles = [];
-  bool _loading = true;
-  String? _error;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadProfiles();
-  }
-
-  Future<void> _loadProfiles() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-
-    try {
-      final rawData = await CallableHttpService.call('listActiveStaffProfiles');
-
-      if (rawData is! Map) {
-        throw StateError('Risposta utenti non valida.');
-      }
-
-      final rawProfiles = rawData['profiles'];
-
-      if (rawProfiles is! List) {
-        throw StateError('Elenco utenti non valido.');
-      }
-
-      final profiles = rawProfiles
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .map(
-            (item) => <String, String>{
-              'uid': (item['uid'] ?? '').toString(),
-              'displayName': (item['displayName'] ?? '').toString(),
-              'loginEmail': (item['loginEmail'] ?? '').toString(),
-            },
-          )
-          .where(
-            (item) =>
-                item['displayName']!.isNotEmpty &&
-                item['loginEmail']!.isNotEmpty,
-          )
-          .toList();
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _profiles = profiles;
-        _loading = false;
-      });
-    } on CallableHttpException catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _loading = false;
-        _error = error.message ?? 'Impossibile caricare gli utenti.';
-      });
-    } catch (error, stackTrace) {
-      debugPrint('Errore caricamento profili: $error');
-      debugPrintStack(stackTrace: stackTrace);
-
-      if (!mounted) {
-        return;
-      }
-
-      setState(() {
-        _loading = false;
-        _error = 'Impossibile caricare gli utenti.';
-      });
-    }
-  }
-
-  Future<void> _openPasswordDialog(Map<String, String> profile) async {
-    final passwordController = TextEditingController();
-
-    bool obscurePassword = true;
-    bool signingIn = false;
-    String? dialogError;
-
-    await showDialog<void>(
-      context: context,
-      barrierDismissible: !signingIn,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setDialogState) {
-            Future<void> login() async {
-              if (signingIn) {
-                return;
-              }
-
-              final password = passwordController.text;
-
-              if (password.isEmpty) {
-                setDialogState(() {
-                  dialogError = 'Inserisci la password.';
-                });
-                return;
-              }
-
-              setDialogState(() {
-                signingIn = true;
-                dialogError = null;
-              });
-
-              try {
-                if (kIsWeb) {
-                  await FirebaseAuth.instance.setPersistence(Persistence.LOCAL);
-                }
-
-                await FirebaseAuth.instance.signInWithEmailAndPassword(
-                  email: profile['loginEmail']!,
-                  password: password,
-                );
-
-                await _notifySuccessfulLogin();
-
-                if (!dialogContext.mounted) {
-                  return;
-                }
-
-                Navigator.of(dialogContext).pop();
-              } on FirebaseAuthException catch (error) {
-                String message = 'Password non corretta.';
-
-                if (error.code == 'too-many-requests') {
-                  message = 'Troppi tentativi. Riprova tra qualche minuto.';
-                } else if (error.code == 'network-request-failed') {
-                  message = 'Problema di connessione.';
-                } else if (error.code == 'user-disabled' ||
-                    error.code == 'user-not-found') {
-                  message = 'Questo account non \u00e8 disponibile.';
-                }
-
-                setDialogState(() {
-                  signingIn = false;
-                  dialogError = message;
-                });
-              } catch (_) {
-                setDialogState(() {
-                  signingIn = false;
-                  dialogError = 'Accesso non riuscito.';
-                });
-              }
-            }
-
-            return AlertDialog(
-              title: Text(profile['displayName']!, textAlign: TextAlign.center),
-              content: SizedBox(
-                width: 360,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Inserisci la tua password',
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 20),
-                    TextField(
-                      controller: passwordController,
-                      autofocus: true,
-                      enabled: !signingIn,
-                      obscureText: obscurePassword,
-                      textInputAction: TextInputAction.done,
-                      onSubmitted: (_) => login(),
-                      decoration: InputDecoration(
-                        labelText: 'Password',
-                        prefixIcon: const Icon(Icons.lock_outline),
-                        suffixIcon: IconButton(
-                          onPressed: signingIn
-                              ? null
-                              : () {
-                                  setDialogState(() {
-                                    obscurePassword = !obscurePassword;
-                                  });
-                                },
-                          icon: Icon(
-                            obscurePassword
-                                ? Icons.visibility_outlined
-                                : Icons.visibility_off_outlined,
-                          ),
-                        ),
-                        errorText: dialogError,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: signingIn
-                      ? null
-                      : () => Navigator.of(dialogContext).pop(),
-                  child: const Text('Annulla'),
-                ),
-                FilledButton(
-                  onPressed: signingIn ? null : login,
-                  child: signingIn
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('ACCEDI'),
-                ),
-              ],
-            );
-          },
-        );
-      },
-    );
-
-    passwordController.dispose();
-  }
-
-  Future<void> _openAdministratorLogin() async {
+  Future<void> _openLogin() async {
     final emailController = TextEditingController();
 
     final passwordController = TextEditingController();
@@ -325,7 +104,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
 
             return AlertDialog(
               title: const Text(
-                'Accesso amministratore',
+                'Accesso al gestionale',
                 textAlign: TextAlign.center,
               ),
               content: SizedBox(
@@ -404,84 +183,6 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
     passwordController.dispose();
   }
 
-  Widget _profileButton(Map<String, String> profile) {
-    return SizedBox(
-      height: 54,
-      child: OutlinedButton(
-        onPressed: () => _openPasswordDialog(profile),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.white,
-          backgroundColor: const Color(0xFF171717),
-          side: const BorderSide(color: Color(0xFFC8A45D), width: 0.8),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-        child: Text(
-          profile['displayName']!,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
-
-  Widget _content() {
-    if (_loading) {
-      return const Center(child: CircularProgressIndicator());
-    }
-
-    if (_error != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.cloud_off_outlined, size: 46, color: Colors.grey),
-            const SizedBox(height: 16),
-            Text(_error!, textAlign: TextAlign.center),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: _loadProfiles,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Riprova'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    if (_profiles.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Nessun utente disponibile.',
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 18),
-            OutlinedButton.icon(
-              onPressed: _loadProfiles,
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Aggiorna'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadProfiles,
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(vertical: 8),
-        itemCount: _profiles.length,
-        separatorBuilder: (_, _) => const SizedBox(height: 12),
-        itemBuilder: (context, index) => _profileButton(_profiles[index]),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -506,23 +207,29 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                   ),
                   const SizedBox(height: 10),
                   const Text(
-                    'Seleziona il tuo profilo',
+                    'Accedi con le tue credenziali',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey, fontSize: 15),
                   ),
-                  const SizedBox(height: 34),
-                  Expanded(child: _content()),
-                  TextButton.icon(
-                    onPressed: _openAdministratorLogin,
-                    icon: const Icon(
-                      Icons.admin_panel_settings_outlined,
-                      size: 18,
+                  const Spacer(),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton.icon(
+                      onPressed: _openLogin,
+                      icon: const Icon(Icons.login_rounded),
+                      label: const Text(
+                        'ACCEDI',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
-                    label: const Text('Accesso amministratore'),
                   ),
-                  const SizedBox(height: 12),
+                  const Spacer(),
                   const Text(
-                    'Seleziona il tuo nome e inserisci la password',
+                    'Inserisci l’email e la password del tuo account personale.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.grey, fontSize: 11),
                   ),
