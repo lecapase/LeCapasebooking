@@ -1094,8 +1094,22 @@ class _BookingsScreenState extends State<BookingsScreen> {
           height: 34,
           decoration: BoxDecoration(
             color: selected ? const Color(0xFFC8A45D) : Colors.transparent,
-            border: Border.all(color: const Color(0xFF6C5733)),
+            border: Border.all(
+              color: selected
+                  ? const Color(0xFFE7C97F)
+                  : const Color(0xFF6C5733),
+              width: selected ? 1.5 : 1,
+            ),
             borderRadius: BorderRadius.circular(7),
+            boxShadow: selected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFFC8A45D).withValues(alpha: 0.22),
+                      blurRadius: 7,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : null,
           ),
           child: Row(
             children: [
@@ -1111,7 +1125,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Icon(
-                        icon,
+                        selected ? Icons.check_circle : icon,
                         size: 14,
                         color: selected
                             ? Colors.black
@@ -1142,7 +1156,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints.tightFor(width: 32),
                   tooltip: 'Gestisci servizio',
-                  onPressed: onSettings,
+                  onPressed: () {
+                    setState(() {
+                      _selectedService = value;
+                    });
+                    onSettings();
+                  },
                   icon: Icon(
                     Icons.settings_outlined,
                     size: 17,
@@ -2799,6 +2818,64 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ),
                           ],
                         ),
+                      ),
+                    ],
+                    if (status == 'pending' &&
+                        _isSupervisor &&
+                        !_isBookingPast(booking)) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                _changeStatus(document, 'rejected');
+                              },
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: const Color(0xFFFF6B6B),
+                                side: const BorderSide(
+                                  color: Color(0xFFFF6B6B),
+                                ),
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                              ),
+                              icon: const Icon(Icons.close, size: 16),
+                              label: const Text(
+                                'Rifiuta',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                _changeStatus(document, 'confirmed');
+                              },
+                              style: FilledButton.styleFrom(
+                                backgroundColor: const Color(0xFF4F8A54),
+                                foregroundColor: Colors.white,
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                              ),
+                              icon: const Icon(Icons.check, size: 16),
+                              label: const Text(
+                                'Accetta',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ],
