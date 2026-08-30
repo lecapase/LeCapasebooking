@@ -1297,10 +1297,20 @@ exports.resetStaffPassword =
               .collection("staff_users")
               .doc(targetUid);
 
-        if (!(await reference.get()).exists) {
+        const targetSnapshot =
+          await reference.get();
+
+        if (!targetSnapshot.exists) {
           throw new HttpsError(
               "not-found",
               "Utente non trovato.",
+          );
+        }
+
+        if (targetSnapshot.data()?.active !== true) {
+          throw new HttpsError(
+              "failed-precondition",
+              "Riattiva l'utente prima di reimpostare la password.",
           );
         }
 
@@ -1309,16 +1319,11 @@ exports.resetStaffPassword =
                 targetUid,
                 {
                   password,
-                  disabled:
-                    false,
                 },
             );
 
         await reference.set(
             {
-              active:
-                true,
-
               passwordSetup:
                 "temporary",
 
@@ -1712,11 +1717,43 @@ exports.deleteStaffUser =
               .collection("staff_users")
               .doc(targetUid);
 
-        if (!(await reference.get()).exists) {
+        const targetSnapshot =
+          await reference.get();
+
+        if (!targetSnapshot.exists) {
           throw new HttpsError(
               "not-found",
               "Utente non trovato.",
           );
+        }
+
+        const targetData =
+          targetSnapshot.data() || {};
+
+        if (
+          targetData.active === true &&
+          targetData.role === "admin"
+        ) {
+          const activeAdminSnapshot =
+            await db
+                .collection("admins")
+                .where("active", "==", true)
+                .get();
+
+          const activeAdminCount =
+            activeAdminSnapshot.docs
+                .filter(
+                    (document) =>
+                      document.data().role === "admin",
+                )
+                .length;
+
+          if (activeAdminCount <= 1) {
+            throw new HttpsError(
+                "failed-precondition",
+                "Non puoi eliminare l'ultimo amministratore attivo.",
+            );
+          }
         }
 
         try {
