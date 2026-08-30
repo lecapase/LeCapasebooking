@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import 'data/availability_repository.dart';
@@ -1328,85 +1329,86 @@ class _ManagedServiceEditorScreenState
   // =========================================================
 
   Future<void> _selectTime({required bool start}) async {
-    final currentValue = start ? _service.startTime : _service.endTime;
-
-    final parts = currentValue.split(':');
-
-    final currentTime = TimeOfDay(
-      hour: int.parse(parts[0]),
-      minute: int.parse(parts[1]),
-    );
-
     final now = DateTime.now();
+    final roundedMinutes = ((now.minute + 14) ~/ 15) * 15;
+    final initialHour = (now.hour + (roundedMinutes ~/ 60)) % 24;
+    final initialMinute = roundedMinutes % 60;
+    var pendingTime = TimeOfDay(hour: initialHour, minute: initialMinute);
 
-    final scrollController = ScrollController(
-      initialScrollOffset: (now.hour * 64).toDouble(),
-    );
-
-    final selectedTime = await showDialog<TimeOfDay>(
+    final selectedTime = await showModalBottomSheet<TimeOfDay>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(start ? 'Orario di apertura' : 'Orario di chiusura'),
-          content: SizedBox(
-            width: 420,
-            height: 460,
-            child: GridView.builder(
-              controller: scrollController,
-              itemCount: 96,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                childAspectRatio: 1.75,
-                crossAxisSpacing: 7,
-                mainAxisSpacing: 7,
-              ),
-              itemBuilder: (context, index) {
-                final hour = index ~/ 4;
-                final minute = (index % 4) * 15;
-                final time = TimeOfDay(hour: hour, minute: minute);
-                final selected =
-                    hour == currentTime.hour && minute == currentTime.minute;
-                final label =
-                    '${hour.toString().padLeft(2, '0')}:'
-                    '${minute.toString().padLeft(2, '0')}';
-
-                return OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop(time);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: selected
-                        ? const Color(0xFFC8A45D)
-                        : Colors.transparent,
-                    foregroundColor: selected
-                        ? Colors.black
-                        : Theme.of(context).colorScheme.onSurface,
+      backgroundColor: const Color(0xFF201D18),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: 330,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                        },
+                        child: const Text('ANNULLA'),
+                      ),
+                      Expanded(
+                        child: Text(
+                          start ? 'Orario di apertura' : 'Orario di chiusura',
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop(pendingTime);
+                        },
+                        child: const Text('FATTO'),
+                      ),
+                    ],
                   ),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: CupertinoTheme(
+                    data: const CupertinoThemeData(
+                      brightness: Brightness.dark,
+                      primaryColor: Color(0xFFC8A45D),
+                      textTheme: CupertinoTextThemeData(
+                        dateTimePickerTextStyle: TextStyle(
+                          color: Color(0xFFE9E1D2),
+                          fontSize: 22,
+                        ),
+                      ),
+                    ),
+                    child: CupertinoDatePicker(
+                      mode: CupertinoDatePickerMode.time,
+                      use24hFormat: true,
+                      minuteInterval: 15,
+                      initialDateTime: DateTime(
+                        2026,
+                        1,
+                        1,
+                        initialHour,
+                        initialMinute,
+                      ),
+                      onDateTimeChanged: (value) {
+                        pendingTime = TimeOfDay(
+                          hour: value.hour,
+                          minute: value.minute,
+                        );
+                      },
                     ),
                   ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('ANNULLA'),
-            ),
-          ],
         );
       },
     );
-
-    scrollController.dispose();
 
     if (selectedTime == null) return;
 

@@ -2,6 +2,7 @@ import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -415,79 +416,82 @@ class _BookingsScreenState extends State<BookingsScreen> {
   }
 
   Future<void> _selectManualTime() async {
-    final scrollController = ScrollController(
-      initialScrollOffset: (_manualTime.hour * 64).toDouble(),
-    );
+    var pendingTime = _manualTime;
 
-    final selectedTime = await showDialog<TimeOfDay>(
+    final selectedTime = await showModalBottomSheet<TimeOfDay>(
       context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Seleziona l’orario'),
-          content: SizedBox(
-            width: 420,
-            height: 460,
-            child: GridView.builder(
-              controller: scrollController,
-              itemCount: 96,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: 4,
-                childAspectRatio: 1.75,
-                crossAxisSpacing: 7,
-                mainAxisSpacing: 7,
-              ),
-              itemBuilder: (context, index) {
-                final hour = index ~/ 4;
-                final minute = (index % 4) * 15;
-                final time = TimeOfDay(hour: hour, minute: minute);
-                final selected =
-                    hour == _manualTime.hour && minute == _manualTime.minute;
-                final label =
-                    '${hour.toString().padLeft(2, '0')}:'
-                    '${minute.toString().padLeft(2, '0')}';
-
-                return OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(dialogContext).pop(time);
-                  },
-                  style: OutlinedButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    backgroundColor: selected
-                        ? const Color(0xFFC8A45D)
-                        : Colors.transparent,
-                    foregroundColor: selected
-                        ? Colors.black
-                        : const Color(0xFFE9E1D2),
-                    side: BorderSide(
-                      color: selected
-                          ? const Color(0xFFE7C97F)
-                          : const Color(0xFF6C5733),
+      backgroundColor: const Color(0xFF201D18),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: SizedBox(
+            height: 330,
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                        },
+                        child: const Text('ANNULLA'),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          'Seleziona l’orario',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop(pendingTime);
+                        },
+                        child: const Text('FATTO'),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 1),
+                Expanded(
+                  child: CupertinoTheme(
+                    data: const CupertinoThemeData(
+                      brightness: Brightness.dark,
+                      primaryColor: Color(0xFFC8A45D),
+                      textTheme: CupertinoTextThemeData(
+                        dateTimePickerTextStyle: TextStyle(
+                          color: Color(0xFFE9E1D2),
+                          fontSize: 22,
+                        ),
+                      ),
+                    ),
+                    child: CupertinoDatePicker(
+                      mode: CupertinoDatePickerMode.time,
+                      use24hFormat: true,
+                      minuteInterval: 15,
+                      initialDateTime: DateTime(
+                        2026,
+                        1,
+                        1,
+                        _manualTime.hour,
+                        _manualTime.minute,
+                      ),
+                      onDateTimeChanged: (value) {
+                        pendingTime = TimeOfDay(
+                          hour: value.hour,
+                          minute: value.minute,
+                        );
+                      },
                     ),
                   ),
-                  child: Text(
-                    label,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
+                ),
+              ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.of(dialogContext).pop();
-              },
-              child: const Text('ANNULLA'),
-            ),
-          ],
         );
       },
     );
-
-    scrollController.dispose();
 
     if (selectedTime == null || !mounted) {
       return;
@@ -1260,6 +1264,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return FutureBuilder(
       future: CustomerAvailabilityService.getAvailabilityForDate(_selectedDate),
       builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const SizedBox(height: 40);
+        }
+
         final availability = snapshot.data;
         final hasLunch = availability?.lunch.isOpen ?? false;
         final hasDinner = availability?.dinner.isOpen ?? false;
@@ -1275,10 +1283,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
               setState(() => _selectedService = 'all');
             }
           });
-        }
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 40);
         }
 
         if (serviceCount == 0) {
@@ -2784,6 +2788,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final firstName = booking['nome'] as String? ?? '';
     final lastName = booking['cognome'] as String? ?? '';
     final notes = booking['notes'] as String? ?? '';
+    final service = booking['service'] as String? ?? '';
     final status = booking['status'] as String? ?? 'pending';
     final guests = _readInteger(booking['guests']);
     final noShowCount = _readInteger(booking['customerNoShowCount']);
@@ -2842,6 +2847,44 @@ class _BookingsScreenState extends State<BookingsScreen> {
                               ),
                             ),
                           ],
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFC8A45D,
+                            ).withValues(alpha: 0.16),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFC8A45D,
+                              ).withValues(alpha: 0.65),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                service == 'lunch'
+                                    ? Icons.light_mode_outlined
+                                    : Icons.dark_mode_outlined,
+                                size: 13,
+                                color: const Color(0xFFC8A45D),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                _serviceLabel(service),
+                                style: const TextStyle(
+                                  color: Color(0xFFC8A45D),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         _statusBadge(status),
                         _reconfirmationBadge(booking),
