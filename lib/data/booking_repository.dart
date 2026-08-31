@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/booking.dart';
@@ -14,17 +15,15 @@ class BookingRepository {
 
     if (data == null) {
       bookings = [];
-      print('CARICATE: 0');
+      debugPrint('CARICATE: 0');
       return;
     }
 
     final List decoded = jsonDecode(data);
 
-    bookings = decoded
-        .map((item) => Booking.fromJson(item))
-        .toList();
+    bookings = decoded.map((item) => Booking.fromJson(item)).toList();
 
-    print('CARICATE: ${bookings.length}');
+    debugPrint('CARICATE: ${bookings.length}');
   }
 
   static Future<void> saveBookings() async {
@@ -36,7 +35,7 @@ class BookingRepository {
 
     await prefs.setString('bookings', data);
 
-    print('SALVATE: ${bookings.length}');
+    debugPrint('SALVATE: ${bookings.length}');
   }
 
   static Future<void> clearBookings() async {
@@ -46,6 +45,6 @@ class BookingRepository {
 
     await prefs.remove('bookings');
 
-    print('PRENOTAZIONI AZZERATE');
+    debugPrint('PRENOTAZIONI AZZERATE');
   }
 }

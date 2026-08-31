@@ -43,7 +43,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
 
     final day = date.day.toString().padLeft(2, '0');
 
-    return year + '-' + month + '-' + day;
+    return '$year-$month-$day';
   }
 
   Future<List<Map<String, dynamic>>> _loadAgenda(String dateKey) async {
@@ -51,10 +51,6 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
       'getKitchenAgenda',
       <String, dynamic>{'dateKey': dateKey},
     );
-
-    if (data is! Map) {
-      throw StateError('Risposta Agenda non valida.');
-    }
 
     final rawBookings = data['bookings'];
 
@@ -81,13 +77,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
   }
 
   String _fullDate(DateTime date) {
-    return _weekdays[date.weekday - 1] +
-        ' ' +
-        date.day.toString() +
-        ' ' +
-        _months[date.month - 1] +
-        ' ' +
-        date.year.toString();
+    return '${_weekdays[date.weekday - 1]} ${date.day} ${_months[date.month - 1]} ${date.year}';
   }
 
   String _statusLabel(String status) {
@@ -306,10 +296,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
               ),
               const Spacer(),
               Text(
-                bookings.length.toString() +
-                    ' pren. - ' +
-                    guests.toString() +
-                    ' coperti',
+                '${bookings.length} pren. - $guests coperti',
                 style: const TextStyle(color: Colors.grey, fontSize: 11),
               ),
             ],
@@ -326,7 +313,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
 
     final lastName = (booking['cognome'] ?? '').toString();
 
-    final fullName = (firstName + ' ' + lastName).trim();
+    final fullName = ('$firstName $lastName').trim();
 
     final time = (booking['time'] ?? booking['orario'] ?? '').toString();
 
@@ -377,7 +364,7 @@ class _KitchenAgendaScreenState extends State<KitchenAgendaScreen> {
                   ),
                 ),
                 Text(
-                  guests.toString() + 'p',
+                  '${guests}p',
                   style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,

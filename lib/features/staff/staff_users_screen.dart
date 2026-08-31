@@ -35,7 +35,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
 
   String _functionError(Object error, String fallback) {
     if (error is CallableHttpException) {
-      return error.message ?? fallback;
+      return error.message;
     }
 
     return fallback;
@@ -311,9 +311,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
 
                 Navigator.of(dialogContext).pop();
 
-                _message(
-                  'Password temporanea assegnata a ' + displayName + '.',
-                );
+                _message('Password temporanea assegnata a $displayName.');
               } catch (error) {
                 setDialogState(() {
                   saving = false;
@@ -326,7 +324,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
             }
 
             return AlertDialog(
-              title: Text('Password di ' + displayName),
+              title: Text('Password di $displayName'),
               content: SizedBox(
                 width: 390,
                 child: Column(
@@ -404,7 +402,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
       builder: (dialogContext) {
         return AlertDialog(
           title: const Text('Elimina utente'),
-          content: Text('Vuoi eliminare definitivamente ' + displayName + '?'),
+          content: Text('Vuoi eliminare definitivamente $displayName?'),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
@@ -429,7 +427,7 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
         'uid': uid,
       });
 
-      _message(displayName + ' eliminato correttamente.');
+      _message('$displayName eliminato correttamente.');
     } catch (error) {
       _message(_functionError(error, 'Impossibile eliminare l\'utente.'));
     }

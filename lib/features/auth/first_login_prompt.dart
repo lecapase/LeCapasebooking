@@ -163,7 +163,7 @@ class _FirstLoginPromptState extends State<FirstLoginPrompt> {
               } on CallableHttpException catch (error) {
                 setDialogState(() {
                   saving = false;
-                  errorText = error.message ?? 'Aggiornamento non riuscito.';
+                  errorText = error.message;
                 });
               } catch (_) {
                 setDialogState(() {

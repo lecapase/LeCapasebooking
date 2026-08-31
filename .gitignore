@@ -46,3 +46,22 @@ app.*.map.json
 
 # Firebase local files
 .firebase/
+firebase-debug.log
+firebase-debug.*.log
+firestore-debug.log
+ui-debug.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.local
+service-account*.json
+*serviceAccount*.json
+
+# Local working copies and manual backups
+*.backup
+*.backup_*
+*.bak
+*.orig
+*_prima_menu.txt
