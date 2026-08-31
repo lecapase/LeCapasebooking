@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../availability/data/booking_slot_closures_repository.dart';
 import '../../availability/models/service_availability.dart';
 import 'customer_availability_service.dart';
+import '../domain/booking_capacity_policy.dart';
 
 class BookingCapacityException implements Exception {
   final String message;
@@ -238,14 +239,18 @@ class FirestoreBookingRepository {
         bookedGuests = (counterData?['bookedGuests'] as num?)?.toInt() ?? 0;
       }
 
-      final newTotal = bookedGuests + guests;
-
-      if (newTotal > maxOnlineGuests) {
+      if (!BookingCapacityPolicy.hasCapacityForGuests(
+        maxGuests: maxOnlineGuests,
+        bookedGuests: bookedGuests,
+        requestedGuests: guests,
+      )) {
         throw const BookingCapacityException(
           'Non ci sono abbastanza posti disponibili '
           'per questo servizio.',
         );
       }
+
+      final newTotal = bookedGuests + guests;
 
       // =================================================
       // CREA PRENOTAZIONE
@@ -524,7 +529,10 @@ class FirestoreBookingRepository {
   }) async {
     final bookedGuests = await getBookedGuests(date: date, service: service);
 
-    return bookedGuests < maxGuests;
+    return BookingCapacityPolicy.hasAvailability(
+      maxGuests: maxGuests,
+      bookedGuests: bookedGuests,
+    );
   }
 
   // =========================================================
@@ -539,7 +547,11 @@ class FirestoreBookingRepository {
   }) async {
     final bookedGuests = await getBookedGuests(date: date, service: service);
 
-    return bookedGuests + requestedGuests <= maxGuests;
+    return BookingCapacityPolicy.hasCapacityForGuests(
+      maxGuests: maxGuests,
+      bookedGuests: bookedGuests,
+      requestedGuests: requestedGuests,
+    );
   }
 
   // =========================================================

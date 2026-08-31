@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../domain/booking_capacity_policy.dart';
+
 class FirestoreCapacityRepository {
   FirestoreCapacityRepository._();
 
-  static final FirebaseFirestore _firestore =
-      FirebaseFirestore.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  static const String _collectionName =
-      'availability_counters';
+  static const String _collectionName = 'availability_counters';
 
   // =========================================================
   // COPERTI PRENOTATI PER DATA + SERVIZIO
@@ -19,12 +19,7 @@ class FirestoreCapacityRepository {
   }) async {
     final document = await _firestore
         .collection(_collectionName)
-        .doc(
-          _counterId(
-            date: date,
-            service: service,
-          ),
-        )
+        .doc(_counterId(date: date, service: service))
         .get();
 
     if (!document.exists) {
@@ -49,19 +44,12 @@ class FirestoreCapacityRepository {
     required String service,
     required int maxGuests,
   }) async {
-    final bookedGuests = await getBookedGuests(
-      date: date,
-      service: service,
+    final bookedGuests = await getBookedGuests(date: date, service: service);
+
+    return BookingCapacityPolicy.remainingGuests(
+      maxGuests: maxGuests,
+      bookedGuests: bookedGuests,
     );
-
-    final remaining =
-        maxGuests - bookedGuests;
-
-    if (remaining <= 0) {
-      return 0;
-    }
-
-    return remaining;
   }
 
   // =========================================================
@@ -75,45 +63,28 @@ class FirestoreCapacityRepository {
   }) async {
     final reference = _firestore
         .collection(_collectionName)
-        .doc(
-          _counterId(
-            date: date,
-            service: service,
-          ),
-        );
+        .doc(_counterId(date: date, service: service));
 
-    await _firestore.runTransaction(
-      (transaction) async {
-        final snapshot =
-            await transaction.get(reference);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(reference);
 
-        int currentGuests = 0;
+      int currentGuests = 0;
 
-        if (snapshot.exists) {
-          final data = snapshot.data();
+      if (snapshot.exists) {
+        final data = snapshot.data();
 
-          currentGuests =
-              data?['bookedGuests'] as int? ?? 0;
-        }
+        currentGuests = data?['bookedGuests'] as int? ?? 0;
+      }
 
-        final newTotal =
-            currentGuests + guests;
+      final newTotal = currentGuests + guests;
 
-        transaction.set(
-          reference,
-          {
-            'dateKey': _dateKey(date),
-            'service': service,
-            'bookedGuests': newTotal,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-          SetOptions(
-            merge: true,
-          ),
-        );
-      },
-    );
+      transaction.set(reference, {
+        'dateKey': _dateKey(date),
+        'service': service,
+        'bookedGuests': newTotal,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    });
   }
 
   // =========================================================
@@ -130,44 +101,30 @@ class FirestoreCapacityRepository {
   }) async {
     final reference = _firestore
         .collection(_collectionName)
-        .doc(
-          _counterId(
-            date: date,
-            service: service,
-          ),
-        );
+        .doc(_counterId(date: date, service: service));
 
-    await _firestore.runTransaction(
-      (transaction) async {
-        final snapshot =
-            await transaction.get(reference);
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(reference);
 
-        if (!snapshot.exists) {
-          return;
-        }
+      if (!snapshot.exists) {
+        return;
+      }
 
-        final data = snapshot.data();
+      final data = snapshot.data();
 
-        final currentGuests =
-            data?['bookedGuests'] as int? ?? 0;
+      final currentGuests = data?['bookedGuests'] as int? ?? 0;
 
-        var newTotal =
-            currentGuests - guests;
+      var newTotal = currentGuests - guests;
 
-        if (newTotal < 0) {
-          newTotal = 0;
-        }
+      if (newTotal < 0) {
+        newTotal = 0;
+      }
 
-        transaction.update(
-          reference,
-          {
-            'bookedGuests': newTotal,
-            'updatedAt':
-                FieldValue.serverTimestamp(),
-          },
-        );
-      },
-    );
+      transaction.update(reference, {
+        'bookedGuests': newTotal,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   // =========================================================
@@ -177,24 +134,16 @@ class FirestoreCapacityRepository {
   // 2026-08-10_dinner
   // =========================================================
 
-  static String _counterId({
-    required DateTime date,
-    required String service,
-  }) {
+  static String _counterId({required DateTime date, required String service}) {
     return '${_dateKey(date)}_$service';
   }
 
-  static String _dateKey(
-    DateTime date,
-  ) {
-    final year =
-        date.year.toString().padLeft(4, '0');
+  static String _dateKey(DateTime date) {
+    final year = date.year.toString().padLeft(4, '0');
 
-    final month =
-        date.month.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
 
-    final day =
-        date.day.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
 
     return '$year-$month-$day';
   }
