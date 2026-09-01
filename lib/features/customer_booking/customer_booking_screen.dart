@@ -20,6 +20,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   static const Color dark = Color(0xFF171717);
   static const Color muted = Color(0xFF777777);
   static const Color border = Color(0xFFD8D0C2);
+  static const Color surface = Color(0xFFFFFDF8);
+  static const Color softGold = Color(0xFFF2E6C9);
 
   final nomeController = TextEditingController();
   final cognomeController = TextEditingController();
@@ -38,7 +40,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   bool _loadingAvailability = false;
   bool _saving = false;
-  bool _showMoreGuests = false;
   bool marketingConsent = false;
   bool privacyNoticeAccepted = false;
   bool healthDataConsent = false;
@@ -311,7 +312,14 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   void _selectGuests(int value) {
     setState(() {
-      persone = value;
+      persone = value.clamp(1, 20);
+      selectedTime = null;
+      selectedService = null;
+    });
+  }
+
+  void _continueFromGuests() {
+    setState(() {
       selectedTime = null;
       selectedService = null;
       currentStep = 2;
@@ -593,60 +601,154 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: ivory,
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
+    final baseTheme = Theme.of(context);
+
+    return Theme(
+      data: baseTheme.copyWith(
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: surface,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 18,
+            vertical: 18,
+          ),
+          prefixIconColor: const Color(0xFF8A6726),
+          labelStyle: const TextStyle(color: muted),
+          floatingLabelStyle: const TextStyle(
+            color: Color(0xFF8A6726),
+            fontWeight: FontWeight.w700,
+          ),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: border),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: border),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: gold, width: 1.6),
+          ),
+        ),
+      ),
+      child: Scaffold(
         backgroundColor: ivory,
-        foregroundColor: dark,
-        elevation: 0,
-        leadingWidth: 72,
-        leading: Padding(
-          padding: const EdgeInsets.only(left: 14, top: 6, bottom: 6),
-          child: Material(
-            color: Colors.white,
-            shape: const CircleBorder(),
-            child: IconButton(
-              tooltip: _t('Indietro', 'Back'),
-              onPressed: _goBack,
-              icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 20),
+        appBar: AppBar(
+          automaticallyImplyLeading: false,
+          toolbarHeight: 76,
+          backgroundColor: ivory,
+          foregroundColor: dark,
+          elevation: 0,
+          leadingWidth: 72,
+          leading: Padding(
+            padding: const EdgeInsets.only(left: 14, top: 10, bottom: 10),
+            child: Material(
+              color: surface,
+              shape: const CircleBorder(),
+              elevation: 1,
+              child: IconButton(
+                tooltip: _t('Indietro', 'Back'),
+                onPressed: _goBack,
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 19),
+              ),
             ),
           ),
-        ),
-        title: Image.asset(
-          'assets/images/logo.png',
-          height: 60,
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-        ),
-        centerTitle: true,
-        actions: const [
-          Padding(
-            padding: EdgeInsets.only(right: 10),
-            child: Center(child: BookingLanguageToggle(compact: true)),
+          title: Container(
+            height: 58,
+            width: 118,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF12100D),
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(color: gold.withValues(alpha: 0.45)),
+            ),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.contain,
+              filterQuality: FilterQuality.high,
+            ),
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 760),
-            child: Column(
-              children: [
-                _buildProgress(),
-                Expanded(
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 230),
-                    switchInCurve: Curves.easeOut,
-                    switchOutCurve: Curves.easeIn,
-                    child: SingleChildScrollView(
-                      key: ValueKey(currentStep),
-                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 36),
-                      child: _buildCurrentStep(),
+          centerTitle: true,
+          actions: const [
+            Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: Center(child: BookingLanguageToggle(compact: true)),
+            ),
+          ],
+        ),
+        body: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [Color(0xFFF7F3EB), Color(0xFFFBF8F1)],
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 1180),
+                child: Column(
+                  children: [
+                    _buildProgress(),
+                    Expanded(
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final showSidebar =
+                              constraints.maxWidth >= 960 && currentStep > 0;
+
+                          return Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: AnimatedSwitcher(
+                                  duration: const Duration(milliseconds: 260),
+                                  switchInCurve: Curves.easeOutCubic,
+                                  switchOutCurve: Curves.easeInCubic,
+                                  child: SingleChildScrollView(
+                                    key: ValueKey(currentStep),
+                                    padding: EdgeInsets.fromLTRB(
+                                      showSidebar ? 30 : 20,
+                                      12,
+                                      showSidebar ? 18 : 20,
+                                      42,
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        if (!showSidebar &&
+                                            currentStep > 0) ...[
+                                          _buildSelectionStrip(),
+                                          const SizedBox(height: 22),
+                                        ],
+                                        _buildCurrentStep(),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              if (showSidebar)
+                                SizedBox(
+                                  width: 320,
+                                  child: SingleChildScrollView(
+                                    padding: const EdgeInsets.fromLTRB(
+                                      10,
+                                      12,
+                                      30,
+                                      42,
+                                    ),
+                                    child: _buildBookingSidebar(),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -664,69 +766,282 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
+      padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
       child: Container(
-        padding: const EdgeInsets.all(4),
+        padding: const EdgeInsets.fromLTRB(14, 10, 14, 11),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          border: Border.all(color: border),
+          color: surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: border.withValues(alpha: 0.75)),
+          boxShadow: [
+            BoxShadow(
+              color: dark.withValues(alpha: 0.05),
+              blurRadius: 22,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
-        child: Row(
-          children: List.generate(steps.length, (index) {
-            final active = index == currentStep;
-            final completed = index < currentStep;
+        child: Column(
+          children: [
+            Row(
+              children: [
+                Text(
+                  _t('La tua prenotazione', 'Your reservation'),
+                  style: const TextStyle(
+                    color: dark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _t(
+                    'Passaggio ${currentStep + 1} di ${steps.length}',
+                    'Step ${currentStep + 1} of ${steps.length}',
+                  ),
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: List.generate(steps.length, (index) {
+                final active = index == currentStep;
+                final completed = index < currentStep;
 
-            return Expanded(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(20),
-                onTap: completed
-                    ? () {
-                        _goToPreviousStep(index);
-                      }
-                    : null,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10,
-                    horizontal: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: active ? gold : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        completed ? Icons.check_rounded : steps[index].icon,
-                        size: 19,
-                        color: active
-                            ? dark
-                            : completed
-                            ? gold
-                            : muted,
+                return Expanded(
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: completed ? () => _goToPreviousStep(index) : null,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Column(
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 200),
+                            height: 4,
+                            decoration: BoxDecoration(
+                              color: active || completed
+                                  ? gold
+                                  : const Color(0xFFE8E1D6),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                          const SizedBox(height: 7),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                completed
+                                    ? Icons.check_circle_rounded
+                                    : steps[index].icon,
+                                size: 15,
+                                color: active || completed ? gold : muted,
+                              ),
+                              const SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  steps[index].label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    color: active ? dark : muted,
+                                    fontSize: 10,
+                                    fontWeight: active || completed
+                                        ? FontWeight.w700
+                                        : FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        steps[index].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: active ? dark : muted,
-                          fontSize: 9,
-                          fontWeight: active || completed
-                              ? FontWeight.w700
-                              : FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectionStrip() {
+    final items = <({IconData icon, String text})>[
+      if (selectedDate != null)
+        (
+          icon: Icons.calendar_today_rounded,
+          text: _formattedDate(selectedDate!),
+        ),
+      (icon: Icons.group_rounded, text: '$persone'),
+      if (selectedTime != null)
+        (
+          icon: selectedService == 'lunch'
+              ? Icons.wb_sunny_rounded
+              : Icons.nightlight_round,
+          text: selectedTime!,
+        ),
+    ];
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: softGold.withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: gold.withValues(alpha: 0.42)),
+      ),
+      child: Wrap(
+        spacing: 12,
+        runSpacing: 8,
+        children: items
+            .map(
+              (item) => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(item.icon, size: 16, color: const Color(0xFF8A6726)),
+                  const SizedBox(width: 6),
+                  Text(
+                    item.text,
+                    style: const TextStyle(
+                      color: dark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+
+  Widget _buildBookingSidebar() {
+    final serviceText = selectedService == null
+        ? _t('Da scegliere', 'To be selected')
+        : selectedService == 'lunch'
+        ? _t('Pranzo', 'Lunch')
+        : _t('Cena', 'Dinner');
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF191713),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: gold.withValues(alpha: 0.42)),
+        boxShadow: [
+          BoxShadow(
+            color: dark.withValues(alpha: 0.13),
+            blurRadius: 28,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _t('Il tuo tavolo', 'Your table'),
+            style: GoogleFonts.libreBaskerville(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _t(
+              'Il riepilogo si aggiorna mentre scegli.',
+              'Your summary updates as you choose.',
+            ),
+            style: const TextStyle(color: Colors.white60, fontSize: 12),
+          ),
+          const SizedBox(height: 20),
+          _sidebarRow(
+            Icons.calendar_today_rounded,
+            _t('Data', 'Date'),
+            selectedDate == null ? '—' : _formattedDate(selectedDate!),
+          ),
+          _sidebarRow(Icons.group_rounded, _t('Ospiti', 'Guests'), '$persone'),
+          _sidebarRow(
+            Icons.restaurant_rounded,
+            _t('Servizio', 'Service'),
+            serviceText,
+          ),
+          _sidebarRow(
+            Icons.schedule_rounded,
+            _t('Orario', 'Time'),
+            selectedTime ?? '—',
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white12),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Icon(Icons.place_outlined, color: gold, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _t('Cisternino · Puglia', 'Cisternino · Puglia'),
+                  style: const TextStyle(
+                    color: Colors.white70,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            );
-          }),
-        ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sidebarRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 15),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: gold.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, color: gold, size: 17),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(color: Colors.white54, fontSize: 10),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    height: 1.35,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -768,18 +1083,37 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         children: [
           Card(
             elevation: 0,
-            color: Colors.white,
+            color: surface,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(22),
-              side: const BorderSide(color: border),
+              borderRadius: BorderRadius.circular(24),
+              side: BorderSide(color: border.withValues(alpha: 0.85)),
             ),
-            child: Padding(
-              padding: const EdgeInsets.all(8),
-              child: CalendarDatePicker(
-                initialDate: selectedDate ?? firstDate,
-                firstDate: firstDate,
-                lastDate: DateTime(today.year + 2, 12, 31),
-                onDateChanged: _selectDate,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(10, 14, 10, 10),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+                boxShadow: [
+                  BoxShadow(
+                    color: dark.withValues(alpha: 0.06),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: Theme.of(context).colorScheme.copyWith(
+                    primary: const Color(0xFF9B741F),
+                    onPrimary: Colors.white,
+                    surface: surface,
+                  ),
+                ),
+                child: CalendarDatePicker(
+                  initialDate: selectedDate ?? firstDate,
+                  firstDate: firstDate,
+                  lastDate: DateTime(today.year + 2, 12, 31),
+                  onDateChanged: _selectDate,
+                ),
               ),
             ),
           ),
@@ -819,39 +1153,115 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       ),
       child: Column(
         children: [
-          _buildGuestsGrid(first: 1, last: 8),
-          const SizedBox(height: 16),
-          Material(
-            color: gold,
-            shape: const CircleBorder(),
-            elevation: 3,
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: () {
-                setState(() {
-                  _showMoreGuests = !_showMoreGuests;
-                });
-              },
-              child: SizedBox(
-                width: 52,
-                height: 52,
-                child: Icon(
-                  _showMoreGuests ? Icons.remove_rounded : Icons.add_rounded,
-                  color: dark,
-                  size: 30,
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(22, 24, 22, 22),
+            decoration: BoxDecoration(
+              color: surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: border.withValues(alpha: 0.85)),
+              boxShadow: [
+                BoxShadow(
+                  color: dark.withValues(alpha: 0.06),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
-              ),
+              ],
             ),
-          ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-            child: _showMoreGuests
-                ? Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: _buildGuestsGrid(first: 9, last: 20),
-                  )
-                : const SizedBox.shrink(),
+            child: Column(
+              children: [
+                Container(
+                  width: 58,
+                  height: 58,
+                  decoration: BoxDecoration(
+                    color: softGold,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.table_restaurant_rounded,
+                    color: Color(0xFF8A6726),
+                    size: 29,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _guestCounterButton(
+                      icon: Icons.remove_rounded,
+                      enabled: persone > 1,
+                      onPressed: () => _selectGuests(persone - 1),
+                    ),
+                    SizedBox(
+                      width: 126,
+                      child: Column(
+                        children: [
+                          Text(
+                            '$persone',
+                            style: GoogleFonts.libreBaskerville(
+                              color: dark,
+                              fontSize: 48,
+                              fontWeight: FontWeight.w700,
+                              height: 1,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            persone == 1
+                                ? _t('persona', 'guest')
+                                : _t('persone', 'guests'),
+                            style: const TextStyle(
+                              color: muted,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _guestCounterButton(
+                      icon: Icons.add_rounded,
+                      enabled: persone < 20,
+                      onPressed: () => _selectGuests(persone + 1),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  _t('Selezione rapida', 'Quick selection'),
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.center,
+                  children: [1, 2, 4, 6, 8, 10]
+                      .map(
+                        (value) => ChoiceChip(
+                          label: Text('$value'),
+                          selected: persone == value,
+                          onSelected: (_) => _selectGuests(value),
+                          selectedColor: gold,
+                          backgroundColor: Colors.white,
+                          side: BorderSide(
+                            color: persone == value ? gold : border,
+                          ),
+                          labelStyle: const TextStyle(
+                            color: dark,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 18),
           Text(
@@ -866,57 +1276,64 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               height: 1.4,
             ),
           ),
+          const SizedBox(height: 22),
+          _primaryAction(
+            label: _t('SCEGLI L’ORARIO', 'CHOOSE A TIME'),
+            icon: Icons.arrow_forward_rounded,
+            onPressed: _continueFromGuests,
+          ),
         ],
       ),
     );
   }
 
-  Widget _buildGuestsGrid({required int first, required int last}) {
-    final values = List<int>.generate(
-      last - first + 1,
-      (index) => first + index,
-    );
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: values.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.35,
+  Widget _guestCounterButton({
+    required IconData icon,
+    required bool enabled,
+    required VoidCallback onPressed,
+  }) {
+    return Material(
+      color: enabled ? dark : const Color(0xFFE5E0D7),
+      shape: const CircleBorder(),
+      child: IconButton(
+        onPressed: enabled ? onPressed : null,
+        icon: Icon(icon),
+        color: Colors.white,
+        disabledColor: Colors.white70,
+        iconSize: 26,
+        padding: const EdgeInsets.all(15),
       ),
-      itemBuilder: (context, index) {
-        final value = values[index];
-        final selected = value == persone;
+    );
+  }
 
-        return Material(
-          color: selected ? gold : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () {
-              _selectGuests(value);
-            },
-            child: Container(
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: selected ? gold : border),
-              ),
-              child: Text(
-                '$value',
-                style: GoogleFonts.libreBaskerville(
-                  color: dark,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
+  Widget _primaryAction({
+    required String label,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      height: 58,
+      child: FilledButton.icon(
+        onPressed: onPressed,
+        icon: Icon(icon),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w800,
+            letterSpacing: 0.4,
           ),
-        );
-      },
+        ),
+        style: FilledButton.styleFrom(
+          backgroundColor: gold,
+          foregroundColor: dark,
+          disabledBackgroundColor: const Color(0xFFE1D9C8),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          elevation: 0,
+        ),
+      ),
     );
   }
 
@@ -964,11 +1381,18 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     required String service,
   }) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: border),
+        color: surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: border.withValues(alpha: 0.85)),
+        boxShadow: [
+          BoxShadow(
+            color: dark.withValues(alpha: 0.055),
+            blurRadius: 22,
+            offset: const Offset(0, 9),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -976,8 +1400,9 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: gold.withValues(alpha: 0.20),
-                child: Icon(icon, color: dark),
+                radius: 23,
+                backgroundColor: softGold,
+                child: Icon(icon, color: const Color(0xFF8A6726)),
               ),
               const SizedBox(width: 12),
               Text(
@@ -989,63 +1414,87 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   letterSpacing: 1,
                 ),
               ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF1EEE7),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  _t('${times.length} orari', '${times.length} times'),
+                  style: const TextStyle(
+                    color: muted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 18),
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: times.length,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 4,
-              crossAxisSpacing: 9,
-              mainAxisSpacing: 9,
-              childAspectRatio: 1.55,
-            ),
-            itemBuilder: (context, index) {
-              final time = times[index];
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 360 ? 3 : 4;
+              const spacing = 9.0;
+              final itemWidth =
+                  (constraints.maxWidth - spacing * (columns - 1)) / columns;
 
-              final isClosed = service == 'lunch'
-                  ? closedLunchTimes.contains(time)
-                  : closedDinnerTimes.contains(time);
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: times.map((time) {
+                  final isClosed = service == 'lunch'
+                      ? closedLunchTimes.contains(time)
+                      : closedDinnerTimes.contains(time);
 
-              return Material(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(13),
-                child: InkWell(
-                  borderRadius: BorderRadius.circular(13),
-                  onTap: () {
-                    if (isClosed) {
-                      _message(
-                        _t(
-                          'Fascia oraria completa. Seleziona un altro orario.',
-                          'This time slot is full. Please choose another time.',
+                  return SizedBox(
+                    width: itemWidth,
+                    height: 52,
+                    child: Material(
+                      color: isClosed ? const Color(0xFFF2EFE9) : Colors.white,
+                      borderRadius: BorderRadius.circular(14),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          if (isClosed) {
+                            _message(
+                              _t(
+                                'Fascia oraria completa. Seleziona un altro orario.',
+                                'This time slot is full. Please choose another time.',
+                              ),
+                            );
+                            return;
+                          }
+
+                          _selectTime(time: time, service: service);
+                        },
+                        child: Container(
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isClosed
+                                  ? const Color(0xFFE4DED3)
+                                  : gold.withValues(alpha: 0.55),
+                            ),
+                          ),
+                          child: Text(
+                            time,
+                            style: TextStyle(
+                              color: isClosed ? Colors.grey : dark,
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              decoration: isClosed
+                                  ? TextDecoration.lineThrough
+                                  : TextDecoration.none,
+                            ),
+                          ),
                         ),
-                      );
-                      return;
-                    }
-
-                    _selectTime(time: time, service: service);
-                  },
-                  child: Container(
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(13),
-                      border: Border.all(color: border),
-                    ),
-                    child: Text(
-                      time,
-                      style: TextStyle(
-                        color: isClosed ? Colors.grey : dark,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w700,
-                        decoration: isClosed
-                            ? TextDecoration.lineThrough
-                            : TextDecoration.none,
                       ),
                     ),
-                  ),
-                ),
+                  );
+                }).toList(),
               );
             },
           ),
@@ -1061,145 +1510,115 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         'Inserisci i dati necessari per la prenotazione.',
         'Enter the details needed for your booking.',
       ),
-      child: Column(
-        children: [
-          TextField(
-            controller: nomeController,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.givenName],
-            decoration: InputDecoration(
-              labelText: _t('Nome *', 'First name *'),
-              prefixIcon: const Icon(Icons.person_outline),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: surface,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: border.withValues(alpha: 0.85)),
+          boxShadow: [
+            BoxShadow(
+              color: dark.withValues(alpha: 0.055),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
             ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: cognomeController,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.familyName],
-            decoration: InputDecoration(
-              labelText: _t('Cognome *', 'Last name *'),
-              prefixIcon: const Icon(Icons.person_outline),
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: emailController,
-            keyboardType: TextInputType.emailAddress,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.email],
-            decoration: InputDecoration(
-              labelText: 'Email *',
-              prefixIcon: const Icon(Icons.email_outlined),
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: telefonoController,
-            keyboardType: TextInputType.phone,
-            textInputAction: TextInputAction.next,
-            autofillHints: const [AutofillHints.telephoneNumber],
-            decoration: InputDecoration(
-              labelText: _t('Telefono *', 'Phone *'),
-              prefixIcon: const Icon(Icons.phone_outlined),
-            ),
-          ),
-
-          DropdownButtonFormField<String>(
-            initialValue: selectedOccasione,
-            decoration: InputDecoration(
-              labelText: _t('Occasione', 'Occasion'),
-              prefixIcon: const Icon(Icons.celebration_outlined),
-            ),
-            items: occasioni
-                .map(
-                  (occasion) => DropdownMenuItem(
-                    value: occasion,
-                    child: Text(_occasionLabel(occasion)),
-                  ),
-                )
-                .toList(),
-            onChanged: (value) {
-              if (value == null) {
-                return;
-              }
-
-              setState(() {
-                selectedOccasione = value;
-              });
-            },
-          ),
-          const SizedBox(height: 14),
-          TextField(
-            controller: noteController,
-            minLines: 3,
-            maxLines: 5,
-            maxLength: 500,
-            textCapitalization: TextCapitalization.sentences,
-            onChanged: (_) {
-              setState(() {
-                if (!_notesContainHealthData) healthDataConsent = false;
-              });
-            },
-            decoration: InputDecoration(
-              labelText: _t('Note (facoltative)', 'Notes (optional)'),
-              hintText: _t(
-                'Inserisci eventuali richieste per la prenotazione',
-                'Enter any requests for your booking',
+          ],
+        ),
+        child: Column(
+          children: [
+            TextField(
+              controller: nomeController,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.givenName],
+              decoration: InputDecoration(
+                labelText: _t('Nome *', 'First name *'),
+                prefixIcon: const Icon(Icons.person_outline),
               ),
-              prefixIcon: const Icon(Icons.notes_outlined),
-              alignLabelWithHint: true,
             ),
-          ),
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0x14C8A45D),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x66C8A45D)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: cognomeController,
+              textCapitalization: TextCapitalization.words,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.familyName],
+              decoration: InputDecoration(
+                labelText: _t('Cognome *', 'Last name *'),
+                prefixIcon: const Icon(Icons.person_outline),
+              ),
             ),
-            child: CheckboxListTile(
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: privacyNoticeAccepted,
+            const SizedBox(height: 14),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.email],
+              decoration: InputDecoration(
+                labelText: 'Email *',
+                prefixIcon: const Icon(Icons.email_outlined),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: telefonoController,
+              keyboardType: TextInputType.phone,
+              textInputAction: TextInputAction.next,
+              autofillHints: const [AutofillHints.telephoneNumber],
+              decoration: InputDecoration(
+                labelText: _t('Telefono *', 'Phone *'),
+                prefixIcon: const Icon(Icons.phone_outlined),
+              ),
+            ),
+
+            DropdownButtonFormField<String>(
+              initialValue: selectedOccasione,
+              decoration: InputDecoration(
+                labelText: _t('Occasione', 'Occasion'),
+                prefixIcon: const Icon(Icons.celebration_outlined),
+              ),
+              items: occasioni
+                  .map(
+                    (occasion) => DropdownMenuItem(
+                      value: occasion,
+                      child: Text(_occasionLabel(occasion)),
+                    ),
+                  )
+                  .toList(),
               onChanged: (value) {
+                if (value == null) {
+                  return;
+                }
+
                 setState(() {
-                  privacyNoticeAccepted = value ?? false;
+                  selectedOccasione = value;
                 });
               },
-              title: Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    _t(
-                      'Dichiaro di aver letto l’',
-                      'I confirm that I have read the ',
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute<void>(
-                          builder: (_) => const PrivacyPolicyScreen(),
-                        ),
-                      );
-                    },
-                    child: Text(
-                      _t('Informativa Privacy *', 'Privacy Notice *'),
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: noteController,
+              minLines: 3,
+              maxLines: 5,
+              maxLength: 500,
+              textCapitalization: TextCapitalization.sentences,
+              onChanged: (_) {
+                setState(() {
+                  if (!_notesContainHealthData) healthDataConsent = false;
+                });
+              },
+              decoration: InputDecoration(
+                labelText: _t('Note (facoltative)', 'Notes (optional)'),
+                hintText: _t(
+                  'Inserisci eventuali richieste per la prenotazione',
+                  'Enter any requests for your booking',
+                ),
+                prefixIcon: const Icon(Icons.notes_outlined),
+                alignLabelWithHint: true,
               ),
             ),
-          ),
-          if (_notesContainHealthData) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 14),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: const Color(0x14C8A45D),
                 borderRadius: BorderRadius.circular(12),
@@ -1208,10 +1627,10 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
               child: CheckboxListTile(
                 contentPadding: EdgeInsets.zero,
                 controlAffinity: ListTileControlAffinity.leading,
-                value: healthDataConsent,
+                value: privacyNoticeAccepted,
                 onChanged: (value) {
                   setState(() {
-                    healthDataConsent = value ?? false;
+                    privacyNoticeAccepted = value ?? false;
                   });
                 },
                 title: Wrap(
@@ -1219,76 +1638,120 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   children: [
                     Text(
                       _t(
-                        'Acconsento esplicitamente al trattamento delle informazioni sanitarie inserite nelle Note, esclusivamente per gestire questa prenotazione. *',
-                        'I explicitly consent to the processing of the health information entered in Notes solely to manage this booking. *',
+                        'Dichiaro di aver letto l’',
+                        'I confirm that I have read the ',
                       ),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     TextButton(
-                      onPressed: _showHealthDataDetails,
-                      child: Text(_t('Dettagli', 'Details')),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const PrivacyPolicyScreen(),
+                          ),
+                        );
+                      },
+                      child: Text(
+                        _t('Informativa Privacy *', 'Privacy Notice *'),
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-          ],
-          const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            decoration: BoxDecoration(
-              color: const Color(0x14C8A45D),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0x66C8A45D)),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                CheckboxListTile(
+            if (_notesContainHealthData) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0x14C8A45D),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0x66C8A45D)),
+                ),
+                child: CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   controlAffinity: ListTileControlAffinity.leading,
-                  value: marketingConsent,
+                  value: healthDataConsent,
                   onChanged: (value) {
                     setState(() {
-                      marketingConsent = value ?? false;
+                      healthDataConsent = value ?? false;
                     });
                   },
-                  title: Text(
-                    _t(
-                      'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
-                      'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
-                    ),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  title: Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        _t(
+                          'Acconsento esplicitamente al trattamento delle informazioni sanitarie inserite nelle Note, esclusivamente per gestire questa prenotazione. *',
+                          'I explicitly consent to the processing of the health information entered in Notes solely to manage this booking. *',
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      TextButton(
+                        onPressed: _showHealthDataDetails,
+                        child: Text(_t('Dettagli', 'Details')),
+                      ),
+                    ],
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 12,
-                    right: 12,
-                    bottom: 6,
-                  ),
-                  child: Text(
-                    _t(
-                      'Le comunicazioni operative sulla prenotazione tramite email e WhatsApp sono necessarie alla gestione del servizio e sono descritte nell’Informativa Privacy.',
-                      'Operational booking updates by email and WhatsApp are necessary to manage the service and are described in the Privacy Notice.',
+              ),
+            ],
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: const Color(0x14C8A45D),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0x66C8A45D)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: marketingConsent,
+                    onChanged: (value) {
+                      setState(() {
+                        marketingConsent = value ?? false;
+                      });
+                    },
+                    title: Text(
+                      _t(
+                        'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
+                        'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
-                    style: const TextStyle(fontSize: 12, height: 1.45),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 12,
+                      right: 12,
+                      bottom: 6,
+                    ),
+                    child: Text(
+                      _t(
+                        'Le comunicazioni operative sulla prenotazione tramite email e WhatsApp sono necessarie alla gestione del servizio e sono descritte nell’Informativa Privacy.',
+                        'Operational booking updates by email and WhatsApp are necessary to manage the service and are described in the Privacy Notice.',
+                      ),
+                      style: const TextStyle(fontSize: 12, height: 1.45),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            height: 56,
-            child: FilledButton.icon(
+            const SizedBox(height: 24),
+            _primaryAction(
+              label: _t('RIVEDI PRENOTAZIONE', 'REVIEW BOOKING'),
+              icon: Icons.arrow_forward_rounded,
               onPressed: _reviewBooking,
-              icon: const Icon(Icons.receipt_long_outlined),
-              label: Text(_t('RIVEDI PRENOTAZIONE', 'REVIEW BOOKING')),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -1477,31 +1940,54 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     required String subtitle,
     required Widget child,
   }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          title,
-          textAlign: TextAlign.left,
-          style: GoogleFonts.libreBaskerville(
-            color: dark,
-            fontSize: 27,
-            fontWeight: FontWeight.w700,
-            height: 1.2,
+    final compact = MediaQuery.sizeOf(context).width < 600;
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 780),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(width: 28, height: 2, color: gold),
+              const SizedBox(width: 9),
+              Text(
+                _t('LE CAPASE · PRENOTAZIONI', 'LE CAPASE · RESERVATIONS'),
+                style: const TextStyle(
+                  color: Color(0xFF8A6726),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.25,
+                ),
+              ),
+            ],
           ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          subtitle,
-          style: GoogleFonts.libreBaskerville(
-            color: muted,
-            fontSize: 14,
-            height: 1.4,
+          const SizedBox(height: 12),
+          Text(
+            title,
+            textAlign: TextAlign.left,
+            style: GoogleFonts.libreBaskerville(
+              color: dark,
+              fontSize: compact ? 27 : 32,
+              fontWeight: FontWeight.w700,
+              height: 1.15,
+              letterSpacing: -0.5,
+            ),
           ),
-        ),
-        const SizedBox(height: 22),
-        child,
-      ],
+          const SizedBox(height: 8),
+          Text(
+            subtitle,
+            style: TextStyle(
+              color: muted,
+              fontSize: compact ? 14 : 15,
+              height: 1.45,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(height: 22),
+          child,
+        ],
+      ),
     );
   }
 
