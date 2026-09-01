@@ -4328,32 +4328,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         backgroundColor: const Color(0xFF201D18),
         indicatorColor: const Color(0xFFC8A45D),
         selectedIndex: _bottomIndex,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
-        onDestinationSelected: (index) {
-          if (index == 2 && !_isManager) {
-            return;
-          }
-
-          setState(() {
-            _bottomIndex = index;
-
-            if (index == 2) {
-              if (_isDatePast(_selectedDate)) {
-                _selectedDate = DateTime.now();
-              }
-
-              _manualTime = _currentQuarterHour();
-              _manualService = _manualTime.hour < 17 ? 'lunch' : 'dinner';
-            }
-
-            if (index == 0) {
-              _selectedDate = DateTime.now();
-              _selectedSection = 0;
-              _selectedService = 'all';
-              _selectedFilter = 'all';
-            }
-          });
-        },
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+        onDestinationSelected: _selectDestination,
         destinations: [
           const NavigationDestination(
             icon: Icon(Icons.menu_book_outlined, color: Color(0xFFE9E1D2)),
@@ -4406,6 +4382,249 @@ class _BookingsScreenState extends State<BookingsScreen> {
             selectedIcon: Icon(Icons.more_horiz, color: Colors.black),
             label: 'Altro',
           ),
+        ],
+      ),
+    );
+  }
+
+  void _selectDestination(int index) {
+    if (index == 2 && !_isManager) {
+      return;
+    }
+
+    setState(() {
+      _bottomIndex = index;
+
+      if (index == 2) {
+        if (_isDatePast(_selectedDate)) {
+          _selectedDate = DateTime.now();
+        }
+
+        _manualTime = _currentQuarterHour();
+        _manualService = _manualTime.hour < 17 ? 'lunch' : 'dinner';
+      }
+
+      if (index == 0) {
+        _selectedDate = DateTime.now();
+        _selectedSection = 0;
+        _selectedService = 'all';
+        _selectedFilter = 'all';
+      }
+    });
+  }
+
+  Widget _desktopNavigation(int pendingCount) {
+    return Container(
+      width: 238,
+      decoration: const BoxDecoration(
+        color: Color(0xFF11100E),
+        border: Border(right: BorderSide(color: Color(0xFF2D2923))),
+      ),
+      child: SafeArea(
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(22, 18, 22, 26),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: Image.asset(
+                      'assets/images/logo_gestionale.png',
+                      width: 46,
+                      height: 46,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'LE CAPASE',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 1.1,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Gestionale',
+                          style: TextStyle(
+                            color: Color(0xFF8F887E),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: NavigationRail(
+                backgroundColor: Colors.transparent,
+                extended: true,
+                minExtendedWidth: 238,
+                selectedIndex: _bottomIndex,
+                onDestinationSelected: _selectDestination,
+                labelType: NavigationRailLabelType.none,
+                groupAlignment: -0.9,
+                indicatorColor: const Color(0xFFC8A45D),
+                selectedIconTheme: const IconThemeData(color: Colors.black),
+                selectedLabelTextStyle: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+                unselectedIconTheme: const IconThemeData(
+                  color: Color(0xFFAAA399),
+                ),
+                unselectedLabelTextStyle: const TextStyle(
+                  color: Color(0xFFAAA399),
+                ),
+                destinations: [
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.menu_book_outlined),
+                    selectedIcon: Icon(Icons.menu_book),
+                    label: Text('Servizio'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.calendar_month_outlined),
+                    selectedIcon: Icon(Icons.calendar_month),
+                    label: Text('Calendario'),
+                  ),
+                  NavigationRailDestination(
+                    icon: Icon(
+                      _isManager
+                          ? Icons.add_circle_outline
+                          : Icons.lock_outline,
+                    ),
+                    selectedIcon: const Icon(Icons.add_circle),
+                    label: Text(
+                      _isManager ? 'Nuova prenotazione' : 'Riservato',
+                    ),
+                  ),
+                  NavigationRailDestination(
+                    icon: Badge(
+                      isLabelVisible: pendingCount > 0,
+                      label: Text('$pendingCount'),
+                      child: const Icon(Icons.notifications_none),
+                    ),
+                    selectedIcon: Badge(
+                      isLabelVisible: pendingCount > 0,
+                      label: Text('$pendingCount'),
+                      child: const Icon(Icons.notifications),
+                    ),
+                    label: const Text('Notifiche'),
+                  ),
+                  const NavigationRailDestination(
+                    icon: Icon(Icons.grid_view_outlined),
+                    selectedIcon: Icon(Icons.grid_view_rounded),
+                    label: Text('Altro'),
+                  ),
+                ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1A1815),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: const Color(0xFF302C26)),
+                ),
+                child: Row(
+                  children: [
+                    const CircleAvatar(
+                      radius: 17,
+                      backgroundColor: Color(0xFFC8A45D),
+                      child: Icon(
+                        Icons.person_outline,
+                        color: Colors.black,
+                        size: 19,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          Text(
+                            _roleLabel,
+                            style: const TextStyle(
+                              color: Color(0xFF8F887E),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'Logout',
+                      onPressed: widget.onLogout == null
+                          ? null
+                          : () async {
+                              await widget.onLogout!();
+                            },
+                      style: IconButton.styleFrom(
+                        foregroundColor: const Color(0xFFC8A45D),
+                        backgroundColor: const Color(
+                          0xFFC8A45D,
+                        ).withValues(alpha: 0.10),
+                        minimumSize: const Size(36, 36),
+                      ),
+                      icon: const Icon(Icons.logout_rounded, size: 18),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _desktopTopBar(String title) {
+    return Container(
+      height: 66,
+      padding: const EdgeInsets.symmetric(horizontal: 26),
+      decoration: const BoxDecoration(
+        color: Color(0xFF151411),
+        border: Border(bottom: BorderSide(color: Color(0xFF2D2923))),
+      ),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          ),
+          const Spacer(),
+          if (_bottomIndex == 0)
+            TextButton.icon(
+              onPressed: () {
+                setState(() {
+                  _selectedDate = DateTime.now();
+                  _selectedSection = 0;
+                  _selectedFilter = 'all';
+                });
+              },
+              icon: const Icon(Icons.today_outlined, size: 19),
+              label: const Text('Oggi'),
+            ),
         ],
       ),
     );
@@ -4561,45 +4780,70 @@ class _BookingsScreenState extends State<BookingsScreen> {
           );
         }
 
-        return Scaffold(
-          appBar: AppBar(
-            automaticallyImplyLeading: false,
-            leading: IconButton(
-              tooltip: 'Home',
-              onPressed: () {
-                setState(() {
-                  _selectedDate = DateTime.now();
-                  _bottomIndex = 0;
-                  _selectedSection = 0;
-                  _selectedService = 'all';
-                  _selectedFilter = 'all';
-                });
-              },
-              icon: const Icon(Icons.home_outlined, size: 18),
-            ),
-            toolbarHeight: 42,
-            title: Text(
-              titles[_bottomIndex],
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-            ),
-            actions: [
-              if (_bottomIndex == 0)
-                IconButton(
-                  tooltip: 'Vai a oggi',
-                  onPressed: () {
-                    setState(() {
-                      _selectedDate = DateTime.now();
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final desktop = constraints.maxWidth >= 980;
 
-                      _selectedSection = 0;
-                      _selectedFilter = 'all';
-                    });
-                  },
-                  icon: const Icon(Icons.today_outlined, size: 22),
+            if (desktop) {
+              return Scaffold(
+                body: Row(
+                  children: [
+                    _desktopNavigation(pendingCount),
+                    Expanded(
+                      child: Column(
+                        children: [
+                          _desktopTopBar(titles[_bottomIndex]),
+                          Expanded(
+                            child: Container(
+                              color: const Color(0xFF0F0E0C),
+                              alignment: Alignment.topCenter,
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 1180,
+                                ),
+                                child: body,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-            ],
-          ),
-          body: body,
-          bottomNavigationBar: _bottomNavigation(pendingCount),
+              );
+            }
+
+            return Scaffold(
+              appBar: AppBar(
+                automaticallyImplyLeading: false,
+                toolbarHeight: 52,
+                titleSpacing: 18,
+                title: Text(
+                  titles[_bottomIndex],
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                actions: [
+                  if (_bottomIndex == 0)
+                    IconButton(
+                      tooltip: 'Vai a oggi',
+                      onPressed: () {
+                        setState(() {
+                          _selectedDate = DateTime.now();
+                          _selectedSection = 0;
+                          _selectedFilter = 'all';
+                        });
+                      },
+                      icon: const Icon(Icons.today_outlined, size: 21),
+                    ),
+                ],
+              ),
+              body: body,
+              bottomNavigationBar: _bottomNavigation(pendingCount),
+            );
+          },
         );
       },
     );

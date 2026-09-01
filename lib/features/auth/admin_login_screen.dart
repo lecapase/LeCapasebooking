@@ -2,6 +2,10 @@ import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+
+import '../../core/app_version.dart';
+import '../../theme/app_colors.dart';
 
 class AdminLoginScreen extends StatefulWidget {
   const AdminLoginScreen({super.key});
@@ -186,58 +190,208 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 42, 24, 24),
-              child: Column(
-                children: [
-                  const Icon(
-                    Icons.calendar_month_outlined,
-                    size: 38,
-                    color: Color(0xFFC8A45D),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final desktop = constraints.maxWidth >= 1100;
+          return Stack(
+            children: [
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [
+                        AppColors.black,
+                        AppColors.dark,
+                        AppColors.goldDark.withValues(alpha: 0.24),
+                      ],
+                    ),
                   ),
-                  const SizedBox(height: 18),
-                  const Text(
-                    'Le Capase Booking 2.1',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 27, fontWeight: FontWeight.bold),
+                ),
+              ),
+              Positioned(
+                right: -100,
+                top: -120,
+                child: Container(
+                  width: 420,
+                  height: 420,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.gold.withValues(alpha: 0.07),
                   ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Accedi con le tue credenziali',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 15),
-                  ),
-                  const Spacer(),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
-                    child: FilledButton.icon(
-                      onPressed: _openLogin,
-                      icon: const Icon(Icons.login_rounded),
-                      label: const Text(
-                        'ACCEDI',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
+                ),
+              ),
+              SafeArea(
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(desktop ? 48 : 24),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 1040),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xF2141311),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: const Color(0xFF302D27)),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black45,
+                              blurRadius: 48,
+                              offset: Offset(0, 20),
+                            ),
+                          ],
+                        ),
+                        child: Flex(
+                          direction: desktop ? Axis.horizontal : Axis.vertical,
+                          children: [
+                            SizedBox(
+                              width: desktop ? 580 : double.infinity,
+                              child: Padding(
+                                padding: EdgeInsets.all(desktop ? 54 : 30),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 7,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.gold.withValues(
+                                          alpha: 0.12,
+                                        ),
+                                        borderRadius: BorderRadius.circular(99),
+                                        border: Border.all(
+                                          color: AppColors.gold.withValues(
+                                            alpha: 0.28,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'GESTIONALE RISTORANTE',
+                                        style: GoogleFonts.inter(
+                                          color: AppColors.gold,
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          letterSpacing: 1.5,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 28),
+                                    Image.asset(
+                                      'assets/images/logo.png',
+                                      height: desktop ? 112 : 84,
+                                      alignment: Alignment.centerLeft,
+                                    ),
+                                    const SizedBox(height: 24),
+                                    Text(
+                                      'Tutto il servizio,\nin un solo posto.',
+                                      style: GoogleFonts.libreBaskerville(
+                                        color: AppColors.white,
+                                        fontSize: desktop ? 38 : 29,
+                                        height: 1.16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'Prenotazioni, disponibilità e sala sempre sotto controllo.',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFFB9B3A8),
+                                        fontSize: 15,
+                                        height: 1.5,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            SizedBox(
+                              width: desktop ? 400 : double.infinity,
+                              child: Container(
+                                padding: EdgeInsets.all(desktop ? 46 : 30),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1B1916),
+                                  borderRadius: BorderRadius.circular(27),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Bentornato',
+                                      style: GoogleFonts.libreBaskerville(
+                                        color: AppColors.white,
+                                        fontSize: 26,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 9),
+                                    Text(
+                                      'Accedi con il tuo account personale per iniziare.',
+                                      style: GoogleFonts.inter(
+                                        color: const Color(0xFFA9A39A),
+                                        height: 1.45,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 30),
+                                    SizedBox(
+                                      width: double.infinity,
+                                      height: 56,
+                                      child: FilledButton.icon(
+                                        onPressed: _openLogin,
+                                        icon: const Icon(Icons.login_rounded),
+                                        label: const Text(
+                                          'Accedi al gestionale',
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 18),
+                                    Row(
+                                      children: [
+                                        const Icon(
+                                          Icons.shield_outlined,
+                                          size: 17,
+                                          color: AppColors.gold,
+                                        ),
+                                        const SizedBox(width: 9),
+                                        Expanded(
+                                          child: Text(
+                                            'Accesso riservato al personale autorizzato',
+                                            style: GoogleFonts.inter(
+                                              color: const Color(0xFF888279),
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ),
                   ),
-                  const Spacer(),
-                  const Text(
-                    'Inserisci l’email e la password del tuo account personale.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
+              Positioned(
+                right: 18,
+                bottom: 12,
+                child: Text(
+                  AppVersion.fullLabel,
+                  style: GoogleFonts.inter(
+                    color: const Color(0xFF777168),
+                    fontSize: 10,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

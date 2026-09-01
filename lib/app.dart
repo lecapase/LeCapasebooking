@@ -22,6 +22,10 @@ class LeCapaseApp extends StatelessWidget {
       useMaterial3: true,
       brightness: Brightness.dark,
     );
+    final bodyTextTheme = GoogleFonts.interTextTheme(baseTheme.textTheme).apply(
+      bodyColor: const Color(0xFFF7F3EA),
+      displayColor: const Color(0xFFF7F3EA),
+    );
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
@@ -40,17 +44,30 @@ class LeCapaseApp extends StatelessWidget {
           seedColor: AppColors.gold,
           brightness: Brightness.dark,
         ),
-        textTheme: GoogleFonts.libreBaskervilleTextTheme(
-          baseTheme.textTheme,
-        ).apply(bodyColor: Colors.white, displayColor: Colors.white),
+        textTheme: bodyTextTheme.copyWith(
+          headlineLarge: GoogleFonts.libreBaskerville(
+            color: AppColors.white,
+            fontSize: 32,
+            fontWeight: FontWeight.w700,
+          ),
+          headlineMedium: GoogleFonts.libreBaskerville(
+            color: AppColors.white,
+            fontSize: 25,
+            fontWeight: FontWeight.w700,
+          ),
+          titleLarge: GoogleFonts.libreBaskerville(
+            color: AppColors.white,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
         appBarTheme: AppBarTheme(
           backgroundColor: AppColors.dark,
           foregroundColor: AppColors.white,
-          centerTitle: true,
+          centerTitle: false,
           elevation: 0,
           titleTextStyle: GoogleFonts.libreBaskerville(
             color: AppColors.white,
-            fontSize: 22,
+            fontSize: 18,
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -60,7 +77,7 @@ class LeCapaseApp extends StatelessWidget {
           labelTextStyle: WidgetStateProperty.all(
             GoogleFonts.libreBaskerville(
               color: Colors.white,
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -70,31 +87,56 @@ class LeCapaseApp extends StatelessWidget {
             backgroundColor: AppColors.gold,
             foregroundColor: AppColors.dark,
             minimumSize: const Size(double.infinity, 55),
-            textStyle: GoogleFonts.libreBaskerville(
-              fontSize: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: GoogleFonts.inter(
+              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            textStyle: GoogleFonts.libreBaskerville(
-              fontSize: 16,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14),
+            ),
+            textStyle: GoogleFonts.inter(
+              fontSize: 15,
               fontWeight: FontWeight.w700,
             ),
           ),
         ),
         textButtonTheme: TextButtonThemeData(
           style: TextButton.styleFrom(
-            textStyle: GoogleFonts.libreBaskerville(
-              fontWeight: FontWeight.w700,
-            ),
+            textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700),
           ),
         ),
-        cardTheme: const CardThemeData(color: AppColors.card, elevation: 4),
+        cardTheme: CardThemeData(
+          color: AppColors.card,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: const BorderSide(color: Color(0xFF2B2925)),
+          ),
+        ),
         inputDecorationTheme: InputDecorationTheme(
-          labelStyle: GoogleFonts.libreBaskerville(),
-          hintStyle: GoogleFonts.libreBaskerville(color: Colors.grey),
+          filled: true,
+          fillColor: const Color(0xFF181715),
+          labelStyle: GoogleFonts.inter(color: const Color(0xFFB9B3A8)),
+          hintStyle: GoogleFonts.inter(color: const Color(0xFF817B72)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF34312C)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: Color(0xFF34312C)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(14),
+            borderSide: const BorderSide(color: AppColors.gold, width: 1.5),
+          ),
         ),
         dialogTheme: DialogThemeData(
           titleTextStyle: GoogleFonts.libreBaskerville(
