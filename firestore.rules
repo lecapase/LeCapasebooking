@@ -98,6 +98,42 @@ service cloud.firestore {
     // AGGIORNAMENTI CONSENTITI AL SUPERVISOR
     // =====================================================
 
+    function validManagerNotificationReadUpdate() {
+      let changedKeys = request.resource.data
+        .diff(resource.data)
+        .affectedKeys();
+
+      return isManager()
+
+        && changedKeys.hasOnly([
+          'adminNotificationRead',
+          'adminNotificationReadAt',
+          'reconfirmationResultRead',
+          'reconfirmationResultReadAt',
+          'updatedAt'
+        ])
+
+        && request.resource.data.adminNotificationRead == true
+
+        && request.resource.data.adminNotificationReadAt
+          == request.time
+
+        && request.resource.data.updatedAt
+          == request.time
+
+        && (
+          !changedKeys.hasAny([
+            'reconfirmationResultRead',
+            'reconfirmationResultReadAt'
+          ])
+          || (
+            request.resource.data.reconfirmationResultRead == true
+            && request.resource.data.reconfirmationResultReadAt
+              == request.time
+          )
+        );
+    }
+
     function validSupervisorBookingUpdate() {
       return isOnlySupervisor()
 
@@ -513,11 +549,14 @@ service cloud.firestore {
 
       allow read: if canViewBookings();
 
-      allow update: if isCurrentOrFutureBooking(resource.data)
-        && bookingDateIsUnchanged()
-        && (
-          isManager()
-          || validSupervisorBookingUpdate()
+      allow update: if validManagerNotificationReadUpdate()
+        || (
+          isCurrentOrFutureBooking(resource.data)
+          && bookingDateIsUnchanged()
+          && (
+            isManager()
+            || validSupervisorBookingUpdate()
+          )
         );
 
       allow delete: if isAdmin()
