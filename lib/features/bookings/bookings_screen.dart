@@ -1,3 +1,5 @@
+import 'widgets/booking_card_heading.dart';
+import 'service_filter.dart';
 import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -61,7 +63,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
   DateTime _selectedDate = DateTime.now();
 
   int _selectedSection = 0;
-  String _selectedService = 'all';
+  late String _selectedService = initialServiceFilter(
+    _selectedDate,
+    DateTime.now(),
+  );
   String _selectedFilter = 'all';
   int _bottomIndex = 0;
 
@@ -86,6 +91,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
     'arrived',
     'released',
     'cancelled',
+    'no_show',
+  ];
+
+  static const List<String> _historicalStatuses = [
+    'arrived',
+    'released',
     'no_show',
   ];
 
@@ -182,7 +193,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
   void _showArchivedDayMessage() {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Le giornate passate sono in sola consultazione.'),
+        content: Text(
+          'Per le giornate passate puoi correggere solo Arrivata, Liberata e No show.',
+        ),
       ),
     );
   }
@@ -198,6 +211,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
       final currentWeekStart = _startOfWeek(_selectedDate);
 
       _selectedDate = currentWeekStart.add(Duration(days: numberOfWeeks * 7));
+      _selectedService = initialServiceFilter(_selectedDate, DateTime.now());
       _selectedSection = 0;
       _selectedFilter = 'all';
     });
@@ -276,7 +290,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         return 'No-show';
 
       case 'released':
-        return 'Liberato';
+        return 'Liberata';
 
       case 'completed':
         return 'Completata';
@@ -385,6 +399,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     setState(() {
       _selectedDate = selectedDate;
+      _selectedService = initialServiceFilter(_selectedDate, DateTime.now());
       _selectedSection = 0;
       _selectedFilter = 'all';
       _bottomIndex = 0;
@@ -412,6 +427,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     setState(() {
       _selectedDate = selectedDate;
+      _selectedService = initialServiceFilter(_selectedDate, DateTime.now());
     });
   }
 
@@ -810,7 +826,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
   ) async {
     final booking = document.data();
 
-    if (_isBookingPast(booking)) {
+    if (_isBookingPast(booking) &&
+        (!_isManager || !_historicalStatuses.contains(newStatus))) {
       _showArchivedDayMessage();
       return;
     }
@@ -865,11 +882,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return;
     }
 
-    final guests = _readInteger(booking['guests']);
     final service = booking['service'] as String? ?? '';
     final dateKey = booking['dateKey'] as String? ?? '';
 
-    final oldCounts = _countsForCapacity(oldStatus);
     final newCounts = _countsForCapacity(newStatus);
 
     final bookingReference = document.reference;
@@ -886,6 +901,24 @@ class _BookingsScreenState extends State<BookingsScreen> {
           throw Exception('Prenotazione non trovata.');
         }
 
+        final currentBooking = bookingSnapshot.data()!;
+        if (_isBookingPast(currentBooking) &&
+            (!_isManager || !_historicalStatuses.contains(newStatus))) {
+          throw Exception(
+            'Sullo storico sono consentiti solo gli stati operativi.',
+          );
+        }
+        if (currentBooking['dateKey'] != dateKey ||
+            currentBooking['service'] != service) {
+          throw Exception(
+            'Prenotazione modificata. Riapri il dettaglio e riprova.',
+          );
+        }
+        if (currentBooking['status'] == newStatus) return;
+        final oldCounts = _countsForCapacity(
+          currentBooking['status'] as String? ?? 'pending',
+        );
+        final guests = _readInteger(currentBooking['guests']);
         int guestsDifference = 0;
 
         if (oldCounts && !newCounts) {
@@ -1069,6 +1102,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     onTap: () {
                       setState(() {
                         _selectedDate = date;
+                        _selectedService = initialServiceFilter(
+                          _selectedDate,
+                          DateTime.now(),
+                        );
                         _selectedSection = 0;
                         _selectedFilter = 'all';
                       });
@@ -1165,9 +1202,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required IconData icon,
     required int guests,
     VoidCallback? onSettings,
-    bool forceSelected = false,
   }) {
-    final selected = _selectedService == value || forceSelected;
+    final selected = _selectedService == value;
 
     return Expanded(
       child: Padding(
@@ -1263,71 +1299,36 @@ class _BookingsScreenState extends State<BookingsScreen> {
     required int lunchGuests,
     required int dinnerGuests,
   }) {
-    return FutureBuilder(
-      future: CustomerAvailabilityService.getAvailabilityForDate(_selectedDate),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const SizedBox(height: 40);
-        }
-
-        final availability = snapshot.data;
-        final hasLunch = availability?.lunch.isOpen ?? false;
-        final hasDinner = availability?.dinner.isOpen ?? false;
-        final serviceCount = (hasLunch ? 1 : 0) + (hasDinner ? 1 : 0);
-
-        final selectedServiceUnavailable =
-            (_selectedService == 'lunch' && !hasLunch) ||
-            (_selectedService == 'dinner' && !hasDinner);
-
-        if (selectedServiceUnavailable) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) {
-              setState(() => _selectedService = 'all');
-            }
-          });
-        }
-
-        if (serviceCount == 0) {
-          return const SizedBox.shrink();
-        }
-
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
-          child: Row(
-            children: [
-              if (serviceCount > 1)
-                _serviceButton(
-                  value: 'all',
-                  label: 'Tutti',
-                  icon: Icons.restaurant,
-                  guests: allGuests,
-                ),
-              if (hasLunch)
-                _serviceButton(
-                  value: 'lunch',
-                  label: 'Pranzo',
-                  icon: Icons.light_mode_outlined,
-                  guests: lunchGuests,
-                  forceSelected: serviceCount == 1 && _selectedService == 'all',
-                  onSettings: _isManager && !_isDatePast(_selectedDate)
-                      ? () => _openSlotClosures('lunch')
-                      : null,
-                ),
-              if (hasDinner)
-                _serviceButton(
-                  value: 'dinner',
-                  label: 'Cena',
-                  icon: Icons.dark_mode_outlined,
-                  guests: dinnerGuests,
-                  forceSelected: serviceCount == 1 && _selectedService == 'all',
-                  onSettings: _isManager && !_isDatePast(_selectedDate)
-                      ? () => _openSlotClosures('dinner')
-                      : null,
-                ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 2),
+      child: Row(
+        children: [
+          _serviceButton(
+            value: 'all',
+            label: 'Tutti',
+            icon: Icons.restaurant,
+            guests: allGuests,
           ),
-        );
-      },
+          _serviceButton(
+            value: 'lunch',
+            label: 'Pranzo',
+            icon: Icons.light_mode_outlined,
+            guests: lunchGuests,
+            onSettings: _isManager && !_isDatePast(_selectedDate)
+                ? () => _openSlotClosures('lunch')
+                : null,
+          ),
+          _serviceButton(
+            value: 'dinner',
+            label: 'Cena',
+            icon: Icons.dark_mode_outlined,
+            guests: dinnerGuests,
+            onSettings: _isManager && !_isDatePast(_selectedDate)
+                ? () => _openSlotClosures('dinner')
+                : null,
+          ),
+        ],
+      ),
     );
   }
 
@@ -2446,6 +2447,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final bookingOrigin = booking['bookingOrigin'] as String? ?? '';
     final dateKey = booking['dateKey'] as String? ?? '';
     final isPastBooking = _isBookingPast(booking);
+    final selectableStatuses = isPastBooking
+        ? _historicalStatuses
+        : _selectableStatuses;
     final noShowCount = _readInteger(booking['customerNoShowCount']);
     final fullName = '$firstName $lastName'.trim();
 
@@ -2696,7 +2700,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
-                            itemCount: _selectableStatuses.length,
+                            itemCount: selectableStatuses.length,
                             gridDelegate:
                                 const SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: 2,
@@ -2705,7 +2709,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                   mainAxisExtent: 48,
                                 ),
                             itemBuilder: (context, index) {
-                              final status = _selectableStatuses[index];
+                              final status = selectableStatuses[index];
                               final selected = status == currentStatus;
                               final color = _statusColor(status);
 
@@ -2731,7 +2735,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
                                     borderRadius: BorderRadius.circular(10),
                                   ),
                                 ),
-                                onPressed: isPastBooking || selected
+                                onPressed:
+                                    (isPastBooking && !_isManager) || selected
                                     ? null
                                     : () async {
                                         await _changeStatus(document, status);
@@ -2826,35 +2831,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      fullName.isEmpty ? 'Cliente' : fullName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    BookingCardHeading(name: fullName, guests: guests),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 9,
                       runSpacing: 6,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.person_outline, size: 15),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${guests}p',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 7,
@@ -3813,6 +3796,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
                       setState(() {
                         _selectedDate = DateTime(year, month, day);
+                        _selectedService = initialServiceFilter(
+                          _selectedDate,
+                          DateTime.now(),
+                        );
 
                         _bottomIndex = 0;
                         _selectedSection = 0;
@@ -4145,6 +4132,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     _selectedDate.month - 1,
                     1,
                   );
+                  _selectedService = initialServiceFilter(
+                    _selectedDate,
+                    DateTime.now(),
+                  );
                 });
               },
               icon: const Icon(Icons.chevron_left, size: 24),
@@ -4168,6 +4159,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     _selectedDate.year,
                     _selectedDate.month + 1,
                     1,
+                  );
+                  _selectedService = initialServiceFilter(
+                    _selectedDate,
+                    DateTime.now(),
                   );
                 });
               },
@@ -4222,6 +4217,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
               onTap: () {
                 setState(() {
                   _selectedDate = date;
+                  _selectedService = initialServiceFilter(
+                    _selectedDate,
+                    DateTime.now(),
+                  );
                   _bottomIndex = 0;
                   _selectedSection = 0;
                   _selectedFilter = 'all';
@@ -4398,6 +4397,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
       if (index == 2) {
         if (_isDatePast(_selectedDate)) {
           _selectedDate = DateTime.now();
+          _selectedService = initialServiceFilter(
+            _selectedDate,
+            DateTime.now(),
+          );
         }
 
         _manualTime = _currentQuarterHour();
@@ -4406,8 +4409,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
       if (index == 0) {
         _selectedDate = DateTime.now();
+        _selectedService = initialServiceFilter(_selectedDate, DateTime.now());
         _selectedSection = 0;
-        _selectedService = 'all';
         _selectedFilter = 'all';
       }
     });
@@ -4618,6 +4621,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
               onPressed: () {
                 setState(() {
                   _selectedDate = DateTime.now();
+                  _selectedService = initialServiceFilter(
+                    _selectedDate,
+                    DateTime.now(),
+                  );
                   _selectedSection = 0;
                   _selectedFilter = 'all';
                 });
@@ -4832,6 +4839,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
                       onPressed: () {
                         setState(() {
                           _selectedDate = DateTime.now();
+                          _selectedService = initialServiceFilter(
+                            _selectedDate,
+                            DateTime.now(),
+                          );
                           _selectedSection = 0;
                           _selectedFilter = 'all';
                         });

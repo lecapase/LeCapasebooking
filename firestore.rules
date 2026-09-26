@@ -134,6 +134,31 @@ service cloud.firestore {
         );
     }
 
+    // Historical corrections are restricted to operational status and its audit fields.
+    function validHistoricalStatusUpdate() {
+      let changed = request.resource.data.diff(resource.data).affectedKeys();
+      let status = request.resource.data.status;
+      return isManager()
+        && resource.data.dateKey < currentBusinessDateKey()
+        && resource.data.date is timestamp
+        && resource.data.date < request.time
+        && request.resource.data.updatedAt == request.time
+        && (
+          (status == 'arrived'
+            && changed.hasOnly(['status', 'updatedAt', 'arrivedAt', 'arrivedBy'])
+            && request.resource.data.arrivedAt == request.time
+            && request.resource.data.arrivedBy == 'admin')
+          || (status == 'released'
+            && changed.hasOnly(['status', 'updatedAt', 'releasedAt', 'releasedBy'])
+            && request.resource.data.releasedAt == request.time
+            && request.resource.data.releasedBy == 'admin')
+          || (status == 'no_show'
+            && changed.hasOnly(['status', 'updatedAt', 'noShowAt', 'noShowBy'])
+            && request.resource.data.noShowAt == request.time
+            && request.resource.data.noShowBy == 'admin')
+        );
+    }
+
     function validSupervisorBookingUpdate() {
       return isOnlySupervisor()
 
@@ -550,6 +575,7 @@ service cloud.firestore {
       allow read: if canViewBookings();
 
       allow update: if validManagerNotificationReadUpdate()
+        || validHistoricalStatusUpdate()
         || (
           isCurrentOrFutureBooking(resource.data)
           && bookingDateIsUnchanged()
