@@ -37,8 +37,19 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
   }
 
   bool _hasMarketingConsent(Map<String, dynamic> data) {
-    return data['marketingEmailConsent'] == true ||
-        data['marketingWhatsappConsent'] == true;
+    return _channelConsent(data, 'Email') || _channelConsent(data, 'Whatsapp');
+  }
+
+  bool _channelConsent(Map<String, dynamic> data, String channel) {
+    final prefix = 'marketing$channel';
+    return data['marketingOptOutAt'] == null &&
+        data['${prefix}RevokedAt'] == null &&
+        data['${prefix}Consent'] == true &&
+        data['${prefix}ConsentAt'] != null &&
+        (data['${prefix}ConsentSource'] ?? data['marketingConsentSource']) !=
+            null &&
+        (data['${prefix}ConsentVersion'] ?? data['marketingConsentVersion']) !=
+            null;
   }
 
   bool _matchesSearch(Map<String, dynamic> data) {
@@ -177,13 +188,10 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
     }
 
     try {
-      await document.reference.set({
-        'marketingEmailConsent': false,
-        'marketingWhatsappConsent': false,
-        'marketingOptOutAt': FieldValue.serverTimestamp(),
-        'marketingOptOutSource': 'admin_removed',
-        'updatedAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
+      await CallableHttpService.call('revokeCustomerConsent', {
+        'profileId': document.id,
+        'channel': 'both',
+      });
 
       if (!mounted) {
         return;
@@ -251,11 +259,11 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
             for (final document in selectedContacts) {
               final data = document.data();
 
-              if (data['marketingWhatsappConsent'] == true) {
+              if (_channelConsent(data, 'Whatsapp')) {
                 whatsappRecipients++;
               }
 
-              if (data['marketingEmailConsent'] == true) {
+              if (_channelConsent(data, 'Email')) {
                 emailRecipients++;
               }
             }
@@ -963,11 +971,12 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
                             final phone = (data['telefono'] as String? ?? '')
                                 .trim();
 
-                            final emailConsent =
-                                data['marketingEmailConsent'] == true;
+                            final emailConsent = _channelConsent(data, 'Email');
 
-                            final whatsappConsent =
-                                data['marketingWhatsappConsent'] == true;
+                            final whatsappConsent = _channelConsent(
+                              data,
+                              'Whatsapp',
+                            );
 
                             final lastConsent =
                                 data['marketingLastConsentAt'] ??

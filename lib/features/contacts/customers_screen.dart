@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'customer_history.dart';
 import 'booking_history_repository.dart';
+import 'customer_consents_panel.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key, this.initialCustomerKey});
@@ -252,6 +253,8 @@ class _CustomerDetailsState extends State<_CustomerDetails> {
             ),
           ),
         ],
+        const SizedBox(height: 20),
+        CustomerConsentsPanel(customerKey: customer.key),
         const SizedBox(height: 20),
         Text(
           'Storico prenotazioni (${customer.bookings.length})',

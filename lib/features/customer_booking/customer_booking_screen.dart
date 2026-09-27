@@ -40,7 +40,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
 
   bool _loadingAvailability = false;
   bool _saving = false;
-  bool marketingConsent = false;
+  bool marketingEmailConsent = false;
+  bool marketingWhatsappConsent = false;
   bool privacyNoticeAccepted = false;
   bool healthDataConsent = false;
 
@@ -514,8 +515,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         privacyNoticeAccepted: privacyNoticeAccepted,
         healthDataConsent: healthDataConsent,
         bookingWhatsappConsent: true,
-        marketingEmailConsent: marketingConsent,
-        marketingWhatsappConsent: marketingConsent,
+        marketingEmailConsent: marketingEmailConsent,
+        marketingWhatsappConsent: marketingWhatsappConsent,
       );
 
       if (!mounted) {
@@ -1713,16 +1714,31 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
                   CheckboxListTile(
                     contentPadding: EdgeInsets.zero,
                     controlAffinity: ListTileControlAffinity.leading,
-                    value: marketingConsent,
+                    value: marketingEmailConsent,
                     onChanged: (value) {
                       setState(() {
-                        marketingConsent = value ?? false;
+                        marketingEmailConsent = value ?? false;
                       });
                     },
                     title: Text(
                       _t(
-                        'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email e WhatsApp (facoltativo).',
-                        'I would like to receive Le Capase offers, events and promotions by email and WhatsApp (optional).',
+                        'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite email (facoltativo).',
+                        'I would like to receive Le Capase offers, events and promotions by email (optional).',
+                      ),
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    value: marketingWhatsappConsent,
+                    onChanged: (value) => setState(
+                      () => marketingWhatsappConsent = value ?? false,
+                    ),
+                    title: Text(
+                      _t(
+                        'Desidero ricevere offerte, eventi e promozioni di Le Capase tramite WhatsApp (facoltativo).',
+                        'I would like to receive Le Capase offers, events and promotions by WhatsApp (optional).',
                       ),
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),

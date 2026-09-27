@@ -340,7 +340,7 @@ class FirestoreBookingRepository {
 
         'marketingWhatsappConsent': marketingWhatsappConsent,
 
-        'marketingConsentVersion': '1.0',
+        'marketingConsentVersion': '2.0',
 
         'marketingConsentSource': 'customer_booking',
 

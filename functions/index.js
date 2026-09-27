@@ -53,6 +53,11 @@ initializeApp();
 
 const db =
   getFirestore();
+const consentPolicy = require("./consent_policy");
+const marketingConsents = require("./marketing_consents");
+exports.getCustomerConsents = marketingConsents.getCustomerConsents;
+exports.revokeCustomerConsent = marketingConsents.revokeCustomerConsent;
+exports.marketingUnsubscribe = marketingConsents.marketingUnsubscribe;
 
 setGlobalOptions({
   region: "europe-west1",
@@ -682,58 +687,33 @@ async function syncCustomerProfile(
             FieldValue.serverTimestamp();
         }
 
-        if (
-          data.marketingEmailConsent === true
-        ) {
-          profileData.marketingEmailConsent =
-            true;
-
-          profileData.marketingEmailConsentAt =
-            FieldValue.serverTimestamp();
-
-          profileData.marketingEmailConsentSource =
-            data.marketingConsentSource ||
-            "customer_booking";
-
-          profileData.marketingConsentVersion =
-            data.marketingConsentVersion ||
-            "1.0";
+        for (const channel of ["email", "whatsapp"]) {
+          const p = consentPolicy.prefix(channel);
+          const suppressed = !!await marketingConsents.revocationEvidence(identity, channel, transaction);
+          if (profile && consentPolicy.address(profile, channel) !== consentPolicy.address(identity, channel)) {
+            profileData[`${p}Consent`] = false;
+            profileData[`${p}ConsentAt`] = FieldValue.delete();
+            profileData[`${p}ConsentSource`] = FieldValue.delete();
+            profileData[`${p}ConsentVersion`] = FieldValue.delete();
+            profileData[`${p}ConsentAddress`] = FieldValue.delete();
+          }
+          if (consentPolicy.canRecordGrant(profile || {}, data, channel, suppressed)) {
+            // Preserve the actual recorded timestamp; retries must not renew consent.
+            profileData[`${p}Consent`] = true;
+            profileData[`${p}ConsentAt`] = data.marketingConsentRecordedAt;
+            profileData[`${p}ConsentSource`] = data.marketingConsentSource;
+            profileData[`${p}ConsentVersion`] = data.marketingConsentVersion;
+            profileData[`${p}ConsentAddress`] = consentPolicy.address(identity, channel);
+          }
         }
-
-        if (
-          data.marketingWhatsappConsent === true
-        ) {
-          profileData.marketingWhatsappConsent =
-            true;
-
-          profileData.marketingWhatsappConsentAt =
-            FieldValue.serverTimestamp();
-
-          profileData.marketingWhatsappConsentSource =
-            data.marketingConsentSource ||
-            "customer_booking";
-
-          profileData.marketingConsentVersion =
-            data.marketingConsentVersion ||
-            "1.0";
-        }
-        if (
-          data.marketingEmailConsent === true ||
-          data.marketingWhatsappConsent === true
-        ) {
-          profileData.marketingLastConsentAt =
-            FieldValue.serverTimestamp();
-
-          profileData.marketingConsentSource =
-            data.marketingConsentSource ||
-            "customer_booking";
-
-          if (
-            !profile ||
-            !profile.marketingFirstConsentAt
-          ) {
-            profileData.marketingFirstConsentAt =
-              FieldValue.serverTimestamp();
+        for (const channel of ["email", "whatsapp"]) {
+          const p = consentPolicy.prefix(channel);
+          if (profileData[`${p}Consent`] === true) {
+            transaction.set(profileReference.collection("consent_events").doc(`${bookingId}_${channel}`), {
+              channel, state: "granted", at: data.marketingConsentRecordedAt,
+              source: data.marketingConsentSource, version: data.marketingConsentVersion,
+              bookingId,
+            });
           }
         }
 
@@ -2334,7 +2314,7 @@ function marketingEmail(data) {
       data.normalizedEmail.trim()) ||
     "";
 
-  return value;
+  return value.toLowerCase();
 }
 
 function marketingPhone(data) {
@@ -2803,7 +2783,7 @@ exports.sendMarketingCampaign =
 
           if (wantsEmail) {
             if (
-              customer.marketingEmailConsent !== true ||
+              !await marketingConsents.eligible(profileSnapshot.ref, "email", email) ||
               !email ||
               !email.includes("@")
             ) {
@@ -2813,10 +2793,11 @@ exports.sendMarketingCampaign =
                 "skipped";
             } else {
               try {
+                const unsubscribeUrl = await marketingConsents.emailUnsubscribeLink(profileSnapshot.ref, email);
                 const textBody =
                   `Ciao ${firstName},\n\n` +
                   `${message}\n\n` +
-                  "Le Capase";
+                  `Le Capase\n\nDisiscriviti dalle email promozionali: ${unsubscribeUrl}`;
 
                 const safeName =
                   marketingHtmlEscape(firstName);
@@ -2840,8 +2821,13 @@ exports.sendMarketingCampaign =
                   `<p>Ciao ${safeName},</p>` +
                   imageHtml +
                   `<p>${safeMessage}</p>` +
-                  "<p><strong>Le Capase</strong></p>";
+                  "<p><strong>Le Capase</strong></p>" +
+                  `<p><a href="${unsubscribeUrl}">Disiscriviti dalle email promozionali</a></p>`;
 
+                if (!await marketingConsents.eligible(profileSnapshot.ref, "email", email)) {
+                  emailSkipped += 1;
+                  recipient.emailStatus = "skipped";
+                } else {
                 const result =
                   await transporter.sendMail({
                     from:
@@ -2871,6 +2857,7 @@ exports.sendMarketingCampaign =
                 recipient.emailMessageId =
                   result.messageId ||
                   null;
+                }
               } catch (error) {
                 emailFailed += 1;
 
@@ -2892,7 +2879,7 @@ exports.sendMarketingCampaign =
 
           if (wantsWhatsapp) {
             if (
-              customer.marketingWhatsappConsent !== true ||
+              !await marketingConsents.eligible(profileSnapshot.ref, "whatsapp", phone) ||
               phone.length === 0
             ) {
               whatsappSkipped += 1;
@@ -4062,45 +4049,14 @@ async function processMarketingWhatsappOptOut(message) {
     return true;
   }
 
-  const profiles = await db
-      .collection(CUSTOMER_PROFILES_COLLECTION)
-      .where("normalizedPhone", "==", phone)
-      .limit(20)
-      .get();
-
-  if (profiles.empty) {
-    logger.warn(
-        "Richiesta STOP marketing senza profilo cliente.",
-        {phone},
-    );
-    return true;
+  const matches = await db.collection(CUSTOMER_PROFILES_COLLECTION)
+      .where("normalizedPhone", "==", phone).get();
+  const refs = new Map(matches.docs.map(doc => [doc.id, doc.ref]));
+  const canonical = db.collection(CUSTOMER_PROFILES_COLLECTION).doc(consentPolicy.hash(`phone:${phone}`));
+  refs.set(canonical.id, canonical);
+  for (const ref of refs.values()) {
+    await marketingConsents.revoke(ref, ["whatsapp"], "whatsapp_stop", "customer", {normalizedPhone: phone});
   }
-
-  const batch = db.batch();
-
-  for (const document of profiles.docs) {
-    batch.set(
-        document.ref,
-        {
-          marketingEmailConsent: false,
-          marketingWhatsappConsent: false,
-          marketingOptOutAt: FieldValue.serverTimestamp(),
-          marketingOptOutSource: "whatsapp_stop",
-          updatedAt: FieldValue.serverTimestamp(),
-        },
-        {merge: true},
-    );
-  }
-
-  await batch.commit();
-
-  logger.info(
-      "Consensi marketing revocati tramite WhatsApp.",
-      {
-        phone,
-        profiles: profiles.size,
-      },
-  );
 
   return true;
 }
