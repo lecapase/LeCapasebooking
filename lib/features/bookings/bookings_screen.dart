@@ -1,6 +1,7 @@
 import 'widgets/booking_card_heading.dart';
 import '../contacts/customers_screen.dart';
 import '../contacts/customer_history.dart';
+import '../reports/monthly_report_screen.dart';
 import 'service_filter.dart';
 import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
@@ -3986,6 +3987,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
             subtitle: 'Schede, preferenze e storico visite',
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute<void>(builder: (_) => const CustomersScreen()),
+            ),
+          ),
+        if (_isManager)
+          item(
+            icon: Icons.bar_chart,
+            title: 'Report mensile',
+            subtitle: 'Coperti, clienti e risultati del mese',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MonthlyReportScreen(),
+              ),
             ),
           ),
         if (_isManager)

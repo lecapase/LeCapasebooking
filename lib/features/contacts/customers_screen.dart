@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'customer_history.dart';
+import 'booking_history_repository.dart';
 
 class CustomersScreen extends StatefulWidget {
   const CustomersScreen({super.key, this.initialCustomerKey});
@@ -20,22 +21,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
   }
 
   Future<List<CustomerHistory>> _load() async {
-    final records = <String, Map<String, dynamic>>{};
-    final query = FirebaseFirestore.instance
-        .collection('bookings')
-        .orderBy(FieldPath.documentId)
-        .limit(500);
-    QueryDocumentSnapshot<Map<String, dynamic>>? cursor;
-    while (true) {
-      final page =
-          await (cursor == null ? query : query.startAfterDocument(cursor))
-              .get();
-      for (final doc in page.docs) {
-        records[doc.id] = doc.data();
-      }
-      if (page.docs.length < 500) break;
-      cursor = page.docs.last;
-    }
+    final records = await loadBookingHistory();
     return CustomerHistory.group(records);
   }
 
