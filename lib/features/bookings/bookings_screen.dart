@@ -1,4 +1,6 @@
 import 'widgets/booking_card_heading.dart';
+import '../contacts/customers_screen.dart';
+import '../contacts/customer_history.dart';
 import 'service_filter.dart';
 import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
@@ -2575,6 +2577,21 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
+                          if (_isManager)
+                            TextButton.icon(
+                              icon: const Icon(Icons.person_outline),
+                              label: const Text('Scheda cliente'),
+                              onPressed: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => CustomersScreen(
+                                    initialCustomerKey: customerIdentity(
+                                      booking,
+                                      document.id,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           _quickEditControl(
                             icon: Icons.people_outline,
                             label: 'Persone',
@@ -3962,6 +3979,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
             });
           },
         ),
+        if (_isManager)
+          item(
+            icon: Icons.people_outline,
+            title: 'Clienti',
+            subtitle: 'Schede, preferenze e storico visite',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(builder: (_) => const CustomersScreen()),
+            ),
+          ),
         if (_isManager)
           if (_isAdmin)
             item(
