@@ -133,4 +133,4 @@ const marketingUnsubscribe = onRequest({cors: false, region: 'europe-west1', max
   } catch (_) { return res.status(503).send('Operazione non riuscita. Riprova.'); }
 });
 module.exports = {getCustomerConsents, revokeCustomerConsent, marketingUnsubscribe,
-  revoke, eligible, emailUnsubscribeLink, suppressionRef, revocationEvidence};
+  revoke, eligible, emailUnsubscribeLink, suppressionRef, revocationEvidence, requireManager};

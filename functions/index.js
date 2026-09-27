@@ -4193,3 +4193,7 @@ exports.getKitchenAgenda =
 
 exports.closeBookingService =
   staffUserFunctions.closeBookingService;
+
+Object.assign(exports, require('./review_automation')({
+  db, gmailUser, gmailAppPassword, consents: marketingConsents,
+}));

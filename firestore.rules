@@ -711,6 +711,12 @@ service cloud.firestore {
     // TUTTE LE ALTRE RACCOLTE
     // =====================================================
 
+    // Pending review batches are persistent notifications for administrators.
+    match /review_batches/{batchId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

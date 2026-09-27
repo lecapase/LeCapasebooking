@@ -2,6 +2,8 @@ import 'widgets/booking_card_heading.dart';
 import '../contacts/customers_screen.dart';
 import '../contacts/customer_history.dart';
 import '../reports/monthly_report_screen.dart';
+import '../reports/review_automation_screen.dart';
+import '../reports/review_approval_notice.dart';
 import 'service_filter.dart';
 import '../availability/data/booking_slot_closures_repository.dart';
 import '../customer_booking/data/customer_availability_service.dart';
@@ -4000,6 +4002,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ),
             ),
           ),
+        if (_isAdmin)
+          item(
+            icon: Icons.rate_review_outlined,
+            title: 'Richieste recensione',
+            subtitle: 'Automazione email e registro invii',
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const ReviewAutomationScreen(),
+              ),
+            ),
+          ),
         if (_isManager)
           if (_isAdmin)
             item(
@@ -4825,6 +4838,15 @@ class _BookingsScreenState extends State<BookingsScreen> {
           );
         }
 
+        if (_isAdmin) {
+          final pageBody = body;
+          body = Column(
+            children: [
+              const ReviewApprovalNotice(),
+              Expanded(child: pageBody),
+            ],
+          );
+        }
         return LayoutBuilder(
           builder: (context, constraints) {
             final desktop = constraints.maxWidth >= 980;
