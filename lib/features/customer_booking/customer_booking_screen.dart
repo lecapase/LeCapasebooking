@@ -220,10 +220,32 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     });
 
     try {
-      final availability =
-          await CustomerAvailabilityService.getAvailabilityForDate(
-            normalizedDate,
-          );
+      // Independent reads run together instead of three network round trips.
+      final (
+        availability,
+        lunchClosures,
+        dinnerClosures,
+        lunchClosed,
+        dinnerClosed,
+      ) = await (
+        CustomerAvailabilityService.getAvailabilityForDate(normalizedDate),
+        BookingSlotClosuresRepository.loadClosedTimes(
+          date: normalizedDate,
+          service: 'lunch',
+        ),
+        BookingSlotClosuresRepository.loadClosedTimes(
+          date: normalizedDate,
+          service: 'dinner',
+        ),
+        BookingSlotClosuresRepository.isServiceClosed(
+          date: normalizedDate,
+          service: 'lunch',
+        ),
+        BookingSlotClosuresRepository.isServiceClosed(
+          date: normalizedDate,
+          service: 'dinner',
+        ),
+      ).wait;
 
       if (!mounted) {
         return;
@@ -252,28 +274,6 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
             )
           : <String>[];
 
-      final loadedClosures = await Future.wait([
-        BookingSlotClosuresRepository.loadClosedTimes(
-          date: normalizedDate,
-          service: 'lunch',
-        ),
-        BookingSlotClosuresRepository.loadClosedTimes(
-          date: normalizedDate,
-          service: 'dinner',
-        ),
-      ]);
-
-      final closedServices = await Future.wait([
-        BookingSlotClosuresRepository.isServiceClosed(
-          date: normalizedDate,
-          service: 'lunch',
-        ),
-        BookingSlotClosuresRepository.isServiceClosed(
-          date: normalizedDate,
-          service: 'dinner',
-        ),
-      ]);
-
       if (!mounted) {
         return;
       }
@@ -282,12 +282,12 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
         lunchTimes = _filterBookableTimes(normalizedDate, loadedLunchTimes);
         dinnerTimes = _filterBookableTimes(normalizedDate, loadedDinnerTimes);
         closedLunchTimes = {
-          ...loadedClosures[0],
-          if (closedServices[0]) ...loadedLunchTimes,
+          ...lunchClosures,
+          if (lunchClosed) ...loadedLunchTimes,
         };
         closedDinnerTimes = {
-          ...loadedClosures[1],
-          if (closedServices[1]) ...loadedDinnerTimes,
+          ...dinnerClosures,
+          if (dinnerClosed) ...loadedDinnerTimes,
         };
 
         if (lunchTimes.isNotEmpty || dinnerTimes.isNotEmpty) {
