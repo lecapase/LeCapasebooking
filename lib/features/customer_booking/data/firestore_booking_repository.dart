@@ -4,6 +4,7 @@ import '../../availability/data/booking_slot_closures_repository.dart';
 import '../../availability/models/service_availability.dart';
 import 'customer_availability_service.dart';
 import '../domain/booking_capacity_policy.dart';
+import '../domain/booking_date_policy.dart';
 
 class BookingCapacityException implements Exception {
   final String message;
@@ -54,6 +55,7 @@ class FirestoreBookingRepository {
     bool marketingWhatsappConsent = false,
   }) async {
     final normalizedDate = DateTime(date.year, date.month, date.day);
+    final storedBookingDate = BookingDatePolicy.endOfDay(date);
 
     final cleanName = nome.trim();
     final cleanSurname = cognome.trim();
@@ -271,7 +273,10 @@ class FirestoreBookingRepository {
 
         'customerKey': customerKey,
 
-        'date': Timestamp.fromDate(normalizedDate),
+        // La fine della giornata mantiene valida una prenotazione per oggi
+        // anche se il documento di data operativa non viene aggiornato dalla
+        // funzione pianificata. Tutte le ricerche continuano a usare dateKey.
+        'date': Timestamp.fromDate(storedBookingDate),
 
         'dateKey': dateKey,
 
