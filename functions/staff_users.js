@@ -72,43 +72,8 @@ function validRole(role) {
 }
 
 async function userIsAdmin(uid) {
-  if (!uid) {
-    return false;
-  }
-
-  const legacyAdminSnapshot =
-    await db
-        .collection("admins")
-        .doc(uid)
-        .get();
-
-  const legacyAdmin =
-    legacyAdminSnapshot.data();
-
-  if (
-    legacyAdminSnapshot.exists &&
-    legacyAdmin?.active === true &&
-    legacyAdmin?.role === "admin"
-  ) {
-    return true;
-  }
-
-  const staffSnapshot =
-    await db
-        .collection("staff_users")
-        .doc(uid)
-        .get();
-
-  if (!staffSnapshot.exists) {
-    return false;
-  }
-
-  const staffData =
-    staffSnapshot.data();
-
-  return staffData &&
-    staffData.active === true &&
-    staffData.role === "admin";
+  const profile = await require('./access_policy').getProfile(db, uid);
+  return profile?.active === true && profile.role === 'admin';
 }
 
 function buildInviteEmail({
@@ -732,6 +697,9 @@ exports.onStaffUserUpdated =
           );
 
         try {
+          if (!active) {
+            await db.collection('notification_devices').doc(uid).delete();
+          }
           if (identityChanged) {
             await getAuth()
                 .updateUser(
@@ -856,45 +824,8 @@ async function requireManager(request) {
 }
 
 async function userCanViewBookings(uid) {
-  if (!uid) {
-    return false;
-  }
-
-  const legacyAdminSnapshot =
-    await db
-        .collection("admins")
-        .doc(uid)
-        .get();
-
-  const legacyAdmin =
-    legacyAdminSnapshot.data();
-
-  if (
-    legacyAdminSnapshot.exists &&
-    legacyAdmin?.active === true &&
-    legacyAdmin?.role === "admin"
-  ) {
-    return true;
-  }
-
-  const staffSnapshot =
-    await db
-        .collection("staff_users")
-        .doc(uid)
-        .get();
-
-  if (!staffSnapshot.exists) {
-    return false;
-  }
-
-  const staffData =
-    staffSnapshot.data();
-
-  return Boolean(
-      staffData &&
-      staffData.active === true &&
-      validRole(staffData.role),
-  );
+  const policy = require('./access_policy');
+  return policy.canViewBookings(await policy.getProfile(db, uid));
 }
 function validatedPassword(value) {
   const password =
@@ -1773,6 +1704,7 @@ exports.deleteStaffUser =
 
         await Promise.all([
           reference.delete(),
+          db.collection('notification_devices').doc(targetUid).delete(),
 
           db
               .collection("admins")

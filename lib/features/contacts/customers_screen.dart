@@ -1,3 +1,4 @@
+import '../auth/admin_only.dart';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -5,14 +6,14 @@ import 'customer_history.dart';
 import 'booking_history_repository.dart';
 import 'customer_consents_panel.dart';
 
-class CustomersScreen extends StatefulWidget {
-  const CustomersScreen({super.key, this.initialCustomerKey});
+class _CustomersScreen extends StatefulWidget {
+  const _CustomersScreen({this.initialCustomerKey});
   final String? initialCustomerKey;
   @override
-  State<CustomersScreen> createState() => _CustomersScreenState();
+  State<_CustomersScreen> createState() => _CustomersScreenState();
 }
 
-class _CustomersScreenState extends State<CustomersScreen> {
+class _CustomersScreenState extends State<_CustomersScreen> {
   late Future<List<CustomerHistory>> _customers;
   String _search = '';
   @override
@@ -21,8 +22,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
     _customers = _load();
   }
 
-  Future<List<CustomerHistory>> _load() async {
-    final records = await loadBookingHistory();
+  Future<List<CustomerHistory>> _load({bool refresh = false}) async {
+    final records = await loadBookingHistory(refresh: refresh);
     return CustomerHistory.group(records);
   }
 
@@ -34,7 +35,7 @@ class _CustomersScreenState extends State<CustomersScreen> {
         IconButton(
           tooltip: 'Aggiorna',
           icon: const Icon(Icons.refresh),
-          onPressed: () => setState(() => _customers = _load()),
+          onPressed: () => setState(() => _customers = _load(refresh: true)),
         ),
       ],
     ),
@@ -48,7 +49,8 @@ class _CustomersScreenState extends State<CustomersScreen> {
               children: [
                 const Text('Impossibile caricare i clienti.'),
                 TextButton(
-                  onPressed: () => setState(() => _customers = _load()),
+                  onPressed: () =>
+                      setState(() => _customers = _load(refresh: true)),
                   child: const Text('Riprova'),
                 ),
               ],
@@ -283,4 +285,13 @@ class _CustomerDetailsState extends State<_CustomerDetails> {
       ],
     );
   }
+}
+
+class CustomersScreen extends StatelessWidget {
+  const CustomersScreen({super.key, this.initialCustomerKey});
+  final String? initialCustomerKey;
+  @override
+  Widget build(BuildContext context) => AdminOnly(
+    child: _CustomersScreen(initialCustomerKey: initialCustomerKey),
+  );
 }

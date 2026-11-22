@@ -1,16 +1,17 @@
+import '../auth/admin_only.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/callable_http_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-class StaffUsersScreen extends StatefulWidget {
-  const StaffUsersScreen({super.key});
+class _StaffUsersScreen extends StatefulWidget {
+  const _StaffUsersScreen();
 
   @override
-  State<StaffUsersScreen> createState() => _StaffUsersScreenState();
+  State<_StaffUsersScreen> createState() => _StaffUsersScreenState();
 }
 
-class _StaffUsersScreenState extends State<StaffUsersScreen> {
+class _StaffUsersScreenState extends State<_StaffUsersScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -795,4 +796,12 @@ class _StaffUsersScreenState extends State<StaffUsersScreen> {
       ),
     );
   }
+}
+
+class StaffUsersScreen extends StatelessWidget {
+  const StaffUsersScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      AdminOnly(child: const _StaffUsersScreen());
 }

@@ -1,3 +1,4 @@
+import '../auth/admin_only.dart';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -7,15 +8,15 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../services/callable_http_service.dart';
 
-class ContactsMarketingScreen extends StatefulWidget {
-  const ContactsMarketingScreen({super.key});
+class _ContactsMarketingScreen extends StatefulWidget {
+  const _ContactsMarketingScreen();
 
   @override
-  State<ContactsMarketingScreen> createState() =>
+  State<_ContactsMarketingScreen> createState() =>
       _ContactsMarketingScreenState();
 }
 
-class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
+class _ContactsMarketingScreenState extends State<_ContactsMarketingScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _searchController = TextEditingController();
 
@@ -1146,4 +1147,12 @@ class _ContactsMarketingScreenState extends State<ContactsMarketingScreen> {
             ),
     );
   }
+}
+
+class ContactsMarketingScreen extends StatelessWidget {
+  const ContactsMarketingScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      AdminOnly(child: const _ContactsMarketingScreen());
 }

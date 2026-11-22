@@ -27,25 +27,19 @@ class _BookingFormDialogState extends State<BookingFormDialog> {
             children: [
               TextField(
                 controller: nomeController,
-                decoration: const InputDecoration(
-                  labelText: 'Nome cliente',
-                ),
+                decoration: const InputDecoration(labelText: 'Nome cliente'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: telefonoController,
                 keyboardType: TextInputType.phone,
-                decoration: const InputDecoration(
-                  labelText: 'Telefono',
-                ),
+                decoration: const InputDecoration(labelText: 'Telefono'),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: personeController,
                 keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Numero persone',
-                ),
+                decoration: const InputDecoration(labelText: 'Numero persone'),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -67,9 +61,7 @@ class _BookingFormDialogState extends State<BookingFormDialog> {
               TextField(
                 controller: noteController,
                 maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Note',
-                ),
+                decoration: const InputDecoration(labelText: 'Note'),
               ),
             ],
           ),
@@ -82,18 +74,14 @@ class _BookingFormDialogState extends State<BookingFormDialog> {
         ),
         ElevatedButton(
           onPressed: () {
-            Navigator.pop(
-              context,
-              {
-                'nome': nomeController.text.trim(),
-                'telefono': telefonoController.text.trim(),
-                'persone':
-                    int.tryParse(personeController.text) ?? 0,
-                'data': dataController.text.trim(),
-                'orario': orarioController.text.trim(),
-                'note': noteController.text.trim(),
-              },
-            );
+            Navigator.pop(context, {
+              'nome': nomeController.text.trim(),
+              'telefono': telefonoController.text.trim(),
+              'persone': int.tryParse(personeController.text) ?? 0,
+              'data': dataController.text.trim(),
+              'orario': orarioController.text.trim(),
+              'note': noteController.text.trim(),
+            });
           },
           child: const Text('Salva'),
         ),

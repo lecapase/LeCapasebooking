@@ -25,15 +25,15 @@ async function revocationEvidence(profile, channel, transaction = null) {
   }
   return null;
 }
-async function requireManager(request) {
+async function requireAdmin(request) {
   const uid = request.auth?.uid;
   if (!uid) throw new HttpsError('unauthenticated', 'Accedi al gestionale.');
   const [staff, legacy] = await Promise.all([
     db.collection('staff_users').doc(uid).get(), db.collection('admins').doc(uid).get(),
   ]);
-  if (!(staff.data()?.active === true && ['admin', 'manager'].includes(staff.data()?.role)) &&
-      !(legacy.data()?.active === true && legacy.data()?.role === 'admin')) {
-    throw new HttpsError('permission-denied', 'Operazione riservata a Manager e Amministratore.');
+  const profile = staff.exists ? staff : legacy;
+  if (profile.data()?.active !== true || profile.data()?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Operazione riservata agli amministratori.');
   }
   return uid;
 }
@@ -84,7 +84,7 @@ async function emailUnsubscribeLink(ref, email) {
   return `https://europe-west1-lecapase-booking-3af33.cloudfunctions.net/marketingUnsubscribe?token=${token}`;
 }
 const getCustomerConsents = onCall({region: 'europe-west1', maxInstances: 10}, async request => {
-  await requireManager(request);
+  await requireAdmin(request);
   const ref = profiles.doc(profileId(request.data || {}));
   const profile = {...identityFromKey(request.data?.customerKey), ...(await ref.get()).data()};
   const result = {};
@@ -106,7 +106,7 @@ const getCustomerConsents = onCall({region: 'europe-west1', maxInstances: 10}, a
   return result;
 });
 const revokeCustomerConsent = onCall({region: 'europe-west1', maxInstances: 10}, async request => {
-  const uid = await requireManager(request);
+  const uid = await requireAdmin(request);
   const data = request.data || {};
   const channels = data.channel === 'both' ? ['email', 'whatsapp'] : [data.channel];
   if (channels.some(c => !['email', 'whatsapp'].includes(c))) throw new HttpsError('invalid-argument', 'Canale non valido.');
@@ -133,4 +133,4 @@ const marketingUnsubscribe = onRequest({cors: false, region: 'europe-west1', max
   } catch (_) { return res.status(503).send('Operazione non riuscita. Riprova.'); }
 });
 module.exports = {getCustomerConsents, revokeCustomerConsent, marketingUnsubscribe,
-  revoke, eligible, emailUnsubscribeLink, suppressionRef, revocationEvidence, requireManager};
+  revoke, eligible, emailUnsubscribeLink, suppressionRef, revocationEvidence, requireAdmin};

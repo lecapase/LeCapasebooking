@@ -45,6 +45,9 @@ async function change(label,{role='manager',status='arrived',extra={},deny=false
  for(const [key,v] of Object.entries({dateKey:'2026-09-28',date:new Date('2026-09-28'),time:'21:00',guests:8,service:'lunch',notes:'changed',nome:'Other',noShowRecorded:true,confirmedBy:'admin'}))await change(`reject structural ${key}`,{extra:{[key]:v},deny:true});
  for(const role of ['supervisor','staff','inactive','anonymous','unknown'])await change(`reject ${role}`,{role,deny:true});
  await change('reject forged timestamp',{badAudit:true,deny:true});
+ await change('records the actual manager identity',{extra:{updatedByUid:'manager',updatedByRole:'manager'}});
+ await change('reject forged operator UID',{extra:{updatedByUid:'admin',updatedByRole:'manager'},deny:true});
+ await change('reject forged operator role',{extra:{updatedByUid:'manager',updatedByRole:'admin'},deny:true});
  await change('status and counter in one atomic commit',{status:'released',counter:true});
  await change('current booking workflow still allowed',{date:new Date().toISOString().slice(0,10),status:'confirmed'});
  const r=await request(`${base}:commit`,{writes:[{delete:name('bookings/history')}]},token('admin'));

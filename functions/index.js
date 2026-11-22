@@ -357,34 +357,7 @@ function safeEventId(eventId) {
 // ============================================================
 
 async function getNotificationTokens() {
-  const [deviceSnapshot, adminSnapshot] = await Promise.all([
-    db.collection(NOTIFICATION_DEVICES_COLLECTION).get(),
-    db.collection(ADMINS_COLLECTION).get(),
-  ]);
-
-  const tokens = new Set();
-
-  for (const snapshot of [deviceSnapshot, adminSnapshot]) {
-    snapshot.forEach((document) => {
-      const data = document.data();
-
-      const fcmTokens =
-        Array.isArray(data.fcmTokens) ?
-          data.fcmTokens :
-          [];
-
-      for (const token of fcmTokens) {
-        if (
-          typeof token === "string" &&
-          token.trim().length > 0
-        ) {
-          tokens.add(token.trim());
-        }
-      }
-    });
-  }
-
-  return Array.from(tokens);
+  return require('./access_policy').notificationTokens(db);
 }
 
 function buildNotification(data) {
@@ -449,22 +422,15 @@ exports.onNewBooking =
           return;
         }
 
-        await snapshot.ref.set(
-            {
-              adminNotificationRead:
-                false,
-
-              adminNotificationCreatedAt:
-                FieldValue.serverTimestamp(),
-
-              updatedAt:
-                FieldValue.serverTimestamp(),
-            },
-            {
-              merge:
-                true,
-            },
-        );
+        await db.runTransaction(async (transaction) => {
+          const current = await transaction.get(snapshot.ref);
+          if (!current.exists || current.data().adminNotificationCreatedAt) return;
+          transaction.update(snapshot.ref, {
+            adminNotificationRead: current.data().adminNotificationRead === true,
+            adminNotificationCreatedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp(),
+          });
+        });
 
         const tokens =
           await getNotificationTokens();
@@ -484,6 +450,11 @@ exports.onNewBooking =
           await getMessaging()
               .sendEachForMulticast({
                 tokens,
+                webpush: {
+                  fcmOptions: {
+                    link: "https://lecapase-gestionale.web.app/?view=notifications",
+                  },
+                },
 
                 notification:
                   buildNotification(data),
@@ -2258,33 +2229,8 @@ exports.onCustomerBookingStatusChanged =
 // ============================================================
 
 async function marketingUserIsAdmin(uid) {
-  if (!uid) {
-    return false;
-  }
-
-  const adminSnapshot =
-    await db.collection("admins").doc(uid).get();
-
-  if (
-    adminSnapshot.exists &&
-    adminSnapshot.data()?.active === true &&
-    adminSnapshot.data()?.role === "admin"
-  ) {
-    return true;
-  }
-
-  const staffSnapshot =
-    await db.collection("staff_users").doc(uid).get();
-
-  if (!staffSnapshot.exists) {
-    return false;
-  }
-
-  const staffData = staffSnapshot.data();
-
-  return staffData &&
-    staffData.active === true &&
-    staffData.role === "admin";
+  const profile = await require('./access_policy').getProfile(db, uid);
+  return profile?.active === true && profile.role === 'admin';
 }
 
 const MARKETING_WHATSAPP_TEXT_TEMPLATE =

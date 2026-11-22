@@ -1,3 +1,5 @@
+import 'dart:async';
+import '../features/contacts/booking_history_repository.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
@@ -36,6 +38,8 @@ class PushNotificationService {
         showBadge: true,
       );
 
+  static final _opens = StreamController<void>.broadcast();
+  static Stream<void> get notificationOpens => _opens.stream;
   static bool _initialized = false;
 
   static bool _listenersConfigured = false;
@@ -62,6 +66,9 @@ class PushNotificationService {
       }
 
       _configureFirebaseListeners();
+      if (!kIsWeb && await _messaging.getInitialMessage() != null) {
+        _opens.add(null);
+      }
     } catch (error) {
       _initialized = false;
       debugPrint('ERRORE INIZIALIZZAZIONE PUSH: $error');
@@ -137,7 +144,7 @@ class PushNotificationService {
     await _localNotifications.initialize(
       settings: initializationSettings,
       onDidReceiveNotificationResponse: (NotificationResponse response) {
-        debugPrint('NOTIFICA LOCALE APERTA: ${response.payload}');
+        _opens.add(null);
       },
     );
 
@@ -147,6 +154,9 @@ class PushNotificationService {
         >();
 
     await androidPlugin?.createNotificationChannel(_bookingChannel);
+
+    final preferences = await SharedPreferences.getInstance();
+    if (preferences.getBool(_enabledPreferenceKey) == false) return;
 
     final settings = await _messaging.requestPermission(
       alert: true,
@@ -177,7 +187,13 @@ class PushNotificationService {
     _listenersConfigured = true;
 
     _messaging.onTokenRefresh.listen((token) async {
-      await _saveToken(token);
+      try {
+        final preferences = await SharedPreferences.getInstance();
+        if (preferences.getBool(_enabledPreferenceKey) == false) return;
+        await _saveToken(token);
+      } catch (error) {
+        debugPrint('Aggiornamento token push non riuscito: $error');
+      }
     });
 
     FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
@@ -198,7 +214,7 @@ class PushNotificationService {
     });
 
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('NOTIFICA APERTA: ${message.messageId}');
+      _opens.add(null);
     });
   }
 
@@ -297,32 +313,41 @@ class PushNotificationService {
 
   static Future<bool> disableCurrentDeviceNotifications() async {
     try {
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setBool(_enabledPreferenceKey, false);
       final user = FirebaseAuth.instance.currentUser;
-
-      if (user == null) {
-        return false;
-      }
-
+      if (user == null) return false;
       final token = kIsWeb
           ? await _messaging.getToken(vapidKey: _webVapidKey)
           : await _messaging.getToken();
-
       if (token != null && token.trim().isNotEmpty) {
-        await _firestore.collection('notification_devices').doc(user.uid).set({
-          'fcmTokens': FieldValue.arrayRemove([token]),
-          'lastTokenUpdate': FieldValue.serverTimestamp(),
-        }, SetOptions(merge: true));
-
-        await _messaging.deleteToken();
+        // Invalidate the provider token even if removing the Firestore record fails.
+        await Future.wait([
+          _firestore.collection('notification_devices').doc(user.uid).set({
+            'fcmTokens': FieldValue.arrayRemove([token]),
+            'lastTokenUpdate': FieldValue.serverTimestamp(),
+          }, SetOptions(merge: true)),
+          _messaging.deleteToken(),
+        ]).timeout(const Duration(seconds: 10));
       }
-
-      final preferences = await SharedPreferences.getInstance();
-      await preferences.setBool(_enabledPreferenceKey, false);
-
       return true;
     } catch (_) {
       debugPrint('ERRORE DISATTIVAZIONE NOTIFICHE');
       return false;
+    }
+  }
+
+  static Future<void> signOut() async {
+    try {
+      await disableCurrentDeviceNotifications().timeout(
+        const Duration(seconds: 12),
+      );
+    } catch (_) {
+      // An unavailable push provider must not trap the user in a signed-in session.
+    } finally {
+      _initialized = false;
+      clearBookingHistoryCache();
+      await FirebaseAuth.instance.signOut();
     }
   }
 

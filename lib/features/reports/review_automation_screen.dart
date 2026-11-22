@@ -1,13 +1,15 @@
+import '../auth/admin_only.dart';
 import 'package:flutter/material.dart';
 import '../../services/callable_http_service.dart';
 
-class ReviewAutomationScreen extends StatefulWidget {
-  const ReviewAutomationScreen({super.key});
+class _ReviewAutomationScreen extends StatefulWidget {
+  const _ReviewAutomationScreen();
   @override
-  State<ReviewAutomationScreen> createState() => _ReviewAutomationScreenState();
+  State<_ReviewAutomationScreen> createState() =>
+      _ReviewAutomationScreenState();
 }
 
-class _ReviewAutomationScreenState extends State<ReviewAutomationScreen> {
+class _ReviewAutomationScreenState extends State<_ReviewAutomationScreen> {
   final _link = TextEditingController();
   bool _loading = true,
       _failed = false,
@@ -90,6 +92,28 @@ class _ReviewAutomationScreenState extends State<ReviewAutomationScreen> {
               error is CallableHttpException
                   ? error.message
                   : 'Salvataggio non riuscito. Riprova.',
+            ),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _recover() async {
+    setState(() => _saving = true);
+    try {
+      await CallableHttpService.call('recoverReviewRequests');
+      if (mounted) await _load();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error is CallableHttpException
+                  ? error.message
+                  : 'Recupero non riuscito. Riprova.',
             ),
           ),
         );
@@ -231,6 +255,11 @@ class _ReviewAutomationScreenState extends State<ReviewAutomationScreen> {
               const Text(
                 'Solo un amministratore può autorizzare. Basta l’approvazione di uno: il sistema impedisce invii duplicati.',
               ),
+              OutlinedButton.icon(
+                onPressed: _saving || !_savedEnabled ? null : _recover,
+                icon: const Icon(Icons.restore),
+                label: const Text('Recupera lista del giorno precedente'),
+              ),
               if (_batches.isEmpty) const Text('Nessuna richiesta preparata.'),
               ..._batches.map((raw) {
                 final batch = Map<String, dynamic>.from(raw as Map);
@@ -269,7 +298,7 @@ class _ReviewAutomationScreenState extends State<ReviewAutomationScreen> {
               }),
               const SizedBox(height: 20),
               const Text(
-                'Destinatari: prenotazioni Liberata o Completata del giorno precedente. '
+                'Destinatari: prenotazioni Arrivata, Liberata o Completata del giorno precedente. '
                 'Solo email con consenso documentato e non revocato. Un invito per prenotazione, '
                 'massimo uno per contatto ogni 90 giorni. Nessun recupero automatico delle date passate.',
               ),
@@ -320,4 +349,12 @@ class _ReviewAutomationScreenState extends State<ReviewAutomationScreen> {
             ],
           ),
   );
+}
+
+class ReviewAutomationScreen extends StatelessWidget {
+  const ReviewAutomationScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      AdminOnly(child: const _ReviewAutomationScreen());
 }

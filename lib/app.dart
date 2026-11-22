@@ -218,7 +218,7 @@ class StaffAccessGate extends StatelessWidget {
                 const SizedBox(height: 24),
                 FilledButton.icon(
                   onPressed: () async {
-                    await FirebaseAuth.instance.signOut();
+                    await PushNotificationService.signOut();
                   },
                   icon: const Icon(Icons.logout),
                   label: const Text('Esci'),
@@ -279,11 +279,11 @@ class StaffAccessGate extends StatelessWidget {
         }
 
         // Compatibilità con l'amministratore storico.
-        return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance
+        return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
               .collection('admins')
               .doc(user.uid)
-              .get(),
+              .snapshots(),
           builder: (context, adminSnapshot) {
             if (adminSnapshot.connectionState == ConnectionState.waiting) {
               return _loading();
@@ -291,6 +291,11 @@ class StaffAccessGate extends StatelessWidget {
 
             if (adminSnapshot.hasData && adminSnapshot.data!.exists) {
               final data = adminSnapshot.data!.data() ?? {};
+              if (data['active'] != true || data['role'] != 'admin') {
+                return _accessDenied(
+                  'Questo account non dispone dei permessi di amministratore.',
+                );
+              }
 
               return BiometricGate(
                 displayName:
@@ -498,7 +503,7 @@ class _BiometricGateState extends State<BiometricGate> {
   }
 
   Future<void> _signOut() async {
-    await FirebaseAuth.instance.signOut();
+    await PushNotificationService.signOut();
   }
 
   @override

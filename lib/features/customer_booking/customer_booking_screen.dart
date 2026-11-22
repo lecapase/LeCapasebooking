@@ -1,3 +1,5 @@
+import '../../services/restaurant_clock.dart';
+import 'domain/booking_date_policy.dart';
 import '../availability/data/booking_slot_closures_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -126,78 +128,8 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
     super.dispose();
   }
 
-  DateTime _restaurantNow() {
-    final utcNow = DateTime.now().toUtc();
-
-    final dstStart = _lastSundayOfMonthUtc(utcNow.year, DateTime.march);
-    final dstEnd = _lastSundayOfMonthUtc(utcNow.year, DateTime.october);
-
-    final isDst = !utcNow.isBefore(dstStart) && utcNow.isBefore(dstEnd);
-
-    final shifted = utcNow.add(Duration(hours: isDst ? 2 : 1));
-
-    // Ora civile di Cisternino/Roma, indipendente dal fuso del cliente.
-    return DateTime(
-      shifted.year,
-      shifted.month,
-      shifted.day,
-      shifted.hour,
-      shifted.minute,
-      shifted.second,
-    );
-  }
-
-  DateTime _lastSundayOfMonthUtc(int year, int month) {
-    final lastDayAtTransitionHour = DateTime.utc(year, month + 1, 0, 1);
-
-    return lastDayAtTransitionHour.subtract(
-      Duration(days: lastDayAtTransitionHour.weekday % 7),
-    );
-  }
-
-  bool _isBookableTime(DateTime date, String time) {
-    final now = _restaurantNow();
-
-    final selectedDay = DateTime(date.year, date.month, date.day);
-
-    final today = DateTime(now.year, now.month, now.day);
-
-    if (selectedDay.isBefore(today)) {
-      return false;
-    }
-
-    if (selectedDay.isAfter(today)) {
-      return true;
-    }
-
-    final parts = time.split(':');
-
-    if (parts.length != 2) {
-      return false;
-    }
-
-    final hour = int.tryParse(parts[0]);
-    final minute = int.tryParse(parts[1]);
-
-    if (hour == null ||
-        minute == null ||
-        hour < 0 ||
-        hour > 23 ||
-        minute < 0 ||
-        minute > 59) {
-      return false;
-    }
-
-    var slotMinutes = (hour * 60) + minute;
-    final nowMinutes = (now.hour * 60) + now.minute;
-
-    // Eventuali fasce dopo mezzanotte appartengono alla cena del giorno scelto.
-    if (hour < 6 && now.hour >= 6) {
-      slotMinutes += 24 * 60;
-    }
-
-    return slotMinutes > nowMinutes;
-  }
+  bool _isBookableTime(DateTime date, String time) =>
+      BookingDatePolicy.isBookable(date, time);
 
   List<String> _filterBookableTimes(DateTime date, List<String> times) {
     return times.where((time) => _isBookableTime(date, time)).toList();
@@ -1070,7 +1002,7 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
   }
 
   Widget _buildDateStep() {
-    final today = DateTime.now();
+    final today = RestaurantClock.civil(DateTime.now());
 
     final firstDate = DateTime(today.year, today.month, today.day);
 
@@ -1349,6 +1281,15 @@ class _CustomerBookingScreenState extends State<CustomerBookingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Text(
+              _t(
+                'Le prenotazioni online richiedono almeno 45 minuti di anticipo.',
+                'Online bookings require at least 45 minutes’ notice.',
+              ),
+            ),
+          ),
           if (lunchTimes.isNotEmpty)
             _serviceTimes(
               icon: Icons.wb_sunny_outlined,

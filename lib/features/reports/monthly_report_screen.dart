@@ -1,15 +1,16 @@
+import '../auth/admin_only.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../contacts/booking_history_repository.dart';
 import 'monthly_report.dart';
 
-class MonthlyReportScreen extends StatefulWidget {
-  const MonthlyReportScreen({super.key});
+class _MonthlyReportScreen extends StatefulWidget {
+  const _MonthlyReportScreen();
   @override
-  State<MonthlyReportScreen> createState() => _MonthlyReportScreenState();
+  State<_MonthlyReportScreen> createState() => _MonthlyReportScreenState();
 }
 
-class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
+class _MonthlyReportScreenState extends State<_MonthlyReportScreen> {
   late final DateTime _currentMonth;
   late DateTime _month;
   late Future<Map<String, Map<String, dynamic>>> _history;
@@ -37,7 +38,8 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
   }
 
   String get _label => '${_months[_month.month - 1]} ${_month.year}';
-  void _refresh() => setState(() => _history = loadBookingHistory());
+  void _refresh() =>
+      setState(() => _history = loadBookingHistory(refresh: true));
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -158,4 +160,12 @@ class _MonthlyReportScreenState extends State<MonthlyReportScreen> {
       ],
     ),
   );
+}
+
+class MonthlyReportScreen extends StatelessWidget {
+  const MonthlyReportScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      AdminOnly(child: const _MonthlyReportScreen());
 }

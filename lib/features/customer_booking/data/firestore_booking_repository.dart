@@ -54,6 +54,15 @@ class FirestoreBookingRepository {
     bool marketingEmailConsent = false,
     bool marketingWhatsappConsent = false,
   }) async {
+    void checkNotice() {
+      if (!BookingDatePolicy.isBookable(date, time)) {
+        throw const BookingCapacityException(
+          'L’orario selezionato non è più disponibile.',
+        );
+      }
+    }
+
+    checkNotice();
     final normalizedDate = DateTime(date.year, date.month, date.day);
     final storedBookingDate = BookingDatePolicy.endOfDay(date);
 
@@ -258,6 +267,7 @@ class FirestoreBookingRepository {
       // CREA PRENOTAZIONE
       // =================================================
 
+      checkNotice();
       transaction.set(bookingReference, {
         'nome': cleanName,
 

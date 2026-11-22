@@ -1,3 +1,4 @@
+import '../auth/admin_only.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -9,14 +10,14 @@ import '../../services/push_notification_service.dart';
 import '../../theme/app_colors.dart';
 import '../auth/change_password_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({super.key});
+class _SettingsScreen extends StatefulWidget {
+  const _SettingsScreen();
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  State<_SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends State<_SettingsScreen> {
   static const String _biometricPreferenceKey = 'biometric_enabled';
   static const String _notificationsPreferenceKey = 'notifications_enabled';
 
@@ -529,4 +530,12 @@ class _SectionTitle extends StatelessWidget {
       ),
     );
   }
+}
+
+class SettingsScreen extends StatelessWidget {
+  const SettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      AdminOnly(child: const _SettingsScreen());
 }

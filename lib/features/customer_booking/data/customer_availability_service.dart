@@ -1,3 +1,4 @@
+import '../domain/booking_date_policy.dart';
 import '../../availability/data/availability_repository.dart';
 import '../../availability/data/firestore_availability_repository.dart';
 import '../../availability/models/service_availability.dart';
@@ -171,15 +172,6 @@ class CustomerAvailabilityService {
 
     final times = <String>[];
 
-    final now = DateTime.now();
-
-    final selectedDate = DateTime(date.year, date.month, date.day);
-
-    final today = DateTime(now.year, now.month, now.day);
-
-    final isToday = selectedDate == today;
-    final currentMinutes = now.hour * 60 + now.minute;
-
     for (
       int minutes = startMinutes;
       minutes <= endMinutes;
@@ -187,7 +179,7 @@ class CustomerAvailabilityService {
     ) {
       final time = _fromMinutes(minutes);
 
-      if (isToday && minutes <= currentMinutes) {
+      if (!BookingDatePolicy.isBookable(date, time)) {
         continue;
       }
 

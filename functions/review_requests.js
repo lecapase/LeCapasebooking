@@ -19,7 +19,7 @@ function validReviewUrl(value) {
   } catch (_) { return false; }
 }
 function visitEligible(booking, dateKey) {
-  return booking.dateKey === dateKey && ['released', 'completed'].includes(booking.status);
+  return booking.dateKey === dateKey && ['arrived', 'released', 'completed'].includes(booking.status);
 }
 function contact(booking) {
   const email = address(booking, 'email');

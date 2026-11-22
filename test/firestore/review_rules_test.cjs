@@ -11,7 +11,7 @@ async function request(path,method,auth,fields) {
 }
 async function check(response,status){assert.equal(response.status,status,await response.text());}
 (async()=>{
-  for(const role of ['admin','manager','staff','inactive']) await check(await request(`staff_users/${role}`,'PATCH','owner',{
+  for(const role of ['admin','manager','supervisor','staff','inactive','unknown']) await check(await request(`staff_users/${role}`,'PATCH','owner',{
     role:{stringValue:role==='inactive'?'admin':role},active:{booleanValue:role!=='inactive'},
   }),200);
   await check(await request('review_batches/2026-09-26','PATCH','owner',{state:{stringValue:'pending'}}),200);
@@ -23,6 +23,24 @@ async function check(response,status){assert.equal(response.status,status,await 
   for(const role of ['admin','manager','staff',null]) {
     for(const path of ['review_batches/2026-09-26','review_requests/test','review_contact_limits/test','_system/review_automation']) {
       await check(await request(path,'PATCH',role?token(role):null,{state:{stringValue:'approved'}}),403);checked++;
+    }
+  }
+  for (const role of ['manager','supervisor','staff','inactive']) {
+    await check(await request('admins/'+role,'PATCH','owner',{role:{stringValue:'admin'},active:{booleanValue:true}}),200);
+  }
+  await check(await request('admins/legacy','PATCH','owner',{role:{stringValue:'admin'},active:{booleanValue:true}}),200);
+  for (const collection of ['customers','customer_profiles','marketing_contacts','email_events','_system_email_events','review_batches','staff_user_invites']) {
+    await check(await request(collection+'/sensitive','PATCH','owner',{state:{stringValue:'private'}}),200);
+    for(const role of ['admin','legacy','manager','supervisor','staff','inactive','unknown',null]) {
+      const auth=role?token(role):null;
+      const allowed=['admin','legacy'].includes(role);
+      for(const path of [collection+'/sensitive',collection]) {
+        await check(await request(path,'GET',auth),allowed?200:403);checked++;
+      }
+      if (!allowed) {
+        await check(await request(collection+'/sensitive','PATCH',auth,{state:{stringValue:'changed'}}),403);checked++;
+        await check(await request(collection+'/sensitive','DELETE',auth),403);checked++;
+      }
     }
   }
   console.log(`${checked} review authorization rules checks passed.`);

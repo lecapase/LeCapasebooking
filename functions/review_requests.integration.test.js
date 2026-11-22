@@ -59,7 +59,8 @@ test('cooldown covers shared phone and email, with exact 90-day boundary', async
 });
 test('excludes non-visits, older dates, missing email and revoked consent', async () => {
   await seed('cancelled',{status:'cancelled'});
-  await seed('arrived',{status:'arrived'});
+  await seed('no_show',{status:'no_show'});
+  await seed('rejected',{status:'rejected'});
   await seed('old',{dateKey:'2026-09-25'});
   await seed('noemail',{email:''});
   const b=await seed('revoked');
@@ -101,6 +102,18 @@ test('settings API requires active administrator and validates the review URL', 
   await assert.rejects(api.updateReviewAutomation.run({auth:{uid:'admin'},data:{enabled:true,reviewUrl:'https://evil.example'}}),{code:'invalid-argument'});
   await api.updateReviewAutomation.run({auth:{uid:'admin'},data:{enabled:false,reviewUrl:url}});
   assert.equal((await api.getReviewAutomation.run({auth:{uid:'admin'},data:{}})).enabled,false);
+  for (const role of ['manager', 'supervisor', 'staff', 'inactive', 'unknown']) {
+    await db.collection('staff_users').doc(role).set({role:role === 'inactive' ? 'admin' : role,active:role !== 'inactive'});
+    await db.collection('admins').doc(role).set({role:'admin',active:true});
+    const request = {auth:{uid:role},data:{}};
+    for (const endpoint of [api.getReviewAutomation, api.updateReviewAutomation, api.approveReviewBatch, api.recoverReviewRequests,
+      consents.getCustomerConsents, consents.revokeCustomerConsent]) {
+      await assert.rejects(endpoint.run(request),{code:'permission-denied'});
+    }
+  }
+  await consents.requireAdmin({auth:{uid:'admin'}});
+  await db.collection('admins').doc('legacy').set({role:'admin',active:true});
+  await consents.requireAdmin({auth:{uid:'legacy'}});
 });
 test('no approval means no send, even with valid config and consent', async () => {
   await seed('a'); const sent=[];
@@ -140,4 +153,31 @@ test('changed recipient is not covered by the original approval', async () => {
   await runner(sent)(now,{dateKey:b.dateKey,reviewUrl:url,recipients:[{bookingId:'a',email:'old@example.com',phone:contact(b).phone}]});
   assert.equal(sent.length,0);
   assert.equal(await state('a'),'skipped');
+});
+
+ test('screen recovery races safely with scheduler and retains older pending batches', async () => {
+  const day=previousBusinessDate(new Date());
+  await seed('arrived',{dateKey:day,status:'arrived'});
+  await seed('duplicate',{dateKey:day,status:'completed'});
+  await seed('cancelled',{dateKey:day,status:'cancelled',email:'cancelled@example.com',telefono:'4441234567'});
+  const {defineSecret}=require('firebase-functions/params');
+  const api=require('./review_automation')({db,consents,gmailUser:defineSecret('GMAIL_USER'),gmailAppPassword:defineSecret('GMAIL_APP_PASSWORD')});
+  await assert.rejects(api.recoverReviewRequests.run({data:{}}),{code:'unauthenticated'});
+  await db.collection('staff_users').doc('admin').set({role:'admin',active:true});
+  const request={auth:{uid:'admin'},data:{}};
+  await Promise.all([api.recoverReviewRequests.run(request),api.recoverReviewRequests.run(request),api.prepareReviewRequests.run({scheduleTime:new Date().toISOString()})]);
+  const ref=db.collection('review_batches').doc(day);
+  const initial=(await ref.get()).data();
+  assert.equal(initial.state,'pending');
+  assert.equal(initial.recipients.length,1);
+  assert.equal((await db.collection('review_requests').get()).size,0);
+  await api.recoverReviewRequests.run(request);
+  assert.deepEqual((await ref.get()).data(),initial);
+  await db.collection('review_batches').doc('2020-01-01').set({dateKey:'2020-01-01',state:'pending',recipients:initial.recipients,createdAt:Timestamp.fromMillis(1)});
+  for(let i=0;i<31;i++) await db.collection('review_batches').doc('history-'+i).set({dateKey:'2020-01-02',state:'completed',recipients:[],createdAt:Timestamp.now()});
+  const data=await api.getReviewAutomation.run(request);
+  assert.ok(data.batches.some(b=>b.id==='2020-01-01'));
+  await api.approveReviewBatch.run({auth:{uid:'admin'},data:{batchId:day}});
+  await api.recoverReviewRequests.run(request);
+  assert.equal((await ref.get()).data().state,'approved');
 });

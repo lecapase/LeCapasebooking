@@ -8,9 +8,9 @@ test('previous date uses Rome timezone across midnight, DST and year boundaries'
   assert.equal(previousBusinessDate(new Date('2026-03-29T09:00:00Z')), '2026-03-28');
   assert.equal(previousBusinessDate(new Date('2026-10-25T10:00:00Z')), '2026-10-24');
 });
-test('only released and completed visits from yesterday are eligible', () => {
-  for (const status of ['released', 'completed']) assert.equal(visitEligible({status,dateKey:'2026-09-26'}, '2026-09-26'),true);
-  for (const status of ['arrived','cancelled','no_show','pending','booked','confirmed','rejected']) {
+test('only arrived, released and completed visits from yesterday are eligible', () => {
+  for (const status of ['arrived', 'released', 'completed']) assert.equal(visitEligible({status,dateKey:'2026-09-26'}, '2026-09-26'),true);
+  for (const status of ['cancelled','no_show','pending','booked','confirmed','rejected']) {
     assert.equal(visitEligible({status,dateKey:'2026-09-26'}, '2026-09-26'),false);
   }
   assert.equal(visitEligible({status:'released',dateKey:'2026-09-25'},'2026-09-26'),false);

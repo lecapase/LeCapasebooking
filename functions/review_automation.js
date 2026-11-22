@@ -16,7 +16,8 @@ module.exports = function buildReviewAutomation({db, gmailUser, gmailAppPassword
     const [staff, legacy] = await Promise.all([
       db.collection('staff_users').doc(uid).get(), db.collection('admins').doc(uid).get(),
     ]);
-    if (![staff, legacy].some(doc => doc.data()?.active === true && doc.data()?.role === 'admin')) {
+    const profile = staff.exists ? staff : legacy;
+    if (profile.data()?.active !== true || profile.data()?.role !== 'admin') {
       throw new HttpsError('permission-denied', 'Solo gli amministratori possono autorizzare le richieste recensione.');
     }
     return uid;
@@ -52,16 +53,15 @@ module.exports = function buildReviewAutomation({db, gmailUser, gmailAppPassword
     await settings.set({enabled, reviewUrl, updatedAt: FieldValue.serverTimestamp(), updatedBy: uid}, {merge: true});
     return {success: true};
   });
-  // At 11 only prepare a batch. Pending documents are realtime admin notifications.
-  const prepareReviewRequests = onSchedule({...options, schedule:'0 11 * * *',timeZone:'Europe/Rome',
-    timeoutSeconds:540,retryCount:3,maxRetrySeconds:1800,minBackoffSeconds:60}, async event => {
-    const scheduled = new Date(event.scheduleTime);
-    if (Number.isNaN(scheduled.getTime()) || previousBusinessDate(scheduled) !== previousBusinessDate(new Date())) return;
+  // The pending batch itself is the persistent administrator notification.
+  async function prepareBatch(now) {
     const config = (await settings.get()).data() || {};
-    if (!config.enabled || !validReviewUrl(config.reviewUrl)) return;
-    const dateKey = previousBusinessDate(scheduled);
+    if (!config.enabled || !validReviewUrl(config.reviewUrl)) {
+      throw new HttpsError('failed-precondition','Attiva la preparazione e verifica il link prima del recupero.');
+    }
+    const dateKey = previousBusinessDate(now);
     const batch = batches.doc(dateKey);
-    if ((await batch.get()).exists) return;
+    if ((await batch.get()).exists) return {dateKey, existing:true};
     const snapshot = await db.collection('bookings').where('dateKey','==',dateKey).get();
     const recipients = [], used = new Set();
     for (const doc of snapshot.docs) {
@@ -71,7 +71,7 @@ module.exports = function buildReviewAutomation({db, gmailUser, gmailAppPassword
       const profile = db.collection('customer_profiles').doc(target.profileId);
       if (!await consents.eligible(profile,'email',target.email)) continue;
       const limits = await db.getAll(...target.keys.map(k=>db.collection('review_contact_limits').doc(k)));
-      if (limits.some(l=>l.data()?.lastAttemptAt?.toMillis() > scheduled.getTime()-COOLDOWN_MS)) continue;
+      if (limits.some(l=>l.data()?.lastAttemptAt?.toMillis() > now.getTime()-COOLDOWN_MS)) continue;
       target.keys.forEach(k=>used.add(k));
       recipients.push({bookingId:doc.id,email:target.email,phone:target.phone});
     }
@@ -81,6 +81,25 @@ module.exports = function buildReviewAutomation({db, gmailUser, gmailAppPassword
       tx.create(batch,{dateKey,recipients,state:recipients.length ? 'pending' : 'empty',
         createdAt:FieldValue.serverTimestamp(),updatedAt:FieldValue.serverTimestamp()});
     });
+    return {dateKey, existing:false};
+  }
+  const prepareReviewRequests = onSchedule({...options, schedule:'0 11 * * *',timeZone:'Europe/Rome',
+    timeoutSeconds:540,retryCount:3,maxRetrySeconds:1800,minBackoffSeconds:60}, async event => {
+    const scheduled = new Date(event.scheduleTime);
+    if (Number.isNaN(scheduled.getTime()) || previousBusinessDate(scheduled) !== previousBusinessDate(new Date())) {
+      console.info('Review preparation skipped: stale schedule', {scheduleTime:event.scheduleTime});
+      return;
+    }
+    const config = (await settings.get()).data() || {};
+    if (!config.enabled || !validReviewUrl(config.reviewUrl)) {
+      console.info('Review preparation skipped: disabled or invalid configuration');
+      return;
+    }
+    console.info('Review preparation completed', await prepareBatch(scheduled));
+  });
+  const recoverReviewRequests = onCall({...options, timeoutSeconds:540}, async request => {
+    await requireAdmin(request);
+    return prepareBatch(new Date());
   });
   const approveReviewBatch = onCall(options, async request => {
     const uid = await requireAdmin(request);
@@ -124,5 +143,5 @@ module.exports = function buildReviewAutomation({db, gmailUser, gmailAppPassword
       await ref.update({state:'attention',updatedAt:FieldValue.serverTimestamp()});
     }
   });
-  return {getReviewAutomation,updateReviewAutomation,prepareReviewRequests,approveReviewBatch,sendApprovedReviewBatch};
+  return {getReviewAutomation,updateReviewAutomation,prepareReviewRequests,recoverReviewRequests,approveReviewBatch,sendApprovedReviewBatch};
 };

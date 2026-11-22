@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,24 @@ class CallableHttpService {
   static const String _region = 'europe-west1';
 
   static Future<Map<String, dynamic>> call(
+    String functionName, [
+    Map<String, dynamic> data = const {},
+  ]) async {
+    try {
+      return await _call(
+        functionName,
+        data,
+      ).timeout(const Duration(seconds: 30));
+    } on TimeoutException {
+      throw const CallableHttpException(
+        code: 'deadline-exceeded',
+        message:
+            'Il server impiega troppo tempo. Verifica lo stato prima di riprovare: l’operazione potrebbe essere stata completata.',
+      );
+    }
+  }
+
+  static Future<Map<String, dynamic>> _call(
     String functionName, [
     Map<String, dynamic> data = const {},
   ]) async {

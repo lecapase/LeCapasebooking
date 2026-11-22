@@ -17,6 +17,8 @@ firebase.initializeApp({
 const messaging = firebase.messaging();
 
 messaging.onBackgroundMessage((message) => {
+  // FCM already displays notification payloads automatically.
+  if (message.notification) return;
   const notification = message.notification || {};
 
   const title = notification.title || 'Le Capase Booking';
@@ -27,14 +29,16 @@ messaging.onBackgroundMessage((message) => {
     badge: '/icons/Icon-192.png',
     tag: message.data?.bookingId || 'le-capase-booking',
     data: {
-      url: '/',
+      url: '/?view=notifications',
     },
   };
 
-  self.registration.showNotification(title, options);
+  return self.registration.showNotification(title, options);
 });
 
 self.addEventListener('notificationclick', (event) => {
+  // FCM owns clicks on its automatic notifications via fcmOptions.link.
+  if (event.notification.data?.url !== '/?view=notifications') return;
   event.notification.close();
 
   event.waitUntil(
@@ -44,12 +48,12 @@ self.addEventListener('notificationclick', (event) => {
     }).then((clientList) => {
       for (const client of clientList) {
         if ('focus' in client) {
-          return client.focus();
+          return client.navigate('/?view=notifications').then(() => client.focus());
         }
       }
 
       if (clients.openWindow) {
-        return clients.openWindow('/');
+        return clients.openWindow('/?view=notifications');
       }
 
       return null;

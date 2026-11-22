@@ -22,15 +22,17 @@ before(async () => {
   assert.equal(response.status, 200);
 });
 test('authorization, independent revocation, duplicate-address suppression and audit', async () => {
+  await db.collection('staff_users').doc('admin').set({active: true, role: 'admin'});
   await db.collection('staff_users').doc('manager').set({active: true, role: 'manager'});
   await db.collection('staff_users').doc('staff').set({active: true, role: 'staff'});
   await db.collection('staff_users').doc('inactive').set({active: false, role: 'admin'});
   await ref.set(evidence);
   await assert.rejects(api.getCustomerConsents.run({data: {customerKey: key}}), {code: 'unauthenticated'});
-  for (const uid of ['staff', 'inactive']) {
+  for (const uid of ['manager', 'staff', 'inactive']) {
+    await assert.rejects(api.getCustomerConsents.run({auth: {uid}, data: {customerKey: key}}), {code: 'permission-denied'});
     await assert.rejects(api.revokeCustomerConsent.run({auth: {uid}, data: {customerKey: key, channel: 'email'}}), {code: 'permission-denied'});
   }
-  const request = {auth: {uid: 'manager'}, data: {customerKey: key}};
+  const request = {auth: {uid: 'admin'}, data: {customerKey: key}};
   const original = await api.getCustomerConsents.run(request);
   assert.equal(original.email.state, 'granted');
   assert.equal(original.whatsapp.state, 'granted');

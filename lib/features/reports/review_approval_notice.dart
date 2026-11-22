@@ -25,7 +25,13 @@ class _ReviewApprovalNoticeState extends State<ReviewApprovalNotice> {
           title: Text('Notifiche recensioni non disponibili.'),
         );
       }
-      final count = snapshot.data?.docs.length ?? 0;
+      final count =
+          snapshot.data?.docs.fold<int>(
+            0,
+            (total, doc) =>
+                total + (doc.data()['recipients'] as List? ?? []).length,
+          ) ??
+          0;
       if (count == 0) return const SizedBox.shrink();
       return Material(
         color: const Color(0xFF3A3020),
@@ -34,10 +40,10 @@ class _ReviewApprovalNoticeState extends State<ReviewApprovalNotice> {
             Icons.notifications_active,
             color: Color(0xFFC8A45D),
           ),
-          title: const Text('Richieste recensione da autorizzare'),
-          subtitle: Text(
-            '$count ${count == 1 ? 'giornata pronta' : 'giornate pronte'}. Nessuna email parte senza approvazione.',
+          title: Text(
+            'Lista richieste recensioni pronta – $count email da autorizzare',
           ),
+          subtitle: Text('Nessuna email parte senza approvazione.'),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute<void>(

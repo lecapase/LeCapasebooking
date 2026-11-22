@@ -1,3 +1,12 @@
+import 'widgets/monthly_booking_calendar.dart';
+import '../../services/restaurant_clock.dart';
+import 'widgets/notification_slide_card.dart';
+import 'dart:async';
+import 'notification_policy.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'capacity_warning.dart';
+import 'booking_feed.dart';
+import '../contacts/booking_history_repository.dart';
 import 'widgets/booking_card_heading.dart';
 import '../contacts/customers_screen.dart';
 import '../contacts/customer_history.dart';
@@ -25,6 +34,7 @@ class BookingsScreen extends StatefulWidget {
     super.key,
     this.onLock,
     this.onLogout,
+    this.bookingsStreamFactory,
     required this.displayName,
     required this.email,
     required this.userRole,
@@ -32,6 +42,10 @@ class BookingsScreen extends StatefulWidget {
 
   final Future<void> Function()? onLock;
   final Future<void> Function()? onLogout;
+
+  /// Optional source for exercising the full screen without production data.
+  final Stream<QuerySnapshot<Map<String, dynamic>>> Function()?
+  bookingsStreamFactory;
 
   final String displayName;
   final String email;
@@ -42,7 +56,14 @@ class BookingsScreen extends StatefulWidget {
 }
 
 class _BookingsScreenState extends State<BookingsScreen> {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  late final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final _notificationsScrollController = ScrollController();
+  late final Stream<List<BookingDocument>>? _injectedBookingsStream;
+
+  Map<String, dynamic> get _operatorAudit => {
+    'updatedByUid': FirebaseAuth.instance.currentUser!.uid,
+    'updatedByRole': widget.userRole,
+  };
 
   bool get _isAdmin => widget.userRole == 'admin';
 
@@ -73,9 +94,101 @@ class _BookingsScreenState extends State<BookingsScreen> {
     DateTime.now(),
   );
   String _selectedFilter = 'all';
-  int _bottomIndex = 0;
+  int _bottomIndex = Uri.base.queryParameters['view'] == 'notifications'
+      ? 3
+      : 0;
+  bool _markingNotifications = false;
+  bool _selectingNotifications = false;
+  bool _deletingNotifications = false;
+  int _notificationDeletionsDone = 0;
+  int _notificationDeletionsTotal = 0;
+  final Map<String, BookingDocument> _selectedNotifications = {};
+
+  void _toggleNotificationSelection(BookingDocument document) {
+    if (_deletingNotifications) return;
+    setState(() {
+      if (_selectedNotifications.containsKey(document.id)) {
+        _selectedNotifications.remove(document.id);
+      } else {
+        _selectedNotifications[document.id] = document;
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedNotifications() async {
+    if (!_isManager ||
+        _deletingNotifications ||
+        _selectedNotifications.isEmpty) {
+      return;
+    }
+    final selected = _selectedNotifications.values.toList();
+    setState(() {
+      _deletingNotifications = true;
+      _notificationDeletionsDone = 0;
+      _notificationDeletionsTotal = selected.length;
+    });
+    var removed = 0;
+    await deleteNotificationsConcurrently<BookingDocument>(
+      selected,
+      remove: (document) => markBookingNotificationRead(
+        _firestore,
+        document.reference,
+        document.data(),
+        dismiss: true,
+      ),
+      onComplete: (document, success) {
+        if (success) {
+          removed++;
+          _selectedNotifications.remove(document.id);
+        }
+        if (mounted) setState(() => _notificationDeletionsDone++);
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _deletingNotifications = false;
+      if (_selectedNotifications.isEmpty) _selectingNotifications = false;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$removed notifiche eliminate. '
+          '${selected.length - removed} non eliminate (aggiornate o errore di salvataggio).',
+        ),
+      ),
+    );
+  }
+
+  final _notificationReadState = NotificationReadState();
+  Timer? _notificationClock;
+  StreamSubscription<void>? _notificationOpens;
+
+  @override
+  void initState() {
+    super.initState();
+    _injectedBookingsStream = widget.bookingsStreamFactory?.call().map(
+      (snapshot) => snapshot.docs,
+    );
+    _notificationClock = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted && _bottomIndex == 3) setState(() {});
+    });
+    _notificationOpens = PushNotificationService.notificationOpens.listen((_) {
+      if (mounted) setState(() => _bottomIndex = 3);
+    });
+  }
 
   bool _savingManualBooking = false;
+  String? _feedMonth;
+  Stream<List<BookingDocument>>? _feed;
+
+  Stream<List<BookingDocument>> _bookingFeed() {
+    final month = '${_selectedDate.year}-${_selectedDate.month}';
+    if (_feedMonth != month) {
+      _feedMonth = month;
+      _feed = watchBookingFeed(_firestore, _selectedDate);
+    }
+    return _feed!;
+  }
 
   final TextEditingController _manualFirstNameController =
       TextEditingController();
@@ -140,6 +253,9 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
   @override
   void dispose() {
+    _notificationsScrollController.dispose();
+    _notificationClock?.cancel();
+    _notificationOpens?.cancel();
     _manualFirstNameController.dispose();
     _manualLastNameController.dispose();
     _manualPhoneController.dispose();
@@ -253,10 +369,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     return '${parts[2]}/${parts[1]}/${parts[0]}';
-  }
-
-  bool _countsAsConfirmedCover(String status) {
-    return status == 'booked' || status == 'confirmed' || status == 'arrived';
   }
 
   bool _isPastStatus(String status) {
@@ -539,7 +651,69 @@ class _BookingsScreenState extends State<BookingsScreen> {
     return '$hour:$minute';
   }
 
+  Future<bool> _capacityTransaction(
+    String dateKey,
+    String service,
+    Future<void> Function(Transaction, void Function(int, int)) action,
+  ) async {
+    final date = DateTime.parse(dateKey);
+    final historical = _isDatePast(date);
+    final availability = historical
+        ? null
+        : await CustomerAvailabilityService.getAvailabilityForDate(date);
+    final configured = service == 'lunch'
+        ? availability?.lunch
+        : availability?.dinner;
+    final limit = configured?.isOpen == true ? configured!.maxOnlineGuests : 0;
+    int? approvedTotal;
+    while (mounted) {
+      try {
+        await _firestore.runTransaction(
+          (transaction) => action(transaction, (current, increase) {
+            if (!historical) {
+              checkCapacityIncrease(
+                currentGuests: current,
+                increase: increase,
+                limit: limit,
+                approvedTotal: approvedTotal,
+              );
+            }
+          }),
+        );
+        clearBookingHistoryCache();
+        return true;
+      } on CapacityWarning catch (warning) {
+        if (!mounted) return false;
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Superamento del limite coperti'),
+            content: Text(
+              'Con questa modifica si arriva a ${warning.projectedGuests} coperti per ${_serviceLabel(service)}. '
+              'Il limite online configurato è ${warning.limit}. '
+              'Controlla la disponibilità effettiva prima di confermare.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Annulla'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Conferma superamento'),
+              ),
+            ],
+          ),
+        );
+        if (proceed != true) return false;
+        approvedTotal = warning.projectedGuests;
+      }
+    }
+    return false;
+  }
+
   Future<void> _saveManualBooking() async {
+    if (_savingManualBooking) return;
     if (!_isManager) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -564,6 +738,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
       return;
     }
 
+    final service = _manualService;
+    final guests = _manualGuests;
+    final time = _manualTimeValue();
+    final lastName = _manualLastNameController.text.trim();
+    final email = _manualEmailController.text.trim();
+    final phone = _manualPhoneController.text.trim();
+    final notes = _manualNotesController.text.trim();
     setState(() {
       _savingManualBooking = true;
     });
@@ -580,29 +761,34 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     final counterReference = _firestore
         .collection('availability_counters')
-        .doc('${dateKey}_$_manualService');
+        .doc('${dateKey}_$service');
 
     try {
-      await _firestore.runTransaction((transaction) async {
+      final saved = await _capacityTransaction(dateKey, service, (
+        transaction,
+        check,
+      ) async {
         final counterSnapshot = await transaction.get(counterReference);
 
         final currentGuests = counterSnapshot.exists
             ? _readInteger(counterSnapshot.data()?['bookedGuests'])
             : 0;
 
+        check(currentGuests, guests);
         transaction.set(bookingReference, {
+          ..._operatorAudit,
           'nome': firstName,
-          'cognome': _manualLastNameController.text.trim(),
-          'email': _manualEmailController.text.trim(),
-          'telefono': _manualPhoneController.text.trim(),
+          'cognome': lastName,
+          'email': email,
+          'telefono': phone,
           'date': Timestamp.fromDate(normalizedDate),
           'dateKey': dateKey,
           'weekday': normalizedDate.weekday,
-          'time': _manualTimeValue(),
-          'service': _manualService,
-          'guests': _manualGuests,
+          'time': time,
+          'service': service,
+          'guests': guests,
           'occasion': 'Nessuna',
-          'notes': _manualNotesController.text.trim(),
+          'notes': notes,
           'status': 'booked',
           'autoBooked': false,
           'autoConfirmed': false,
@@ -618,13 +804,17 @@ class _BookingsScreenState extends State<BookingsScreen> {
         transaction.set(counterReference, {
           'dateKey': dateKey,
           'weekday': normalizedDate.weekday,
-          'service': _manualService,
-          'bookedGuests': currentGuests + _manualGuests,
+          'service': service,
+          'bookedGuests': currentGuests + guests,
           'lastBookingId': bookingReference.id,
           'updatedAt': FieldValue.serverTimestamp(),
         }, SetOptions(merge: true));
       });
 
+      if (!saved) {
+        if (mounted) setState(() => _savingManualBooking = false);
+        return;
+      }
       _manualFirstNameController.clear();
       _manualLastNameController.clear();
       _manualPhoneController.clear();
@@ -639,7 +829,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         _savingManualBooking = false;
         _bottomIndex = 0;
         _selectedSection = 0;
-        _selectedService = _manualService;
+        _selectedService = service;
         _selectedFilter = 'all';
       });
 
@@ -899,7 +1089,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
         .doc('${dateKey}_$service');
 
     try {
-      await _firestore.runTransaction((transaction) async {
+      final saved = await _capacityTransaction(dateKey, service, (
+        transaction,
+        check,
+      ) async {
         final bookingSnapshot = await transaction.get(bookingReference);
 
         if (!bookingSnapshot.exists) {
@@ -939,6 +1132,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ? _readInteger(counterSnapshot.data()?['bookedGuests'])
               : 0;
 
+          check(currentGuests, guestsDifference);
           final updatedGuests = (currentGuests + guestsDifference).clamp(
             0,
             100000,
@@ -953,6 +1147,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }
 
         final updates = <String, dynamic>{
+          ..._operatorAudit,
           'status': newStatus,
           'updatedAt': FieldValue.serverTimestamp(),
         };
@@ -997,7 +1192,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         transaction.update(bookingReference, updates);
       });
 
-      if (!mounted) {
+      if (!saved || !mounted) {
         return;
       }
 
@@ -2236,7 +2431,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     try {
-      await _firestore.runTransaction((transaction) async {
+      final original = document.data();
+      final dateKeyBefore = original['dateKey'] as String;
+      final serviceBefore = original['service'] as String;
+      final saved = await _capacityTransaction(dateKeyBefore, serviceBefore, (
+        transaction,
+        check,
+      ) async {
         final bookingSnapshot = await transaction.get(document.reference);
 
         if (!bookingSnapshot.exists) {
@@ -2248,6 +2449,11 @@ class _BookingsScreenState extends State<BookingsScreen> {
         final status = booking['status'] as String? ?? 'pending';
         final dateKey = booking['dateKey'] as String? ?? '';
         final service = booking['service'] as String? ?? '';
+        if (dateKey != dateKeyBefore || service != serviceBefore) {
+          throw Exception(
+            'Prenotazione modificata. Riapri il dettaglio e riprova.',
+          );
+        }
 
         if (oldGuests == newGuests) {
           return;
@@ -2266,6 +2472,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               ? _readInteger(counterSnapshot.data()?['bookedGuests'])
               : 0;
 
+          check(currentGuests, newGuests - oldGuests);
           final updatedGuests = (currentGuests + newGuests - oldGuests).clamp(
             0,
             100000,
@@ -2280,12 +2487,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
         }
 
         transaction.update(document.reference, {
+          ..._operatorAudit,
           'guests': newGuests,
           'updatedAt': FieldValue.serverTimestamp(),
         });
       });
 
-      return true;
+      return saved;
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2317,10 +2525,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
     try {
       await document.reference.update({
+        ..._operatorAudit,
         'time': newTime,
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      clearBookingHistoryCache();
       return true;
     } catch (error) {
       if (mounted) {
@@ -2433,7 +2643,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
     final booking = document.data();
-    if (_isNotificationUnread(booking)) {
+    if (_isNotificationUnread(booking, document.id)) {
       await _markNotificationRead(document);
 
       if (!mounted) {
@@ -2580,7 +2790,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
                             ),
                           ),
                           const SizedBox(height: 14),
-                          if (_isManager)
+                          _infoRow(
+                            icon: Icons.history,
+                            text: _creationLabel(booking),
+                          ),
+                          const SizedBox(height: 10),
+                          if (_isAdmin)
                             TextButton.icon(
                               icon: const Icon(Icons.person_outline),
                               label: const Text('Scheda cliente'),
@@ -2812,6 +3027,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
+  String _creationLabel(Map<String, dynamic> booking) {
+    final createdAt = booking['createdAt'];
+    return createdAt is Timestamp
+        ? 'Prenotata il ${RestaurantClock.formatCreatedAt(createdAt.toDate())}'
+        : 'Data di creazione non disponibile';
+  }
+
   Widget _buildBookingCard(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) {
@@ -2852,6 +3074,14 @@ class _BookingsScreenState extends State<BookingsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     BookingCardHeading(name: fullName, guests: guests),
+                    const SizedBox(height: 4),
+                    Text(
+                      _creationLabel(booking),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white70,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Wrap(
                       spacing: 9,
@@ -3033,7 +3263,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             Text(
               _selectedSection == 0
                   ? 'Nessuna prenotazione attiva '
-                        'per questa data'
+                        'per ${_selectedService == 'all' ? 'questa data' : _serviceLabel(_selectedService)}'
                   : 'Nessuna prenotazione passata '
                         'per questa data',
               textAlign: TextAlign.center,
@@ -3062,44 +3292,47 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     final times = groups.keys.toList()..sort();
-
+    final rows = <(String, BookingDocument?)>[];
+    final totals = <String, int>{};
+    for (final time in times) {
+      rows.add((time, null));
+      totals[time] = 0;
+      for (final document in groups[time]!) {
+        rows.add((time, document));
+        totals[time] = totals[time]! + _readInteger(document.data()['guests']);
+      }
+    }
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 6, 16, 24),
-      itemCount: times.length,
+      itemCount: rows.length,
       itemBuilder: (context, index) {
-        final time = times[index];
-        final group = groups[time]!;
-
-        final guests = group.fold<int>(0, (total, document) {
-          return total + _readInteger(document.data()['guests']);
-        });
-
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFC8A45D),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  '$time • ${guests}p',
-                  style: const TextStyle(
-                    color: Colors.black,
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                  ),
+        final (time, document) = rows[index];
+        if (document != null) {
+          return KeyedSubtree(
+            key: ValueKey(document.id),
+            child: _buildBookingCard(document),
+          );
+        }
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(2, 12, 2, 8),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC8A45D),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                '$time • ${totals[time]}p',
+                style: const TextStyle(
+                  color: Colors.black,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            ...group.map(_buildBookingCard),
-          ],
+          ),
         );
       },
     );
@@ -3115,146 +3348,153 @@ class _BookingsScreenState extends State<BookingsScreen> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
-      children: [
-        const Text(
-          'Inserimento manuale',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Per clienti telefonici o persone di passaggio.',
-          style: TextStyle(fontSize: 12, color: Colors.grey),
-        ),
-        const SizedBox(height: 14),
-        Row(
-          children: [
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _selectManualDate,
-                icon: const Icon(Icons.calendar_today_outlined, size: 17),
-                label: Text(
-                  _fullDateLabel(_selectedDate),
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 13),
+    return AbsorbPointer(
+      absorbing: _savingManualBooking,
+      child: ListView(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+        children: [
+          const Text(
+            'Inserimento manuale',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Per clienti telefonici o persone di passaggio.',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectManualDate,
+                  icon: const Icon(Icons.calendar_today_outlined, size: 17),
+                  label: Text(
+                    _fullDateLabel(_selectedDate),
+                    softWrap: true,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: OutlinedButton.icon(
-                onPressed: _selectManualTime,
-                icon: const Icon(Icons.schedule_outlined, size: 17),
-                label: Text(
-                  _manualTimeValue(),
-                  style: const TextStyle(fontSize: 13),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _selectManualTime,
+                  icon: const Icon(Icons.schedule_outlined, size: 17),
+                  label: Text(
+                    _manualTimeValue(),
+                    style: const TextStyle(fontSize: 13),
+                  ),
                 ),
               ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        SegmentedButton<String>(
-          segments: const [
-            ButtonSegment<String>(
-              value: 'lunch',
-              label: Text('Pranzo', style: TextStyle(fontSize: 12)),
-              icon: Icon(Icons.wb_sunny_outlined, size: 17),
-            ),
-            ButtonSegment<String>(
-              value: 'dinner',
-              label: Text('Cena', style: TextStyle(fontSize: 12)),
-              icon: Icon(Icons.nightlight_outlined, size: 17),
-            ),
-          ],
-          selected: {_manualService},
-          onSelectionChanged: (selection) {
-            setState(() {
-              _manualService = selection.first;
-            });
-          },
-        ),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<int>(
-          initialValue: _manualGuests,
-          decoration: decoration('Numero di persone', Icons.people_outline),
-          items: List.generate(20, (index) {
-            final guests = index + 1;
-
-            return DropdownMenuItem<int>(
-              value: guests,
-              child: Text(
-                '$guests '
-                '${guests == 1 ? 'persona' : 'persone'}',
-                style: const TextStyle(fontSize: 13),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment<String>(
+                value: 'lunch',
+                label: Text('Pranzo', style: TextStyle(fontSize: 12)),
+                icon: Icon(Icons.wb_sunny_outlined, size: 17),
               ),
-            );
-          }),
-          onChanged: (value) {
-            if (value == null) {
-              return;
-            }
+              ButtonSegment<String>(
+                value: 'dinner',
+                label: Text('Cena', style: TextStyle(fontSize: 12)),
+                icon: Icon(Icons.nightlight_outlined, size: 17),
+              ),
+            ],
+            selected: {_manualService},
+            onSelectionChanged: (selection) {
+              setState(() {
+                _manualService = selection.first;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<int>(
+            initialValue: _manualGuests,
+            decoration: decoration('Numero di persone', Icons.people_outline),
+            items: List.generate(20, (index) {
+              final guests = index + 1;
 
-            setState(() {
-              _manualGuests = value;
-            });
-          },
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _manualFirstNameController,
-          textCapitalization: TextCapitalization.words,
-          decoration: decoration('Nome', Icons.person_outline),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _manualLastNameController,
-          textCapitalization: TextCapitalization.words,
-          decoration: decoration('Cognome', Icons.person_outline),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _manualPhoneController,
-          keyboardType: TextInputType.phone,
-          decoration: decoration('Telefono facoltativo', Icons.phone_outlined),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _manualEmailController,
-          keyboardType: TextInputType.emailAddress,
-          decoration: decoration('Email facoltativa', Icons.email_outlined),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 10),
-        TextField(
-          controller: _manualNotesController,
-          minLines: 2,
-          maxLines: 4,
-          decoration: decoration('Note', Icons.notes_outlined),
-          style: const TextStyle(fontSize: 13),
-        ),
-        const SizedBox(height: 14),
-        FilledButton.icon(
-          onPressed: _savingManualBooking || _isDatePast(_selectedDate)
-              ? null
-              : _saveManualBooking,
-          icon: _savingManualBooking
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.add, size: 18),
-          label: Text(
-            _savingManualBooking ? 'Salvataggio...' : 'Aggiungi prenotazione',
+              return DropdownMenuItem<int>(
+                value: guests,
+                child: Text(
+                  '$guests '
+                  '${guests == 1 ? 'persona' : 'persone'}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              );
+            }),
+            onChanged: (value) {
+              if (value == null) {
+                return;
+              }
+
+              setState(() {
+                _manualGuests = value;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _manualFirstNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: decoration('Nome', Icons.person_outline),
             style: const TextStyle(fontSize: 13),
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          TextField(
+            controller: _manualLastNameController,
+            textCapitalization: TextCapitalization.words,
+            decoration: decoration('Cognome', Icons.person_outline),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _manualPhoneController,
+            keyboardType: TextInputType.phone,
+            decoration: decoration(
+              'Telefono facoltativo',
+              Icons.phone_outlined,
+            ),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _manualEmailController,
+            keyboardType: TextInputType.emailAddress,
+            decoration: decoration('Email facoltativa', Icons.email_outlined),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _manualNotesController,
+            minLines: 2,
+            maxLines: 4,
+            decoration: decoration('Note', Icons.notes_outlined),
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 14),
+          FilledButton.icon(
+            onPressed: _savingManualBooking || _isDatePast(_selectedDate)
+                ? null
+                : _saveManualBooking,
+            icon: _savingManualBooking
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.add, size: 18),
+            label: Text(
+              _savingManualBooking ? 'Salvataggio...' : 'Aggiungi prenotazione',
+              style: const TextStyle(fontSize: 13),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -3302,59 +3542,8 @@ class _BookingsScreenState extends State<BookingsScreen> {
         (status == 'booked' || status == 'confirmed');
   }
 
-  bool _unreadReconfirmationResult(Map<String, dynamic> booking) {
-    final reconfirmationStatus =
-        booking['reconfirmationStatus'] as String? ?? '';
-
-    if (reconfirmationStatus != 'confirmed' &&
-        reconfirmationStatus != 'cancelled') {
-      return false;
-    }
-
-    return booking['reconfirmationResultRead'] == false;
-  }
-
-  bool _shouldShowNotification(Map<String, dynamic> booking) {
-    final source = booking['source'] as String? ?? '';
-
-    if (source != 'customer') {
-      return false;
-    }
-
-    final status = booking['status'] as String? ?? 'pending';
-
-    // Risposta ricevuta alla riconferma:
-    // resta finché viene aperta.
-    if (_unreadReconfirmationResult(booking)) {
-      return true;
-    }
-
-    // Richiesta di riconferma ancora senza risposta.
-    if (_reconfirmationWaiting(booking)) {
-      return true;
-    }
-
-    // Richiesta >4 persone:
-    // rimane finché viene gestita.
-    if (status == 'pending') {
-      return true;
-    }
-
-    // Se una richiesta manuale è stata gestita,
-    // non deve restare nelle notifiche.
-    if (booking['requiresManualConfirmation'] == true) {
-      return false;
-    }
-
-    // Stati già conclusi o cliente già arrivato.
-    if (_isPastStatus(status) || status == 'arrived') {
-      return false;
-    }
-
-    // Normale prenotazione online nuova:
-    // soltanto quelle create dopo questo aggiornamento.
-    return booking['adminNotificationRead'] == false;
-  }
+  bool _shouldShowNotification(Map<String, dynamic> booking) =>
+      notificationVisible(booking);
 
   String _notificationTitle(Map<String, dynamic> booking) {
     final status = booking['status'] as String? ?? 'pending';
@@ -3362,7 +3551,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
     final reconfirmationStatus =
         booking['reconfirmationStatus'] as String? ?? '';
 
-    if (_unreadReconfirmationResult(booking)) {
+    if (const ['confirmed', 'cancelled'].contains(reconfirmationStatus)) {
       if (reconfirmationStatus == 'confirmed') {
         return 'Cliente ha riconfermato';
       }
@@ -3438,7 +3627,10 @@ class _BookingsScreenState extends State<BookingsScreen> {
   DateTime _notificationSortTime(Map<String, dynamic> booking) {
     dynamic value;
 
-    if (_unreadReconfirmationResult(booking)) {
+    if (const [
+      'confirmed',
+      'cancelled',
+    ].contains(booking['reconfirmationStatus'])) {
       value = booking['lastWhatsappReplyAt'];
     } else if (_reconfirmationWaiting(booking)) {
       value =
@@ -3458,125 +3650,153 @@ class _BookingsScreenState extends State<BookingsScreen> {
   Future<void> _markNotificationRead(
     QueryDocumentSnapshot<Map<String, dynamic>> document,
   ) async {
-    final booking = document.data();
-
-    final reconfirmationStatus =
-        booking['reconfirmationStatus'] as String? ?? '';
-
-    final updates = <String, dynamic>{
-      'adminNotificationRead': true,
-      'adminNotificationReadAt': FieldValue.serverTimestamp(),
-      'updatedAt': FieldValue.serverTimestamp(),
-    };
-
-    if (reconfirmationStatus == 'confirmed' ||
-        reconfirmationStatus == 'cancelled') {
-      updates['reconfirmationResultRead'] = true;
-
-      updates['reconfirmationResultReadAt'] = FieldValue.serverTimestamp();
+    if (!_isManager || !_isNotificationUnread(document.data(), document.id)) {
+      return;
     }
-
+    setState(() => _notificationReadState.mark(document.id, document.data()));
     try {
-      await document.reference.set(updates, SetOptions(merge: true));
-    } catch (error) {
-      if (!mounted) {
-        return;
+      final saved = await markBookingNotificationRead(
+        _firestore,
+        document.reference,
+        document.data(),
+      );
+      if (!saved && mounted) {
+        setState(() => _notificationReadState.rollback(document.id));
       }
-
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _notificationReadState.rollback(document.id));
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Impossibile aggiornare la notifica: $error')),
+        const SnackBar(
+          content: Text(
+            'Lettura non salvata. Controlla la connessione e riprova.',
+          ),
+        ),
       );
     }
   }
 
-  bool _isNotificationUnread(Map<String, dynamic> booking) {
-    if (!_shouldShowNotification(booking)) {
-      return false;
-    }
-
-    if (_unreadReconfirmationResult(booking)) {
-      return true;
-    }
-
-    return booking['adminNotificationRead'] != true;
-  }
+  bool _isNotificationUnread(Map<String, dynamic> booking, String id) =>
+      _notificationReadState.unread(id, booking);
 
   Future<void> _markAllNotificationsRead(
     List<QueryDocumentSnapshot<Map<String, dynamic>>> documents,
   ) async {
-    final unreadDocuments = documents.where((document) {
-      return _isNotificationUnread(document.data());
-    }).toList();
-
-    if (unreadDocuments.isEmpty) {
-      if (!mounted) {
-        return;
+    if (!_isManager || _markingNotifications) return;
+    setState(() => _markingNotifications = true);
+    var count = 0;
+    var failures = 0;
+    for (final document in documents.where(
+      (d) => _isNotificationUnread(d.data(), d.id),
+    )) {
+      try {
+        if (await markBookingNotificationRead(
+          _firestore,
+          document.reference,
+          document.data(),
+        )) {
+          count++;
+          if (mounted) {
+            setState(
+              () => _notificationReadState.mark(document.id, document.data()),
+            );
+          }
+        }
+      } catch (_) {
+        failures++;
       }
+    }
+    if (!mounted) return;
+    setState(() => _markingNotifications = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$count notifiche segnate come lette. Le nuove risposte restano da leggere. '
+          'Letture non salvate: $failures.',
+        ),
+      ),
+    );
+  }
 
+  Future<void> _openNotification(BookingDocument document) async {
+    // Reading the card is independent of whether its service date is usable.
+    // Start it before navigation validation, just like the bulk read action.
+    final reading = _markNotificationRead(document);
+    final booking = document.data();
+    final dateKey = booking['dateKey'] as String? ?? '';
+    final service = booking['service'] as String? ?? '';
+    final status = booking['status'] as String? ?? '';
+    final parts = dateKey.split('-');
+
+    if (parts.length != 3) {
+      await reading;
+      return;
+    }
+
+    final year = int.tryParse(parts[0]);
+
+    final month = int.tryParse(parts[1]);
+
+    final day = int.tryParse(parts[2]);
+
+    if (year == null || month == null || day == null) {
+      await reading;
+      return;
+    }
+    final targetDate = DateTime(year, month, day);
+    if (targetDate.year != year ||
+        targetDate.month != month ||
+        targetDate.day != day) {
+      await reading;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Tutte le notifiche sono già lette.')),
+        const SnackBar(content: Text('Data della prenotazione non valida.')),
       );
       return;
     }
 
+    await reading;
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedDate = DateTime(year, month, day);
+      _selectedService = const ['lunch', 'dinner'].contains(service)
+          ? service
+          : 'all';
+
+      _bottomIndex = 0;
+      _selectedSection = _isPastStatus(status) ? 1 : 0;
+      _selectedFilter = 'all';
+    });
+  }
+
+  Future<void> _deleteNotification(BookingDocument document) async {
+    if (!_isManager) return;
     try {
-      const batchLimit = 400;
-
-      for (var start = 0; start < unreadDocuments.length; start += batchLimit) {
-        final end = start + batchLimit < unreadDocuments.length
-            ? start + batchLimit
-            : unreadDocuments.length;
-
-        final batch = _firestore.batch();
-
-        for (final document in unreadDocuments.sublist(start, end)) {
-          final booking = document.data();
-
-          final reconfirmationStatus =
-              booking['reconfirmationStatus'] as String? ?? '';
-
-          final updates = <String, dynamic>{
-            'adminNotificationRead': true,
-            'adminNotificationReadAt': FieldValue.serverTimestamp(),
-            'updatedAt': FieldValue.serverTimestamp(),
-          };
-
-          if (reconfirmationStatus == 'confirmed' ||
-              reconfirmationStatus == 'cancelled') {
-            updates['reconfirmationResultRead'] = true;
-            updates['reconfirmationResultReadAt'] =
-                FieldValue.serverTimestamp();
-          }
-
-          batch.set(document.reference, updates, SetOptions(merge: true));
-        }
-
-        await batch.commit();
-      }
-
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            '${unreadDocuments.length} notifiche segnate come lette.',
-          ),
-        ),
+      final removed = await markBookingNotificationRead(
+        _firestore,
+        document.reference,
+        document.data(),
+        dismiss: true,
       );
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'Impossibile segnare tutte le notifiche come lette: $error',
+      if (!removed && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'La notifica è cambiata. Controlla la nuova risposta prima di eliminarla.',
+            ),
           ),
-        ),
-      );
+        );
+      }
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notifica non eliminata. Riprova.')),
+        );
+      }
     }
   }
 
@@ -3616,35 +3836,93 @@ class _BookingsScreenState extends State<BookingsScreen> {
     }
 
     return ListView.builder(
+      key: const PageStorageKey('booking-notifications'),
+      controller: _notificationsScrollController,
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
       itemCount: notifications.length + 1,
       itemBuilder: (context, index) {
         if (index == 0) {
           final unreadCount = notifications.where((document) {
-            return _isNotificationUnread(document.data());
+            return _isNotificationUnread(document.data(), document.id);
           }).length;
 
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
-            child: Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton.icon(
-                onPressed: unreadCount == 0
-                    ? null
-                    : () {
-                        _markAllNotificationsRead(notifications);
-                      },
-                icon: const Icon(Icons.done_all, size: 18),
-                label: Text(
-                  unreadCount == 0
-                      ? 'Tutte lette'
-                      : 'Segna tutte come lette ($unreadCount)',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
+            child: Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (_isManager)
+                  TextButton.icon(
+                    onPressed: _deletingNotifications
+                        ? null
+                        : () => setState(() {
+                            _selectingNotifications = !_selectingNotifications;
+                            _selectedNotifications.clear();
+                          }),
+                    icon: Icon(
+                      _selectingNotifications ? Icons.close : Icons.checklist,
+                    ),
+                    label: Text(
+                      _selectingNotifications
+                          ? 'Annulla selezione'
+                          : 'Seleziona',
+                    ),
                   ),
-                ),
-              ),
+                if (_selectingNotifications)
+                  TextButton.icon(
+                    onPressed: _deletingNotifications
+                        ? null
+                        : () => setState(() {
+                            for (final document in notifications) {
+                              // Preserve the event snapshot already selected by the user.
+                              _selectedNotifications.putIfAbsent(
+                                document.id,
+                                () => document,
+                              );
+                            }
+                          }),
+                    icon: const Icon(Icons.select_all),
+                    label: const Text('Seleziona tutte'),
+                  ),
+                if (_selectingNotifications)
+                  FilledButton.icon(
+                    onPressed:
+                        _deletingNotifications || _selectedNotifications.isEmpty
+                        ? null
+                        : _deleteSelectedNotifications,
+                    icon: const Icon(Icons.delete_outline),
+                    label: Text(
+                      _deletingNotifications
+                          ? 'Eliminazione $_notificationDeletionsDone/$_notificationDeletionsTotal'
+                          : 'Elimina selezionate (${_selectedNotifications.length})',
+                    ),
+                  ),
+                if (!_selectingNotifications)
+                  OutlinedButton.icon(
+                    onPressed:
+                        !_isManager || _markingNotifications || unreadCount == 0
+                        ? null
+                        : () {
+                            _markAllNotificationsRead(notifications);
+                          },
+                    icon: const Icon(Icons.done_all, size: 18),
+                    label: Text(
+                      !_isManager
+                          ? 'Lettura gestita dai responsabili'
+                          : _markingNotifications
+                          ? 'Salvataggio...'
+                          : unreadCount == 0
+                          ? 'Tutte lette'
+                          : 'Segna tutte come lette ($unreadCount)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           );
         }
@@ -3674,8 +3952,19 @@ class _BookingsScreenState extends State<BookingsScreen> {
 
         final notificationColor = _notificationColor(booking);
 
-        return Card(
-          margin: const EdgeInsets.only(bottom: 8),
+        return NotificationSlideCard(
+          key: ValueKey(document.id),
+          unread: _isNotificationUnread(booking, document.id),
+          onTap: () {
+            if (_selectingNotifications) {
+              _toggleNotificationSelection(document);
+            } else {
+              _openNotification(document);
+            }
+          },
+          onDelete: _isManager && !_selectingNotifications
+              ? () => _deleteNotification(document)
+              : null,
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Column(
@@ -3683,6 +3972,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
               children: [
                 Row(
                   children: [
+                    if (_selectingNotifications)
+                      Checkbox(
+                        value: _selectedNotifications.containsKey(document.id),
+                        onChanged: _deletingNotifications
+                            ? null
+                            : (_) => _toggleNotificationSelection(document),
+                      ),
                     Icon(
                       _notificationIcon(booking),
                       color: notificationColor,
@@ -3698,6 +3994,12 @@ class _BookingsScreenState extends State<BookingsScreen> {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                    ),
+                    Text(
+                      _isNotificationUnread(booking, document.id)
+                          ? 'Da leggere'
+                          : 'Letta dal team',
+                      style: const TextStyle(fontSize: 11, color: Colors.grey),
                     ),
                   ],
                 ),
@@ -3788,50 +4090,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
                     ],
                   ),
                 ],
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () async {
-                      final parts = dateKey.split('-');
-
-                      if (parts.length != 3) {
-                        return;
-                      }
-
-                      final year = int.tryParse(parts[0]);
-
-                      final month = int.tryParse(parts[1]);
-
-                      final day = int.tryParse(parts[2]);
-
-                      if (year == null || month == null || day == null) {
-                        return;
-                      }
-
-                      await _markNotificationRead(document);
-
-                      if (!mounted) {
-                        return;
-                      }
-
-                      setState(() {
-                        _selectedDate = DateTime(year, month, day);
-                        _selectedService = initialServiceFilter(
-                          _selectedDate,
-                          DateTime.now(),
-                        );
-
-                        _bottomIndex = 0;
-                        _selectedSection = 0;
-                        _selectedFilter = 'all';
-                      });
-                    },
-                    child: const Text(
-                      'Apri nel servizio',
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -3982,7 +4240,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
             });
           },
         ),
-        if (_isManager)
+        if (_isAdmin)
           item(
             icon: Icons.people_outline,
             title: 'Clienti',
@@ -3991,7 +4249,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
               MaterialPageRoute<void>(builder: (_) => const CustomersScreen()),
             ),
           ),
-        if (_isManager)
+        if (_isAdmin)
           item(
             icon: Icons.bar_chart,
             title: 'Report mensile',
@@ -4155,284 +4413,124 @@ class _BookingsScreenState extends State<BookingsScreen> {
     );
   }
 
-  Widget _monthlyCalendar({
-    required Map<String, int> confirmedGuestsByDate,
-    required Set<String> pendingDates,
-  }) {
-    final firstDay = DateTime(_selectedDate.year, _selectedDate.month, 1);
-
-    final nextMonth = DateTime(_selectedDate.year, _selectedDate.month + 1, 1);
-
-    final daysInMonth = nextMonth.subtract(const Duration(days: 1)).day;
-
-    final leadingEmptyDays = firstDay.weekday - 1;
-
-    final cellCount = leadingEmptyDays + daysInMonth;
-
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
-      children: [
-        Row(
-          children: [
-            IconButton(
-              tooltip: 'Mese precedente',
-              onPressed: () {
-                setState(() {
-                  _selectedDate = DateTime(
-                    _selectedDate.year,
-                    _selectedDate.month - 1,
-                    1,
-                  );
-                  _selectedService = initialServiceFilter(
-                    _selectedDate,
-                    DateTime.now(),
-                  );
-                });
-              },
-              icon: const Icon(Icons.chevron_left, size: 24),
-            ),
-            Expanded(
-              child: Text(
-                '${_monthNames[_selectedDate.month - 1]} '
-                '${_selectedDate.year}',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            IconButton(
-              tooltip: 'Mese successivo',
-              onPressed: () {
-                setState(() {
-                  _selectedDate = DateTime(
-                    _selectedDate.year,
-                    _selectedDate.month + 1,
-                    1,
-                  );
-                  _selectedService = initialServiceFilter(
-                    _selectedDate,
-                    DateTime.now(),
-                  );
-                });
-              },
-              icon: const Icon(Icons.chevron_right, size: 24),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        const Row(
-          children: [
-            _CalendarWeekday('Lun'),
-            _CalendarWeekday('Mar'),
-            _CalendarWeekday('Mer'),
-            _CalendarWeekday('Gio'),
-            _CalendarWeekday('Ven'),
-            _CalendarWeekday('Sab'),
-            _CalendarWeekday('Dom'),
-          ],
-        ),
-        const SizedBox(height: 4),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 7,
-            mainAxisExtent: 64,
-            crossAxisSpacing: 4,
-            mainAxisSpacing: 4,
-          ),
-          itemCount: cellCount,
-          itemBuilder: (context, index) {
-            if (index < leadingEmptyDays) {
-              return const SizedBox.shrink();
-            }
-
-            final day = index - leadingEmptyDays + 1;
-
-            final date = DateTime(_selectedDate.year, _selectedDate.month, day);
-
-            final key = _dateKey(date);
-
-            final guests = confirmedGuestsByDate[key] ?? 0;
-
-            final hasPending = pendingDates.contains(key);
-
-            final selected = key == _dateKey(_selectedDate);
-
-            final isPast = _isDatePast(date);
-
-            return InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                setState(() {
-                  _selectedDate = date;
-                  _selectedService = initialServiceFilter(
-                    _selectedDate,
-                    DateTime.now(),
-                  );
-                  _bottomIndex = 0;
-                  _selectedSection = 0;
-                  _selectedFilter = 'all';
-                });
-              },
-              child: Opacity(
-                opacity: isPast ? 0.48 : 1,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: isPast
-                        ? const Color(0xFF303030)
-                        : selected
-                        ? const Color(0xFFC8A45D).withValues(alpha: 0.22)
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
-                      color: selected
-                          ? const Color(0xFFC8A45D)
-                          : const Color(0xFF3A342B),
-                    ),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 6,
-                        left: 0,
-                        right: 0,
-                        child: Text(
-                          '$day',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                      if (guests > 0)
-                        Positioned(
-                          right: 3,
-                          bottom: 3,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFC8A45D),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Text(
-                              '${guests}p',
-                              style: const TextStyle(
-                                color: Colors.black,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      if (hasPending)
-                        const Positioned(
-                          left: 5,
-                          bottom: 6,
-                          child: CircleAvatar(
-                            radius: 3,
-                            backgroundColor: Colors.orange,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-        const SizedBox(height: 14),
-        const Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _CalendarLegend(color: Color(0xFFC8A45D), label: 'Coperti'),
-            SizedBox(width: 18),
-            _CalendarLegend(color: Colors.orange, label: 'Da confermare'),
-          ],
-        ),
-      ],
+  Widget _monthlyCalendar(List<BookingDocument> bookings) {
+    return MonthlyBookingCalendar(
+      selectedDate: _selectedDate,
+      bookings: bookings.map((document) => document.data()),
+      onMonth: (date) => setState(() {
+        _selectedDate = date;
+        _selectedService = initialServiceFilter(date, DateTime.now());
+      }),
+      onDay: (date) => setState(() {
+        _selectedDate = date;
+        _selectedService = 'all';
+        _bottomIndex = 0;
+        _selectedSection = 0;
+        _selectedFilter = 'all';
+      }),
     );
   }
 
   Widget _bottomNavigation(int pendingCount) {
     return Container(
+      padding: const EdgeInsets.fromLTRB(6, 8, 6, 6),
       decoration: const BoxDecoration(
         color: Color(0xFF201D18),
-        border: Border(top: BorderSide(color: Color(0xFFC8A45D), width: 1)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        border: Border(top: BorderSide(color: Color(0xFF655337), width: 1)),
         boxShadow: [
           BoxShadow(
             color: Colors.black54,
-            blurRadius: 10,
-            offset: Offset(0, -2),
+            blurRadius: 22,
+            offset: Offset(0, -5),
           ),
         ],
       ),
-      child: NavigationBar(
-        height: 62,
-        backgroundColor: const Color(0xFF201D18),
-        indicatorColor: const Color(0xFFC8A45D),
-        selectedIndex: _bottomIndex,
-        labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-        onDestinationSelected: _selectDestination,
-        destinations: [
-          const NavigationDestination(
-            icon: Icon(Icons.menu_book_outlined, color: Color(0xFFE9E1D2)),
-            selectedIcon: Icon(Icons.menu_book, color: Colors.black),
-            label: 'Servizio',
+      child: NavigationBarTheme(
+        data: NavigationBarThemeData(
+          iconTheme: WidgetStateProperty.all(const IconThemeData(size: 28)),
+          labelTextStyle: WidgetStateProperty.resolveWith(
+            (states) => TextStyle(
+              fontSize: MediaQuery.sizeOf(context).width < 360 ? 11 : 12,
+              height: 1.35,
+              fontWeight: states.contains(WidgetState.selected)
+                  ? FontWeight.w700
+                  : FontWeight.w500,
+              color: states.contains(WidgetState.selected)
+                  ? const Color(0xFFF1D799)
+                  : const Color(0xFFCEC5B6),
+            ),
           ),
-          const NavigationDestination(
-            icon: Icon(Icons.calendar_month_outlined, color: Color(0xFFE9E1D2)),
-            selectedIcon: Icon(Icons.calendar_month, color: Colors.black),
-            label: 'Calendario',
+          indicatorShape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
           ),
-          if (_isManager)
+        ),
+        child: NavigationBar(
+          height: 84,
+          elevation: 0,
+          labelPadding: const EdgeInsets.only(top: 8),
+          backgroundColor: const Color(0xFF201D18),
+          indicatorColor: const Color(0xFFC8A45D),
+          selectedIndex: _bottomIndex,
+          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+          onDestinationSelected: _selectDestination,
+          destinations: [
+            const NavigationDestination(
+              icon: Icon(Icons.menu_book_outlined, color: Color(0xFFE9E1D2)),
+              selectedIcon: Icon(Icons.menu_book, color: Colors.black),
+              label: 'Servizio',
+            ),
             const NavigationDestination(
               icon: Icon(
-                Icons.add_circle_outline,
+                Icons.calendar_month_outlined,
                 color: Color(0xFFE9E1D2),
-                size: 28,
               ),
-              selectedIcon: Icon(
-                Icons.add_circle,
-                color: Colors.black,
-                size: 28,
+              selectedIcon: Icon(Icons.calendar_month, color: Colors.black),
+              label: 'Calendario',
+            ),
+            if (_isManager)
+              const NavigationDestination(
+                icon: Icon(
+                  Icons.add_circle_outline,
+                  color: Color(0xFFE9E1D2),
+                  size: 28,
+                ),
+                selectedIcon: Icon(
+                  Icons.add_circle,
+                  color: Colors.black,
+                  size: 28,
+                ),
+                label: 'Aggiungi',
+              )
+            else
+              const NavigationDestination(
+                icon: SizedBox.shrink(),
+                selectedIcon: SizedBox.shrink(),
+                label: '',
               ),
-              label: 'Aggiungi',
-            )
-          else
+            NavigationDestination(
+              icon: Badge(
+                isLabelVisible: pendingCount > 0,
+                label: Text('$pendingCount'),
+                child: const Icon(
+                  Icons.notifications_none,
+                  color: Color(0xFFE9E1D2),
+                ),
+              ),
+              selectedIcon: Badge(
+                isLabelVisible: pendingCount > 0,
+                label: Text('$pendingCount'),
+                child: const Icon(Icons.notifications, color: Colors.black),
+              ),
+              label: 'Notifiche',
+            ),
             const NavigationDestination(
-              icon: SizedBox.shrink(),
-              selectedIcon: SizedBox.shrink(),
-              label: '',
+              icon: Icon(Icons.more_horiz, color: Color(0xFFE9E1D2)),
+              selectedIcon: Icon(Icons.more_horiz, color: Colors.black),
+              label: 'Altro',
             ),
-          NavigationDestination(
-            icon: Badge(
-              isLabelVisible: pendingCount > 0,
-              label: Text('$pendingCount'),
-              child: const Icon(
-                Icons.notifications_none,
-                color: Color(0xFFE9E1D2),
-              ),
-            ),
-            selectedIcon: Badge(
-              isLabelVisible: pendingCount > 0,
-              label: Text('$pendingCount'),
-              child: const Icon(Icons.notifications, color: Colors.black),
-            ),
-            label: 'Notifiche',
-          ),
-          const NavigationDestination(
-            icon: Icon(Icons.more_horiz, color: Color(0xFFE9E1D2)),
-            selectedIcon: Icon(Icons.more_horiz, color: Colors.black),
-            label: 'Altro',
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -4698,14 +4796,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
       'Altro',
     ];
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _firestore.collection('bookings').snapshots(),
+    return StreamBuilder<List<BookingDocument>>(
+      key: ValueKey('${_selectedDate.year}-${_selectedDate.month}'),
+      stream: _injectedBookingsStream ?? _bookingFeed(),
       builder: (context, snapshot) {
-        final allBookings = snapshot.data?.docs ?? [];
+        final allBookings = snapshot.data ?? [];
 
         final allCapacityGuestsByDate = <String, int>{};
-
-        final confirmedGuestsByDate = <String, int>{};
 
         final pendingDates = <String>{};
 
@@ -4730,21 +4827,13 @@ class _BookingsScreenState extends State<BookingsScreen> {
             );
           }
 
-          if (_countsAsConfirmedCover(status)) {
-            confirmedGuestsByDate.update(
-              dateKey,
-              (current) => current + guests,
-              ifAbsent: () => guests,
-            );
-          }
-
           if (status == 'pending') {
             pendingDates.add(dateKey);
           }
         }
 
         final pendingCount = allBookings.where((document) {
-          return _isNotificationUnread(document.data());
+          return _isNotificationUnread(document.data(), document.id);
         }).length;
 
         Widget body;
@@ -4764,10 +4853,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
         } else if (snapshot.connectionState == ConnectionState.waiting) {
           body = const Center(child: CircularProgressIndicator());
         } else if (_bottomIndex == 1) {
-          body = _monthlyCalendar(
-            confirmedGuestsByDate: confirmedGuestsByDate,
-            pendingDates: pendingDates,
-          );
+          body = _monthlyCalendar(allBookings);
         } else if (_bottomIndex == 2) {
           body = _manualBookingForm();
         } else if (_bottomIndex == 3) {
@@ -4829,8 +4915,20 @@ class _BookingsScreenState extends State<BookingsScreen> {
                 dinnerGuests: dinnerGuests,
               ),
               _sectionSelector(
-                activeCount: activeForDate.length,
-                pastCount: pastForDate.length,
+                activeCount: activeForDate
+                    .where(
+                      (doc) =>
+                          _selectedService == 'all' ||
+                          doc.data()['service'] == _selectedService,
+                    )
+                    .length,
+                pastCount: pastForDate
+                    .where(
+                      (doc) =>
+                          _selectedService == 'all' ||
+                          doc.data()['service'] == _selectedService,
+                    )
+                    .length,
               ),
               _quickFilters(),
               Expanded(child: _bookingList(visibleBookings)),
@@ -4917,53 +5015,6 @@ class _BookingsScreenState extends State<BookingsScreen> {
           },
         );
       },
-    );
-  }
-}
-
-class _CalendarWeekday extends StatelessWidget {
-  const _CalendarWeekday(this.label);
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 5),
-        child: Text(
-          label,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.grey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CalendarLegend extends StatelessWidget {
-  const _CalendarLegend({required this.color, required this.label});
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 7,
-          height: 7,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 5),
-        Text(label, style: const TextStyle(fontSize: 11)),
-      ],
     );
   }
 }
