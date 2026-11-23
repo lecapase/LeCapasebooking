@@ -56,6 +56,10 @@ void main() {
       expect(find.text('Totale mese: 14 coperti'), findsOneWidget);
       await tester.ensureVisible(find.text('25'));
       await tester.tap(find.text('25'));
+      await tester.pumpAndSettle();
+      expect(opened, isNull);
+      await tester.ensureVisible(find.text('Apri prenotazioni'));
+      await tester.tap(find.text('Apri prenotazioni'));
       expect(opened, DateTime(2026, 11, 25));
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());

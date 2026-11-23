@@ -1,3 +1,4 @@
+import '../../core/app_version.dart';
 import 'widgets/monthly_booking_calendar.dart';
 import '../../services/restaurant_clock.dart';
 import 'widgets/notification_slide_card.dart';
@@ -4404,7 +4405,7 @@ class _BookingsScreenState extends State<BookingsScreen> {
           padding: EdgeInsets.only(top: 18, bottom: 12),
           child: Center(
             child: Text(
-              'Versione 2.1.0',
+              AppVersion.fullLabel,
               style: TextStyle(fontSize: 12, color: Colors.white54),
             ),
           ),
